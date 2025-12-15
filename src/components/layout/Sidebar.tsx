@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Stack, Box, Tooltip, ActionIcon, Group, Text, ScrollArea, Button, Badge, Collapse 
+  Stack, Box, Tooltip, ActionIcon, Group, Text, ScrollArea, Button, Collapse
 } from '@mantine/core';
 import { 
   Files, Search, Database, Wand2, Settings, MoreVertical, 
@@ -165,14 +165,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   projectData,
   onOpenFolder,
   onOpenFileNode,
-  loadingFiles,
   dbConnected,
   dbTables,
   onConnectDB,
   onOpenTable
 }) => {
 
-  const getFileIcon = (name: string) => {
+  const getFileIcon = (_name: string) => {
     // Helper to get icon (moved inside or passed as prop, here simplified logic duplicated from App for self-containment or passed down)
     // For simplicity, we define basic ones here or expect Lucide imports
     return <FileCode size={14} color="#4dabf7" />; 

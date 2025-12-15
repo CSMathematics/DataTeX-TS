@@ -34,7 +34,6 @@ import { dataTexDarkTheme } from "./themes/monaco-theme";
 import {
   Database,
   Search,
-  Settings,
   Play,
   FileCode,
   Table2,

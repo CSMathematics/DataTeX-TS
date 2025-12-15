@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { 
   Grid, Select, TextInput, Button, Tabs, Stack, Text, Code, 
-  Group, ScrollArea, ColorInput, NumberInput, Divider
+  Group, ScrollArea, Divider
 } from '@mantine/core';
-import { PenTool, Check, Activity, Square, Circle, Type } from 'lucide-react';
+import { Check, Activity, Square } from 'lucide-react';
 
 interface TikzWizardProps {
   onInsert: (code: string) => void;

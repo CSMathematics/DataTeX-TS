@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { 
   Grid, Button, TextInput, Switch, ActionIcon, 
-  Group, Stack, Text, ScrollArea, Divider, Code, Box, Tooltip 
+  Group, Stack, Text, ScrollArea, Divider, Code, Tooltip
 } from '@mantine/core';
 import { 
   Plus, Trash, AlignLeft, AlignCenter, AlignRight, 
-  Table as TableIcon, Check, RefreshCw
+  Table as TableIcon, Check
 } from 'lucide-react';
 
 interface TableWizardProps {

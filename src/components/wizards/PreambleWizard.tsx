@@ -7,7 +7,7 @@ import {
 } from '@mantine/core';
 import { 
   Check, Trash, Plus, FileText, Layout, Package, Palette, 
-  Code as CodeIcon, Eye, RefreshCw, Info, List as ListIcon
+  Code as CodeIcon, Eye, RefreshCw, List as ListIcon
 } from 'lucide-react';
 
 interface PreambleWizardProps {
