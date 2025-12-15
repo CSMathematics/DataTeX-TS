@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   AppShell,
   Group,
@@ -17,7 +17,7 @@ import {
 
 // --- [ΑΛΛΑΓΗ 1: Προσθήκη του πραγματικού Editor] ---
 // Βεβαιώσου ότι έκανες: npm install @monaco-editor/react
-import Editor, { useMonaco } from "@monaco-editor/react";
+import Editor from "@monaco-editor/react";
 
 import { latexLanguage, latexConfiguration } from "./languages/latex";
 import { dataTexDarkTheme } from "./themes/monaco-theme";
@@ -34,7 +34,6 @@ import {
   Columns,
   X,
   ChevronDown,
-  LayoutTemplate,
   TerminalSquare,
   Maximize2,
   MoreVertical,
@@ -255,26 +254,6 @@ const SidebarContent = ({
 
 // 3. Main Editor Area
 const EditorArea = () => {
-  // --- [ΑΛΛΑΓΗ 2: Ρυθμίσεις Monaco Editor] ---
-  // Εδώ ορίζουμε το Minimap και το γενικό look
-  const editorOptions = {
-    minimap: {
-      enabled: true, // Ενεργοποίηση της δεξιάς στήλης (minimap)
-      scale: 0.75, // Μέγεθος minimap
-      renderCharacters: false,
-    },
-    fontSize: 14,
-    fontFamily: 'Consolas, "Courier New", monospace',
-    scrollBeyondLastLine: false,
-    automaticLayout: true,
-    wordWrap: "on" as const,
-    theme: "vs-dark", // Χρησιμοποιούμε το built-in dark theme
-    padding: { top: 16 },
-  };
-
-  const handleEditorChange = (value: string | undefined) => {
-    console.log("Code changed:", value);
-  };
 
   return (
     <Stack gap={0} h="100%" w="100%">
@@ -366,7 +345,7 @@ const EditorArea = () => {
         <Box style={{ flex: 1, position: "relative" }}>
           <Editor
             height="100%"
-            defaultLanguage="latex" // ΠΡΟΣΟΧΗ: Πρέπει να είναι ίδιο με το id στο register
+            defaultLanguage="my-latex" // ΠΡΟΣΟΧΗ: Πρέπει να είναι ίδιο με το id στο register
             defaultValue={INITIAL_CODE}
             onMount={handleEditorDidMount} // Αυτό είναι το κλειδί για να τρέξουν τα παραπάνω
             options={{
@@ -483,7 +462,7 @@ const StatusBar = () => (
   </Group>
 );
 
-const handleEditorDidMount = (editor: any, monaco: any) => {
+const handleEditorDidMount = (_editor: any, monaco: any) => {
   // 1. Καταχώρηση της γλώσσας LaTeX
   monaco.languages.register({ id: "my-latex" });
   monaco.languages.setMonarchTokensProvider("my-latex", latexLanguage);
