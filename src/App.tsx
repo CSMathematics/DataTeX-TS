@@ -24,6 +24,7 @@ import { PreambleWizard } from "./components/wizards/PreambleWizard";
 import { TableWizard } from "./components/wizards/TableWizard";
 import { TikzWizard } from "./components/wizards/TikzWizard";
 import { TableDataView } from "./components/database/TableDataView";
+import { PdfPreview } from "./components/layout/PdfPreview";
 import { Sidebar, SidebarSection, ViewType, AppTab, FileSystemNode } from "./components/layout/Sidebar";
 import { StatusBar } from "./components/layout/StatusBar"; // Νέο Import
 
@@ -139,6 +140,43 @@ const EditorArea = ({
 }) => {
   
   const activeFile = files.find(f => f.id === activeFileId);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkPdf = async () => {
+      if (activeFile && activeFile.id && activeFile.type === 'editor') {
+         // Skip for new/unsaved files which often have ids like 'start' or 'doc-timestamp'
+         // unless we are sure they map to a file path.
+         // Assuming paths start with / or drive letter for real files.
+         const isRealFile = activeFile.id.includes('/') || activeFile.id.includes('\\');
+
+         if (isRealFile) {
+            try {
+              const { exists } = await import('@tauri-apps/plugin-fs');
+              const { convertFileSrc } = await import('@tauri-apps/api/core');
+
+              const pdfPath = activeFile.id.replace(/\.tex$/i, '.pdf');
+              const doesExist = await exists(pdfPath);
+
+              if (doesExist) {
+                setPdfUrl(convertFileSrc(pdfPath));
+              } else {
+                setPdfUrl(null);
+              }
+            } catch (e) {
+              console.warn("PDF check failed", e);
+              setPdfUrl(null);
+            }
+         } else {
+            setPdfUrl(null);
+         }
+      } else {
+        setPdfUrl(null);
+      }
+    };
+
+    checkPdf();
+  }, [activeFile?.id, activeFile?.type]);
 
   const getFileIcon = (name: string) => {
     const ext = name.split('.').pop()?.toLowerCase();
@@ -259,11 +297,8 @@ const EditorArea = ({
               <Text size="xs" fw={700} c="dimmed">PDF PREVIEW</Text>
               <ActionIcon size="xs" variant="transparent"><Maximize2 size={12} /></ActionIcon>
             </Group>
-            <Box style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }} bg="gray.7">
-              <Box w="80%" h="90%" bg="white" p="xl" style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.3)", color: "black", overflowY: "auto" }}>
-                <Text size="xl" fw={700} mb="md">1 Εισαγωγή</Text>
-                <Text size="sm">Preview for: {activeFile?.title || 'Empty'}</Text>
-              </Box>
+            <Box style={{ flex: 1, position: 'relative' }} bg="gray.7">
+               <PdfPreview pdfUrl={pdfUrl} />
             </Box>
           </Box>
         )}

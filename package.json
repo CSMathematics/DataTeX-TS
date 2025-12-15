@@ -10,6 +10,7 @@
     "tauri": "WEBKIT_DISABLE_DMABUF_RENDERER=1 tauri"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.1.0",
     "@mantine/core": "^8.3.10",
     "@mantine/hooks": "^8.3.10",
     "@mantine/notifications": "^8.3.10",
@@ -20,12 +21,14 @@
     "@tauri-apps/plugin-fs": "^2.4.4",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-sql": "~2.3.1",
+    "antd": "^6.1.1",
     "lucide-react": "^0.561.0",
     "postcss": "^8.5.6",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "react-pdf": "^10.2.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
