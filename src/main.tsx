@@ -1,16 +1,15 @@
-// 1. Εισάγουμε τα βασικά styles του Mantine ΠΡΙΝ από οτιδήποτε άλλο
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App.tsx'
+
+// 1. IMPORT ΤΩΝ ΒΑΣΙΚΩΝ STYLES ΤΟΥ MANTINE (ΑΠΑΡΑΙΤΗΤΟ ΓΙΑ V7)
 import '@mantine/core/styles.css';
 
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { MantineProvider } from '@mantine/core'; // 2. Import τον Provider
-import App from './App'
+// 2. IMPORT ΤΟΥ APP.CSS (Πρέπει να είναι μετά το Mantine για να κάνει override)
+import './App.css'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    {/* 3. Τυλίγουμε το App με τον MantineProvider */}
-    <MantineProvider>
-      <App />
-    </MantineProvider>
-  </StrictMode>
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
 )
