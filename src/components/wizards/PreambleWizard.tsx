@@ -189,6 +189,20 @@ export const PreambleWizard: React.FC<PreambleWizardProps> = ({ onInsert }) => {
     pkgFancyhdr: false,
     pkgXcolor: true,
 
+    // New Packages
+    pkgSiunitx: false,
+    pkgMicrotype: false,
+    pkgCsquotes: false,
+    pkgMultirow: false,
+    pkgTabularx: false,
+    pkgMulticol: false,
+    pkgTitlesec: false,
+    pkgCaption: false,
+    pkgSubcaption: false,
+    pkgListings: false,
+    pkgCleveref: false,
+    pkgTodonotes: false,
+
     // Lists (Enumitem)
     pkgEnumitem: false,
     enumitemSep: 'default', // default, nosep, half
@@ -323,11 +337,27 @@ export const PreambleWizard: React.FC<PreambleWizardProps> = ({ onInsert }) => {
     }
 
     if (v.pkgBooktabs) code += `\\usepackage{booktabs}\n`;
+    if (v.pkgMultirow) code += `\\usepackage{multirow}\n`;
+    if (v.pkgTabularx) code += `\\usepackage{tabularx}\n`;
+
     if (v.pkgFloat) code += `\\usepackage{float}\n`;
+    if (v.pkgCaption) code += `\\usepackage{caption}\n`;
+    if (v.pkgSubcaption) code += `\\usepackage{subcaption}\n`;
+
     if (v.pkgTikz) code += `\\usepackage{tikz}\n`;
     if (v.pkgPgfplots) code += `\\usepackage{pgfplots}\n\\pgfplotsset{compat=1.18}\n`;
+
     if (v.pkgFancyhdr) code += `\\usepackage{fancyhdr}\n\\pagestyle{fancy}\n`;
+    if (v.pkgMulticol) code += `\\usepackage{multicol}\n`;
+    if (v.pkgTitlesec) code += `\\usepackage{titlesec}\n`;
+    if (v.pkgMicrotype) code += `\\usepackage{microtype}\n`;
+    if (v.pkgCsquotes) code += `\\usepackage{csquotes}\n`;
+    if (v.pkgSiunitx) code += `\\usepackage{siunitx}\n`;
+    if (v.pkgListings) code += `\\usepackage{listings}\n`;
+
     if (v.pkgHyperref) code += `\\usepackage{hyperref}\n\\hypersetup{colorlinks=true, linkcolor=blue}\n`;
+    if (v.pkgTodonotes) code += `\\usepackage{todonotes}\n`;
+    if (v.pkgCleveref) code += `\\usepackage{cleveref}\n`;
 
     code += `\n% --- Metadata ---\n`;
     code += `\\title{${v.title || 'Untitled'}}\n`;
@@ -489,21 +519,43 @@ export const PreambleWizard: React.FC<PreambleWizardProps> = ({ onInsert }) => {
               <Tabs.Panel value="packages" pt="md">
                 <SimpleGrid cols={2} spacing="lg">
                     <Stack gap="xs">
-                        <Text fw={700} size="sm">Mathematics</Text>
+                        <Text fw={700} size="sm">Mathematics & Science</Text>
                         <Checkbox label="AMS Suite" checked={config.pkgAmsmath} onChange={(e) => handleChange('pkgAmsmath', e.currentTarget.checked)} />
+                        <Checkbox label="Siunitx" checked={config.pkgSiunitx} onChange={(e) => handleChange('pkgSiunitx', e.currentTarget.checked)} />
                     </Stack>
+
                     <Stack gap="xs">
-                        <Text fw={700} size="sm">Graphics</Text>
+                        <Text fw={700} size="sm">Graphics & Figures</Text>
                         <Checkbox label="Graphicx" checked={config.pkgGraphicx} onChange={(e) => handleChange('pkgGraphicx', e.currentTarget.checked)} />
                         <Checkbox label="TikZ" checked={config.pkgTikz} onChange={(e) => handleChange('pkgTikz', e.currentTarget.checked)} />
                         <Checkbox label="Pgfplots" checked={config.pkgPgfplots} onChange={(e) => handleChange('pkgPgfplots', e.currentTarget.checked)} />
-                    </Stack>
-                    <Stack gap="xs">
-                        <Text fw={700} size="sm">Formatting</Text>
-                        <Checkbox label="Booktabs (Tables)" checked={config.pkgBooktabs} onChange={(e) => handleChange('pkgBooktabs', e.currentTarget.checked)} />
                         <Checkbox label="Float" checked={config.pkgFloat} onChange={(e) => handleChange('pkgFloat', e.currentTarget.checked)} />
+                        <Checkbox label="Caption" checked={config.pkgCaption} onChange={(e) => handleChange('pkgCaption', e.currentTarget.checked)} />
+                        <Checkbox label="Subcaption" checked={config.pkgSubcaption} onChange={(e) => handleChange('pkgSubcaption', e.currentTarget.checked)} />
+                    </Stack>
+
+                    <Stack gap="xs">
+                        <Text fw={700} size="sm">Tables</Text>
+                        <Checkbox label="Booktabs" checked={config.pkgBooktabs} onChange={(e) => handleChange('pkgBooktabs', e.currentTarget.checked)} />
+                        <Checkbox label="Multirow" checked={config.pkgMultirow} onChange={(e) => handleChange('pkgMultirow', e.currentTarget.checked)} />
+                        <Checkbox label="Tabularx" checked={config.pkgTabularx} onChange={(e) => handleChange('pkgTabularx', e.currentTarget.checked)} />
+                    </Stack>
+
+                    <Stack gap="xs">
+                        <Text fw={700} size="sm">Layout & Formatting</Text>
                         <Checkbox label="Fancyhdr" checked={config.pkgFancyhdr} onChange={(e) => handleChange('pkgFancyhdr', e.currentTarget.checked)} />
+                        <Checkbox label="Multicol" checked={config.pkgMulticol} onChange={(e) => handleChange('pkgMulticol', e.currentTarget.checked)} />
+                        <Checkbox label="Titlesec" checked={config.pkgTitlesec} onChange={(e) => handleChange('pkgTitlesec', e.currentTarget.checked)} />
+                        <Checkbox label="Microtype" checked={config.pkgMicrotype} onChange={(e) => handleChange('pkgMicrotype', e.currentTarget.checked)} />
+                        <Checkbox label="Csquotes" checked={config.pkgCsquotes} onChange={(e) => handleChange('pkgCsquotes', e.currentTarget.checked)} />
+                    </Stack>
+
+                    <Stack gap="xs">
+                        <Text fw={700} size="sm">References & Code</Text>
                         <Checkbox label="Hyperref" checked={config.pkgHyperref} onChange={(e) => handleChange('pkgHyperref', e.currentTarget.checked)} />
+                        <Checkbox label="Cleveref" checked={config.pkgCleveref} onChange={(e) => handleChange('pkgCleveref', e.currentTarget.checked)} />
+                        <Checkbox label="Listings" checked={config.pkgListings} onChange={(e) => handleChange('pkgListings', e.currentTarget.checked)} />
+                        <Checkbox label="Todonotes" checked={config.pkgTodonotes} onChange={(e) => handleChange('pkgTodonotes', e.currentTarget.checked)} />
                     </Stack>
                 </SimpleGrid>
               </Tabs.Panel>
