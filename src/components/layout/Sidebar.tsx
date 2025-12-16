@@ -153,7 +153,7 @@ const FileTreeItem = ({
   );
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({
+export const Sidebar: React.FC<SidebarProps> = React.memo(({
   width,
   onResizeStart,
   activeSection,
@@ -279,4 +279,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <ResizerHandle onMouseDown={onResizeStart} />
     </>
   );
-};
+});

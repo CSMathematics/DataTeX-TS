@@ -8,7 +8,7 @@ interface StatusBarProps {
   dbConnected?: boolean;
 }
 
-export const StatusBar: React.FC<StatusBarProps> = ({ activeFile, dbConnected = true }) => {
+export const StatusBar: React.FC<StatusBarProps> = React.memo(({ activeFile, dbConnected = true }) => {
   return (
     <Group 
       h={24} 
@@ -39,4 +39,4 @@ export const StatusBar: React.FC<StatusBarProps> = ({ activeFile, dbConnected = 
       </Group>
     </Group>
   );
-};
+});

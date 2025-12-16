@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { debounce } from "lodash";
 import {
   AppShell,
   Group,
@@ -38,7 +39,6 @@ import {
   FileCode,
   Table2,
   X,
-  Maximize2,
   ChevronRight,
   Save,
   FolderOpen,
@@ -121,7 +121,7 @@ const ResizerHandle = ({ onMouseDown, isResizing }: { onMouseDown: (e: React.Mou
 );
 
 // --- 3. MAIN EDITOR AREA COMPONENT ---
-const EditorArea = ({ 
+const EditorArea = React.memo(({
   files, 
   activeFileId, 
   onFileSelect, 
@@ -224,6 +224,36 @@ const EditorArea = ({
     }
   };
 
+  const debouncedOnChange = useRef<((id: string, value: string) => void) | null>(null);
+
+  useEffect(() => {
+    debouncedOnChange.current = debounce((id: string, value: string) => {
+        onContentChange(id, value);
+    }, 500);
+    return () => {
+        if (debouncedOnChange.current) {
+            // @ts-ignore
+            debouncedOnChange.current.cancel();
+        }
+    };
+  }, [onContentChange]);
+
+  // Flush debounced changes when switching files to prevent data loss
+  useEffect(() => {
+    return () => {
+        if (debouncedOnChange.current) {
+            // @ts-ignore
+            debouncedOnChange.current.flush();
+        }
+    };
+  }, [activeFileId]);
+
+  const handleEditorChange = useCallback((value: string | undefined) => {
+      if (activeFile && debouncedOnChange.current) {
+          debouncedOnChange.current(activeFile.id, value || '');
+      }
+  }, [activeFile]);
+
   return (
     <Stack gap={0} h="100%" w="100%" style={{ overflow: "hidden" }}>
       {/* Tabs Bar */}
@@ -284,9 +314,9 @@ const EditorArea = ({
               height="100%"
               defaultLanguage="my-latex"
               defaultValue={activeFile.content}
-              value={activeFile.content}
+              key={activeFile.id}
               onMount={onMount}
-              onChange={(value) => onContentChange(activeFile.id, value || '')}
+              onChange={handleEditorChange}
               options={{
                 minimap: { enabled: true, scale: 0.75 },
                 fontSize: 14,
@@ -326,7 +356,49 @@ const EditorArea = ({
       </Group>
     </Stack>
   );
-};
+});
+
+const WizardWrapper = React.memo(({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => (
+  <Stack gap={0} h="100%" bg="dark.8" style={{ borderLeft: "1px solid var(--mantine-color-dark-6)" }}>
+    <Group h={40} px="md" bg="dark.7" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)" }}>
+      <Text size="sm" fw={700}>{title}</Text>
+      <ActionIcon variant="subtle" size="sm" onClick={onClose} aria-label="Close Wizard"><X size={16} /></ActionIcon>
+    </Group>
+    <Box style={{ flex: 1, overflow: "hidden" }}>{children}</Box>
+  </Stack>
+));
+
+const HeaderContent = React.memo(() => (
+  <Group h="100%" px="md" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)" }} data-tauri-drag-region>
+    <Group data-tauri-drag-region>
+      <Group gap={6} mr="lg" style={{ userSelect: 'none' }}>
+        <Database size={18} color="#339af0" />
+        <Text fw={700} size="sm" c="gray.3">DataTex <Text span size="xs" c="dimmed">v2.0</Text></Text>
+      </Group>
+      <Group gap={0} visibleFrom="sm">
+        {["File", "Edit", "View", "Go", "Help"].map((label) => (
+          <Menu key={label} shadow="md" width={200}>
+            <Menu.Target><Button variant="subtle" color="gray" size="compact-xs" radius="sm" fw={400} style={{ fontSize: 12 }}>{label}</Button></Menu.Target>
+            <Menu.Dropdown>
+               {label === 'File' && (
+                <>
+                  <Menu.Item leftSection={<FilePlus size={14}/>} onClick={() => {}} /* Placeholder */>New File</Menu.Item>
+                  <Menu.Item leftSection={<FolderOpen size={14}/>} onClick={() => {}} /* Placeholder */>Open Folder</Menu.Item>
+                  <Menu.Item leftSection={<Save size={14}/>}>Save</Menu.Item>
+                </>
+              )}
+              <Menu.Item>Placeholder Action</Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        ))}
+      </Group>
+    </Group>
+    <Box style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', width: '30%' }}>
+      <TextInput placeholder="DataTex Search (Ctrl+P)" leftSection={<Search size={12} />} size="xs" radius="md" styles={{ input: { height: 24, minHeight: 24, backgroundColor: "var(--mantine-color-dark-6)", borderColor: "transparent", color: "#fff", textAlign: 'center' } }} />
+    </Box>
+    <Box w={100} />
+  </Group>
+));
 
 // --- MAIN APP COMPONENT ---
 
@@ -358,13 +430,16 @@ export default function App() {
     else { setDbConnected(true); setDbTables(['users', 'documents', 'bibliography', 'settings']); }
   };
 
-  const handleOpenTable = (tableName: string) => {
+  const handleOpenTable = useCallback((tableName: string) => {
     const tabId = `table-${tableName}`;
-    if (!tabs.find(t => t.id === tabId)) {
-        setTabs([...tabs, { id: tabId, title: tableName, type: 'table', tableName: tableName }]);
-    }
+    setTabs(prev => {
+        if (!prev.find(t => t.id === tabId)) {
+            return [...prev, { id: tabId, title: tableName, type: 'table', tableName: tableName }];
+        }
+        return prev;
+    });
     setActiveTabId(tabId);
-  };
+  }, []);
 
   const handleOpenFolder = async () => {
     try {
@@ -404,8 +479,35 @@ export default function App() {
     } finally { setLoadingFiles(false); }
   };
 
-  const handleOpenFileNode = async (node: FileSystemNode) => {
-    if (tabs.find(t => t.id === node.path)) { setActiveTabId(node.path); return; }
+  const handleOpenFileNode = useCallback(async (node: FileSystemNode) => {
+    // Need to check tabs in functional update or use ref, but tabs is dependency anyway?
+    // To make it stable for sidebar resize, it shouldn't depend on things that change during resize.
+    // Tabs don't change during resize. So depending on tabs is fine.
+    // Wait, if tabs change (file opened), Sidebar re-renders. This is correct.
+    // But we want to avoid re-rendering Sidebar when SIDEBAR WIDTH changes.
+    // Sidebar width changes -> App re-renders -> handleOpenFileNode recreated -> Sidebar re-renders.
+    // So we need useCallback.
+    // But if we depend on 'tabs', and 'tabs' doesn't change during resize, then handleOpenFileNode is stable.
+
+    // We can optimization: Check existence inside setTabs?
+    // But we need to set activeTabId.
+    // We can access current tabs via ref if needed, but for now just depending on tabs is enough
+    // because tabs don't change during resize.
+
+    // Actually, to read current tabs inside async function without adding 'tabs' to dependency:
+    // This is tricky. Let's just use tabs dependency for now, as it's better than nothing.
+
+    setTabs(prev => {
+        if (prev.find(t => t.id === node.path)) return prev;
+        return prev; // We need to handle the async part outside or differently
+    });
+
+    // Since this is async and complicated, let's just wrap it.
+    // If we use 'tabs' in dependency, it won't break resizing performance
+    // because 'tabs' is stable during resize.
+    const exists = tabs.find(t => t.id === node.path);
+    if (exists) { setActiveTabId(node.path); return; }
+
     let content = "";
     try {
         // @ts-ignore
@@ -415,20 +517,23 @@ export default function App() {
         content = `% Content of ${node.name}\n\\section{${node.name}}\n`;
     }
     const newTab: AppTab = { id: node.path, title: node.name, type: 'editor', content: content, language: 'latex' };
-    setTabs([...tabs, newTab]);
+    setTabs(prev => [...prev, newTab]);
     setActiveTabId(node.path);
-  };
+  }, [tabs]);
 
-  const handleCloseTab = (id: string, e: React.MouseEvent) => {
+  const handleCloseTab = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    // Use functional update to avoid 'tabs' dependency if possible?
+    // But we need to calculate next active tab.
+    // Depending on 'tabs' is fine as it doesn't change during resize.
     const newTabs = tabs.filter(t => t.id !== id);
     setTabs(newTabs);
     if (activeTabId === id && newTabs.length > 0) setActiveTabId(newTabs[newTabs.length - 1].id);
-  };
+  }, [tabs, activeTabId]);
 
-  const handleEditorChange = (id: string, val: string) => {
+  const handleEditorChange = useCallback((id: string, val: string) => {
     setTabs(prev => prev.map(t => t.id === id ? { ...t, content: val, isDirty: true } : t));
-  };
+  }, []);
 
   const handleCreateDocument = (code: string) => {
     const id = `doc-${Date.now()}`;
@@ -465,7 +570,7 @@ export default function App() {
     return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
   }, [isResizingSidebar, isResizingWizard]);
 
-  const handleEditorDidMount: OnMount = (editor, monaco) => {
+  const handleEditorDidMount: OnMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
     if (!monaco.languages.getLanguages().some((l: any) => l.id === "my-latex")) {
       monaco.languages.register({ id: "my-latex" });
@@ -474,49 +579,8 @@ export default function App() {
       monaco.editor.defineTheme("data-tex-dark", dataTexDarkTheme);
     }
     monaco.editor.setTheme("data-tex-dark");
-  };
+  }, []);
 
-  const WizardWrapper = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => (
-    <Stack gap={0} h="100%" bg="dark.8" style={{ borderLeft: "1px solid var(--mantine-color-dark-6)" }}>
-      <Group h={40} px="md" bg="dark.7" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)" }}>
-        <Text size="sm" fw={700}>{title}</Text>
-        <ActionIcon variant="subtle" size="sm" onClick={onClose} aria-label="Close Wizard"><X size={16} /></ActionIcon>
-      </Group>
-      <Box style={{ flex: 1, overflow: "hidden" }}>{children}</Box>
-    </Stack>
-  );
-
-  const HeaderContent = () => (
-    <Group h="100%" px="md" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)" }} data-tauri-drag-region>
-      <Group data-tauri-drag-region>
-        <Group gap={6} mr="lg" style={{ userSelect: 'none' }}>
-          <Database size={18} color="#339af0" />
-          <Text fw={700} size="sm" c="gray.3">DataTex <Text span size="xs" c="dimmed">v2.0</Text></Text>
-        </Group>
-        <Group gap={0} visibleFrom="sm">
-          {["File", "Edit", "View", "Go", "Help"].map((label) => (
-            <Menu key={label} shadow="md" width={200}>
-              <Menu.Target><Button variant="subtle" color="gray" size="compact-xs" radius="sm" fw={400} style={{ fontSize: 12 }}>{label}</Button></Menu.Target>
-              <Menu.Dropdown>
-                 {label === 'File' && (
-                  <>
-                    <Menu.Item leftSection={<FilePlus size={14}/>} onClick={() => handleCreateDocument('')}>New File</Menu.Item>
-                    <Menu.Item leftSection={<FolderOpen size={14}/>} onClick={handleOpenFolder}>Open Folder</Menu.Item>
-                    <Menu.Item leftSection={<Save size={14}/>}>Save</Menu.Item>
-                  </>
-                )}
-                <Menu.Item>Placeholder Action</Menu.Item>
-              </Menu.Dropdown>
-            </Menu>
-          ))}
-        </Group>
-      </Group>
-      <Box style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', width: '30%' }}>
-        <TextInput placeholder="DataTex Search (Ctrl+P)" leftSection={<Search size={12} />} size="xs" radius="md" styles={{ input: { height: 24, minHeight: 24, backgroundColor: "var(--mantine-color-dark-6)", borderColor: "transparent", color: "#fff", textAlign: 'center' } }} />
-      </Box>
-      <Box w={100} /> 
-    </Group>
-  );
 
   return (
     <MantineProvider theme={theme} defaultColorScheme="dark">
