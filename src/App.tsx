@@ -26,7 +26,7 @@ import { TikzWizard } from "./components/wizards/TikzWizard";
 import { TableDataView } from "./components/database/TableDataView";
 import { PdfPreview } from "./components/layout/PdfPreview";
 import { Sidebar, SidebarSection, ViewType, AppTab, FileSystemNode } from "./components/layout/Sidebar";
-import { StatusBar } from "./components/layout/StatusBar"; // Νέο Import
+import { StatusBar } from "./components/layout/StatusBar";
 
 import { latexLanguage, latexConfiguration } from "./languages/latex";
 import { dataTexDarkTheme } from "./themes/monaco-theme";
@@ -48,7 +48,8 @@ import {
   BookOpen, 
   Image as ImageIcon, 
   FileCog, 
-  File 
+  File,
+  PanelRight
 } from "lucide-react";
 
 // --- Theme Configuration ---
@@ -64,9 +65,7 @@ const theme = createTheme({
   },
   components: {
     Switch: {
-      defaultProps: {
-        thumbIcon: null 
-      },
+      defaultProps: { thumbIcon: null },
       styles: {
         root: { display: 'flex', alignItems: 'center' },
         track: {
@@ -140,30 +139,40 @@ const EditorArea = ({
   
   const activeFile = files.find(f => f.id === activeFileId);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  
+  // Έλεγχος αν το αρχείο είναι .tex
+  const isTexFile = activeFile?.title.toLowerCase().endsWith('.tex');
+  
+  // --- PDF Preview State ---
+  const [showPdf, setShowPdf] = useState(true);
+  const [pdfWidth, setPdfWidth] = useState(600);
+  const [isResizingPdf, setIsResizingPdf] = useState(false);
+  const pdfResizeRef = useRef<number | null>(null);
 
   useEffect(() => {
+    let activeBlobUrl: string | null = null;
     const checkPdf = async () => {
-      if (activeFile && activeFile.id && activeFile.type === 'editor') {
-         // Skip for new/unsaved files which often have ids like 'start' or 'doc-timestamp'
-         // unless we are sure they map to a file path.
-         // Assuming paths start with / or drive letter for real files.
+      if (activeFile && activeFile.type === 'editor' && activeFile.id) {
          const isRealFile = activeFile.id.includes('/') || activeFile.id.includes('\\');
+         const isTex = activeFile.title.toLowerCase().endsWith('.tex');
 
-         if (isRealFile) {
+         if (isRealFile && isTex) {
             try {
-              const { exists } = await import('@tauri-apps/plugin-fs');
-              const { convertFileSrc } = await import('@tauri-apps/api/core');
-
+              // @ts-ignore
+              const { exists, readFile } = await import('@tauri-apps/plugin-fs');
               const pdfPath = activeFile.id.replace(/\.tex$/i, '.pdf');
               const doesExist = await exists(pdfPath);
 
               if (doesExist) {
-                setPdfUrl(convertFileSrc(pdfPath));
+                const fileContents = await readFile(pdfPath);
+                const blob = new Blob([fileContents], { type: 'application/pdf' });
+                activeBlobUrl = URL.createObjectURL(blob);
+                setPdfUrl(activeBlobUrl);
               } else {
                 setPdfUrl(null);
               }
             } catch (e) {
-              console.warn("PDF check failed", e);
+              console.warn("PDF check failed or running in browser", e);
               setPdfUrl(null);
             }
          } else {
@@ -173,9 +182,35 @@ const EditorArea = ({
         setPdfUrl(null);
       }
     };
-
     checkPdf();
-  }, [activeFile?.id, activeFile?.type]);
+    return () => {
+        if (activeBlobUrl) {
+            URL.revokeObjectURL(activeBlobUrl);
+        }
+    };
+  }, [activeFile?.id, activeFile?.title, activeFile?.type]);
+
+  const startResizePdf = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingPdf(true);
+  }, []);
+
+  useEffect(() => {
+    const move = (e: MouseEvent) => {
+       if (pdfResizeRef.current) return;
+       pdfResizeRef.current = requestAnimationFrame(() => {
+          if (isResizingPdf) {
+            const newWidth = window.innerWidth - e.clientX - 50; 
+            setPdfWidth(Math.max(300, Math.min(1200, newWidth)));
+          }
+          pdfResizeRef.current = null;
+       });
+    };
+    const up = () => { setIsResizingPdf(false); if(pdfResizeRef.current) cancelAnimationFrame(pdfResizeRef.current); };
+    if(isResizingPdf) { window.addEventListener('mousemove', move); window.addEventListener('mouseup', up); document.body.style.cursor = 'col-resize'; }
+    else { document.body.style.cursor = 'default'; }
+    return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+  }, [isResizingPdf]);
 
   const getFileIcon = (name: string) => {
     const ext = name.split('.').pop()?.toLowerCase();
@@ -184,46 +219,33 @@ const EditorArea = ({
         case 'bib': return <BookOpen size={14} color="#fab005" />;
         case 'sty': return <FileCog size={14} color="#be4bdb" />;
         case 'pdf': return <FileText size={14} color="#fa5252" />;
-        case 'png':
-        case 'jpg': return <ImageIcon size={14} color="#40c057" />;
+        case 'png': case 'jpg': return <ImageIcon size={14} color="#40c057" />;
         default: return <File size={14} color="#868e96" />;
     }
   };
 
   return (
-    <Stack gap={0} h="100%" w="100%">
+    <Stack gap={0} h="100%" w="100%" style={{ overflow: "hidden" }}>
       {/* Tabs Bar */}
-      <ScrollArea type="hover" scrollbarSize={6} bg="dark.8" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)", whiteSpace: 'nowrap' }}>
+      <ScrollArea type="hover" scrollbarSize={6} bg="dark.8" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)", whiteSpace: 'nowrap', flexShrink: 0 }}>
         <Group gap={1} pt={4} px={4} wrap="nowrap">
           {files.map(file => (
             <Box
               key={file.id}
-              py={6}
-              px={12}
+              py={6} px={12}
               bg={file.id === activeFileId ? "dark.7" : "transparent"}
               style={{
                 borderTop: file.id === activeFileId ? "2px solid #339af0" : "2px solid transparent",
                 borderRight: "1px solid var(--mantine-color-dark-6)",
-                borderTopRightRadius: 4,
-                borderTopLeftRadius: 4,
-                cursor: "pointer",
-                minWidth: 120,
+                borderTopRightRadius: 4, borderTopLeftRadius: 4,
+                cursor: "pointer", minWidth: 120,
               }}
               onClick={() => onFileSelect(file.id)}
             >
               <Group gap={8} wrap="nowrap">
                 {file.type === 'editor' ? getFileIcon(file.title) : <Table2 size={14} color="#69db7c" />}
-                <Text size="xs" c={file.id === activeFileId ? "white" : "dimmed"}>
-                  {file.title}
-                </Text>
-                <ActionIcon 
-                  size="xs" 
-                  variant="transparent" 
-                  color="gray" 
-                  className="close-tab"
-                  onClick={(e) => onFileClose(file.id, e)}
-                  style={{ opacity: file.id === activeFileId ? 1 : 0.5 }}
-                >
+                <Text size="xs" c={file.id === activeFileId ? "white" : "dimmed"}>{file.title}</Text>
+                <ActionIcon size="xs" variant="transparent" color="gray" className="close-tab" onClick={(e) => onFileClose(file.id, e)} style={{ opacity: file.id === activeFileId ? 1 : 0.5 }}>
                   <X size={12} />
                 </ActionIcon>
               </Group>
@@ -233,34 +255,29 @@ const EditorArea = ({
       </ScrollArea>
 
       {/* Breadcrumb Toolbar */}
-      <Group
-        h={32}
-        px="md"
-        bg="dark.7"
-        justify="space-between"
-        style={{ borderBottom: "1px solid var(--mantine-color-dark-6)" }}
-      >
+      <Group h={32} px="md" bg="dark.7" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)", flexShrink: 0 }}>
         <Group gap={4}>
           <Text size="xs" c="dimmed">DataTex</Text>
-          {activeFile && (
-            <>
-              <ChevronRight size={12} color="gray" />
-              <Text size="xs" c="white" truncate>{activeFile.title}</Text>
-            </>
-          )}
+          {activeFile && <><ChevronRight size={12} color="gray" /><Text size="xs" c="white" truncate>{activeFile.title}</Text></>}
         </Group>
         <Group gap="xs">
-          <Tooltip label="Compile">
-            <ActionIcon size="sm" variant="subtle" color="green">
-              <Play size={14} />
-            </ActionIcon>
-          </Tooltip>
+          <Tooltip label="Compile"><ActionIcon size="sm" variant="subtle" color="green"><Play size={14} /></ActionIcon></Tooltip>
+          {activeFile?.type === 'editor' && isTexFile && (
+              <Tooltip label={showPdf ? "Hide PDF Preview" : "Show PDF Preview"}>
+                <ActionIcon size="sm" variant={showPdf ? "light" : "subtle"} color={showPdf ? "blue" : "gray"} onClick={() => setShowPdf(!showPdf)}>
+                  <PanelRight size={14} />
+                </ActionIcon>
+              </Tooltip>
+          )}
         </Group>
       </Group>
 
-      {/* Main Content (Editor or Table View) */}
-      <Group gap={0} style={{ flex: 1, overflow: "hidden", alignItems: "stretch" }}>
-        <Box style={{ flex: 1, position: "relative" }}>
+      {/* Main Content Area - FIXED LAYOUT FOR SCROLLING */}
+      {/* wrap="nowrap" ensures columns don't break. minHeight: 0 ensures inner scrollbars work */}
+      <Group gap={0} wrap="nowrap" style={{ flex: 1, overflow: "hidden", alignItems: "stretch", minHeight: 0 }}>
+        
+        {/* Editor Container */}
+        <Box style={{ flex: 1, position: "relative", minWidth: 0, height: "100%", overflow: "hidden" }}>
           {activeFile?.type === 'editor' ? (
             <Editor
               path={activeFile.id} 
@@ -277,6 +294,7 @@ const EditorArea = ({
                 scrollBeyondLastLine: false,
                 automaticLayout: true,
                 theme: "data-tex-dark",
+                wordWrap: "on"
               }}
             />
           ) : activeFile?.type === 'table' ? (
@@ -289,17 +307,21 @@ const EditorArea = ({
           )}
         </Box>
 
-        {/* PDF Preview (Only for Editor) */}
-        {activeFile?.type === 'editor' && (
-          <Box w="50%" h="100%" bg="dark.6" style={{ borderLeft: "1px solid var(--mantine-color-dark-5)", display: "flex", flexDirection: "column" }}>
-            <Group justify="space-between" px="xs" py={4} bg="dark.7" style={{ borderBottom: "1px solid var(--mantine-color-dark-5)" }}>
-              <Text size="xs" fw={700} c="dimmed">PDF PREVIEW</Text>
-              <ActionIcon size="xs" variant="transparent"><Maximize2 size={12} /></ActionIcon>
-            </Group>
-            <Box style={{ flex: 1, position: 'relative' }} bg="gray.7">
-               <PdfPreview pdfUrl={pdfUrl} />
-            </Box>
-          </Box>
+        {/* PDF Preview */}
+        {activeFile?.type === 'editor' && isTexFile && showPdf && (
+            <>
+                <ResizerHandle onMouseDown={startResizePdf} isResizing={isResizingPdf} />
+                <Box w={pdfWidth} h="100%" bg="dark.6" style={{ borderLeft: "1px solid var(--mantine-color-dark-5)", display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
+                    <Group justify="space-between" px="xs" py={4} bg="dark.7" style={{ borderBottom: "1px solid var(--mantine-color-dark-5)", flexShrink: 0 }}>
+                        <Text size="xs" fw={700} c="dimmed">PDF PREVIEW</Text>
+                        <ActionIcon size="xs" variant="transparent" onClick={() => setShowPdf(false)}><X size={12} /></ActionIcon>
+                    </Group>
+                    {/* Parent of PdfPreview needs overflow hidden/auto depending on internal implementation, but flex:1 is key */}
+                    <Box style={{ flex: 1, position: 'relative', overflow: 'hidden' }} bg="gray.7">
+                        <PdfPreview pdfUrl={pdfUrl} />
+                    </Box>
+                </Box>
+            </>
         )}
       </Group>
     </Stack>
@@ -312,65 +334,41 @@ export default function App() {
   const [activeActivity, setActiveActivity] = useState<SidebarSection>("files");
   const [activeView, setActiveView] = useState<ViewType>("editor");
   
-  // --- Resizing State ---
   const [sidebarWidth, setSidebarWidth] = useState(250);
   const [wizardWidth, setWizardWidth] = useState(450);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isResizingWizard, setIsResizingWizard] = useState(false);
   const rafRef = useRef<number | null>(null);
 
-  // --- Tabs Management ---
   const [tabs, setTabs] = useState<AppTab[]>([
     { id: 'start', title: 'Start.tex', type: 'editor', content: INITIAL_CODE, language: 'latex' }
   ]);
   const [activeTabId, setActiveTabId] = useState<string>('start');
-  
-  // --- File System State ---
   const [projectData, setProjectData] = useState<FileSystemNode[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
-
-  // --- Database State ---
   const [dbConnected, setDbConnected] = useState(false);
   const [dbTables, setDbTables] = useState<string[]>([]);
-
   const editorRef = useRef<any>(null);
 
-  // --- DERIVED STATE ---
   const activeTab = tabs.find(t => t.id === activeTabId);
 
   // --- ACTIONS ---
-
-  // Database Mock Connect
   const handleConnectDB = () => {
-    if (dbConnected) {
-        setDbConnected(false);
-        setDbTables([]);
-    } else {
-        setDbConnected(true);
-        setDbTables(['users', 'documents', 'bibliography', 'settings']);
-    }
+    if (dbConnected) { setDbConnected(false); setDbTables([]); } 
+    else { setDbConnected(true); setDbTables(['users', 'documents', 'bibliography', 'settings']); }
   };
 
   const handleOpenTable = (tableName: string) => {
     const tabId = `table-${tableName}`;
     if (!tabs.find(t => t.id === tabId)) {
-        const newTab: AppTab = {
-            id: tabId,
-            title: tableName,
-            type: 'table',
-            tableName: tableName
-        };
-        setTabs([...tabs, newTab]);
+        setTabs([...tabs, { id: tabId, title: tableName, type: 'table', tableName: tableName }]);
     }
     setActiveTabId(tabId);
   };
 
-  // --- TAURI v2 FILE SYSTEM LOGIC ---
   const handleOpenFolder = async () => {
     try {
       setLoadingFiles(true);
-      
-      // Dynamic imports for Tauri v2 Plugins
       // @ts-ignore
       const { open } = await import('@tauri-apps/plugin-dialog');
       // @ts-ignore
@@ -379,24 +377,26 @@ export default function App() {
       const selectedPath = await open({ directory: true, multiple: false });
       
       if (selectedPath && typeof selectedPath === 'string') {
-        // Διαβάζουμε αναδρομικά το φάκελο
         // @ts-ignore
         const entries = await readDir(selectedPath); 
-        
+        const ignoredExtensions = ['aux', 'log', 'out', 'toc', 'synctex.gz', 'fdb_latexmk', 'fls', 'bbl', 'blg', 'xdv', 'lof', 'lot'];
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const process = (ents: any[], parentPath: string): FileSystemNode[] => ents.map(e => ({
-            id: `${parentPath}/${e.name}`, 
-            name: e.name || '', 
-            type: e.isDirectory ? 'folder' : 'file', 
-            path: `${parentPath}/${e.name}`, 
-            children: [] 
-        }));
-        
+        const process = (ents: any[], parentPath: string): FileSystemNode[] => {
+            return ents.filter(e => {
+                  if (e.isDirectory) return true;
+                  const name = e.name || '';
+                  const ext = name.split('.').pop()?.toLowerCase();
+                  if (ext && ignoredExtensions.includes(ext)) return false;
+                  return true;
+              }).map(e => ({
+                id: `${parentPath}/${e.name}`, name: e.name || '', type: e.isDirectory ? 'folder' : 'file', path: `${parentPath}/${e.name}`, children: [] 
+            }));
+        };
         setProjectData(process(entries, selectedPath));
       }
     } catch (e) {
-      console.warn("Tauri v2 API failed (likely running in browser). Loading Mock Data.", e);
-      // Fallback Mock Data
+      console.warn("Tauri v2 API failed", e);
       setProjectData([{ id: 'root', name: 'Mock Project', type: 'folder', path: '/root', children: [
           { id: 'f1', name: 'main.tex', type: 'file', path: '/root/main.tex' },
           { id: 'f2', name: 'chapter1.tex', type: 'file', path: '/root/chapter1.tex' }
@@ -406,24 +406,15 @@ export default function App() {
 
   const handleOpenFileNode = async (node: FileSystemNode) => {
     if (tabs.find(t => t.id === node.path)) { setActiveTabId(node.path); return; }
-    
     let content = "";
     try {
         // @ts-ignore
         const { readTextFile } = await import('@tauri-apps/plugin-fs');
         content = await readTextFile(node.path);
     } catch (e) {
-        console.warn("Using mock content for file", e);
         content = `% Content of ${node.name}\n\\section{${node.name}}\n`;
     }
-
-    const newTab: AppTab = {
-        id: node.path,
-        title: node.name,
-        type: 'editor',
-        content: content,
-        language: 'latex'
-    };
+    const newTab: AppTab = { id: node.path, title: node.name, type: 'editor', content: content, language: 'latex' };
     setTabs([...tabs, newTab]);
     setActiveTabId(node.path);
   };
@@ -456,9 +447,9 @@ export default function App() {
     }
   };
 
-  // --- RESIZE HANDLERS ---
   const startResizeSidebar = useCallback((e: React.MouseEvent) => { e.preventDefault(); setIsResizingSidebar(true); }, []);
   const startResizeWizard = useCallback((e: React.MouseEvent) => { e.preventDefault(); setIsResizingWizard(true); }, []);
+  
   useEffect(() => {
     const move = (e: MouseEvent) => {
        if (rafRef.current) return;
@@ -485,7 +476,6 @@ export default function App() {
     monaco.editor.setTheme("data-tex-dark");
   };
 
-  // Wrapper for Wizards
   const WizardWrapper = ({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) => (
     <Stack gap={0} h="100%" bg="dark.8" style={{ borderLeft: "1px solid var(--mantine-color-dark-6)" }}>
       <Group h={40} px="md" bg="dark.7" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)" }}>
@@ -508,7 +498,7 @@ export default function App() {
             <Menu key={label} shadow="md" width={200}>
               <Menu.Target><Button variant="subtle" color="gray" size="compact-xs" radius="sm" fw={400} style={{ fontSize: 12 }}>{label}</Button></Menu.Target>
               <Menu.Dropdown>
-                {label === 'File' && (
+                 {label === 'File' && (
                   <>
                     <Menu.Item leftSection={<FilePlus size={14}/>} onClick={() => handleCreateDocument('')}>New File</Menu.Item>
                     <Menu.Item leftSection={<FolderOpen size={14}/>} onClick={handleOpenFolder}>Open Folder</Menu.Item>
@@ -532,13 +522,14 @@ export default function App() {
     <MantineProvider theme={theme} defaultColorScheme="dark">
       <AppShell header={{ height: 35 }} footer={{ height: 24 }} padding={0}>
         <AppShell.Header withBorder={false} bg="dark.9" style={{ zIndex: 200 }}><HeaderContent /></AppShell.Header>
-        <AppShell.Main bg="dark.9" style={{ display: "flex", flexDirection: "column", height: "100vh", paddingTop: 35, paddingBottom: 24 }}>
+        {/* FIXED LAYOUT OVERLAP FIX: Use 100vh height with exact padding for header and footer */}
+        <AppShell.Main bg="dark.9" style={{ display: "flex", flexDirection: "column", height: "100vh", paddingTop: 35, paddingBottom: 24, overflow: "hidden" }}>
           {(isResizingSidebar || isResizingWizard) && (
             <Box style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, cursor: 'col-resize', userSelect: 'none' }} />
           )}
-          <Group gap={0} h="100%" align="stretch" style={{ flex: 1, overflow: "hidden" }}>
+          {/* Main Layout Group - FIXED LAYOUT */}
+          <Group gap={0} wrap="nowrap" h="100%" align="stretch" style={{ flex: 1, overflow: "hidden", minHeight: 0 }}>
             
-            {/* Using the separated Sidebar component */}
             <Sidebar 
                 width={sidebarWidth}
                 onResizeStart={startResizeSidebar}
@@ -558,15 +549,14 @@ export default function App() {
                 onOpenTable={handleOpenTable}
             />
             
-            {/* 3. MAIN AREA */}
-            <Box style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
-              <Box style={{ flex: 1, minWidth: 200, height: '100%' }}>
+            <Box style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
+              <Box style={{ flex: 1, minWidth: 200, height: '100%', overflow: "hidden" }}>
                 <EditorArea files={tabs} activeFileId={activeTabId} onFileSelect={setActiveTabId} onFileClose={handleCloseTab} onContentChange={handleEditorChange} onMount={handleEditorDidMount} />
               </Box>
               {activeView !== "editor" && (
                 <>
                   <ResizerHandle onMouseDown={startResizeWizard} isResizing={isResizingWizard} />
-                  <Box w={wizardWidth} h="100%" style={{ flexShrink: 0 }}>
+                  <Box w={wizardWidth} h="100%" style={{ flexShrink: 0, overflow: "hidden" }}>
                     {activeView === "wizard-preamble" && <WizardWrapper title="Preamble Wizard" onClose={() => setActiveView("editor")}><PreambleWizard onInsert={handleCreateDocument} /></WizardWrapper>}
                     {activeView === "wizard-table" && <WizardWrapper title="Table Wizard" onClose={() => setActiveView("editor")}><TableWizard onInsert={handleInsertSnippet} /></WizardWrapper>}
                     {activeView === "wizard-tikz" && <WizardWrapper title="TikZ Wizard" onClose={() => setActiveView("editor")}><TikzWizard onInsert={handleInsertSnippet} /></WizardWrapper>}

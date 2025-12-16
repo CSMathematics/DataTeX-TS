@@ -1,4 +1,5 @@
-Το project αυτό είναι η 2η έκδοση του DataTex : https://github.com/CSMathematics/DataTex
+Φτιάχνω ένα project που είναι η 2η έκδοση του DataTex : https://github.com/CSMathematics/DataTex
 το οποίο είναι ένα πρόγραμμα δημιπουργίας και διαχείρισης βάσεων δεδομένων αρχείων Latex σε βάσεις .db με sqlite3.
 Είναι επίσης ένα πλήρες IDE για Latex με πολλές λειτουργίες όπως wizards για δημιουργία πακέτων και κλάσεων Latex, preamble, πινάκων διαγραμμάτων tikz, pgfplots και άλλα.
 Θέλω να είναι απλό για το χρήστη δηλαδή να έχει όσο το δυνατόν ευκολότερο ui και ux χωρίς πολλά popup παράθυρα. Να μοιάζει με το vscode δηλαδή ένα μοντέρνο Latex IDE
+

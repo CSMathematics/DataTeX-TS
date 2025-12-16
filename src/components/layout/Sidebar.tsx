@@ -241,9 +241,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* WIZARDS SECTION */}
             {activeSection === "wizards" && (
               <Stack gap="xs" p="xs">
-                <Button variant="light" color="violet" justify="start" leftSection={<FileCode size={16} />} onClick={() => onNavigate("wizard-preamble")}>Preamble Wizard</Button>
-                <Button variant="light" color="green" justify="start" leftSection={<Table2 size={16} />} onClick={() => onNavigate("wizard-table")}>Table Generator</Button>
-                <Button variant="light" color="orange" justify="start" leftSection={<Wand2 size={16} />} onClick={() => onNavigate("wizard-tikz")}>TikZ Builder</Button>
+                <Button variant="light" justify="start" leftSection={<FileCode size={16} />} onClick={() => onNavigate("wizard-preamble")}>Preamble Wizard</Button>
+                <Button variant="light" justify="start" leftSection={<Table2 size={16} />} onClick={() => onNavigate("wizard-table")}>Table Generator</Button>
+                <Button variant="light" justify="start" leftSection={<Wand2 size={16} />} onClick={() => onNavigate("wizard-tikz")}>TikZ Builder</Button>
               </Stack>
             )}
             

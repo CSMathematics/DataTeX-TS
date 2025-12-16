@@ -1,80 +1,72 @@
-import { useState } from 'react';
-import { Document, Page, pdfjs } from 'react-pdf';
-import { Box, LoadingOverlay, Text, ActionIcon, Group, Tooltip } from '@mantine/core';
-import { ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
-import 'react-pdf/dist/Page/AnnotationLayer.css';
-import 'react-pdf/dist/Page/TextLayer.css';
+import { useState, useEffect } from 'react';
+import { Box, Text, LoadingOverlay } from '@mantine/core';
+import { Viewer, Worker } from '@react-pdf-viewer/core';
+import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
 
-// Set worker source
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+// Εισαγωγή των CSS της βιβλιοθήκης
+import '@react-pdf-viewer/core/lib/styles/index.css';
+import '@react-pdf-viewer/default-layout/lib/styles/index.css';
+
+// --- Worker URL Configuration ---
+// Χρησιμοποιούμε CDN με συγκεκριμένη έκδοση (3.11.174) για να αποφύγουμε 
+// τα προβλήματα του import '?url' που χτυπάνε ως syntax error στην TypeScript.
+const WORKER_URL = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
 interface PdfPreviewProps {
   pdfUrl: string | null;
 }
 
 export function PdfPreview({ pdfUrl }: PdfPreviewProps) {
-  const [numPages, setNumPages] = useState<number | null>(null);
-  const [scale, setScale] = useState(1.0);
-  const [rotation, setRotation] = useState(0);
-  const [loading, setLoading] = useState(false);
+  // Αρχικοποίηση του default layout plugin (Toolbar, Sidebar κλπ)
+  const defaultLayoutPluginInstance = defaultLayoutPlugin();
+  
+  // State για να ξέρουμε πότε φορτώνει το PDF
+  const [ready, setReady] = useState(false);
 
-  function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
-    setNumPages(numPages);
-    setLoading(false);
-  }
-
-  const handleZoomIn = () => setScale(s => Math.min(s + 0.2, 3.0));
-  const handleZoomOut = () => setScale(s => Math.max(s - 0.2, 0.5));
-  const handleRotate = () => setRotation(r => (r + 90) % 360);
+  useEffect(() => {
+    // Κάθε φορά που αλλάζει το URL, κάνουμε reset το state
+    if (pdfUrl) {
+      setReady(false);
+      // Μικρό delay για να προλαβαίνει να καθαρίσει το UI πριν το νέο render
+      const timer = setTimeout(() => setReady(true), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [pdfUrl]);
 
   if (!pdfUrl) {
     return (
-      <Box h="100%" display="flex" style={{ alignItems: 'center', justifyContent: 'center' }} bg="gray.1">
-        <Text c="dimmed">No PDF available. Compile the document to generate a preview.</Text>
+      <Box h="100%" display="flex" style={{ alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }} bg="dark.8">
+        <Text c="dimmed" size="sm">No PDF loaded.</Text>
       </Box>
     );
   }
 
   return (
-    <Box h="100%" display="flex" style={{ flexDirection: 'column' }} bg="gray.2">
-      <Group justify="space-between" p="xs" bg="white" style={{ borderBottom: '1px solid #dee2e6' }}>
-        <Group>
-          <Tooltip label="Zoom Out">
-             <ActionIcon variant="light" onClick={handleZoomOut}><ZoomOut size={16} /></ActionIcon>
-          </Tooltip>
-          <Text size="sm" style={{ userSelect: 'none' }}>{Math.round(scale * 100)}%</Text>
-          <Tooltip label="Zoom In">
-            <ActionIcon variant="light" onClick={handleZoomIn}><ZoomIn size={16} /></ActionIcon>
-          </Tooltip>
-        </Group>
-        <Group>
-          <Tooltip label="Rotate">
-             <ActionIcon variant="light" onClick={handleRotate}><RotateCw size={16} /></ActionIcon>
-          </Tooltip>
-        </Group>
-      </Group>
-
-      <Box style={{ flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', padding: '20px' }} bg="gray.3">
-        <Document
-          file={pdfUrl}
-          onLoadSuccess={onDocumentLoadSuccess}
-          onLoadStart={() => setLoading(true)}
-          loading={<LoadingOverlay visible={loading} />}
-          error={<Text c="red">Failed to load PDF.</Text>}
+    <Box h="100%" bg="dark.8" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Ο Worker χρειάζεται για να γίνει το parsing του PDF */}
+      <Worker workerUrl={WORKER_URL}>
+        {/* Χρησιμοποιούμε το 'rpv-core__viewer--dark' class για native Dark Mode */}
+        <div
+            style={{
+                height: '100%',
+                width: '100%',
+                backgroundColor: '#2C2E33', // Mantine dark.7
+            }}
+            className="rpv-core__viewer--dark"
         >
-          {Array.from(new Array(numPages), (_, index) => (
-            <Box key={`page_${index + 1}`} mb="md" style={{ boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>
-              <Page
-                pageNumber={index + 1}
-                scale={scale}
-                rotate={rotation}
-                renderTextLayer={true}
-                renderAnnotationLayer={true}
-              />
-            </Box>
-          ))}
-        </Document>
-      </Box>
+            {ready ? (
+                <Viewer
+                    fileUrl={pdfUrl}
+                    plugins={[defaultLayoutPluginInstance]}
+                    theme="dark"
+                    onDocumentLoad={() => console.log('PDF Loaded Successfully')}
+                    // onLoadError={(e) => console.error('PDF Load Error:', e)}
+                />
+            ) : (
+                 <LoadingOverlay visible={true} overlayProps={{ radius: "sm", blur: 2 }} />
+            )}
+        </div>
+      </Worker>
     </Box>
   );
 }
