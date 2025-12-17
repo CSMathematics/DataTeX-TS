@@ -1,25 +1,15 @@
 import React, { useState } from 'react';
+import { Stack, ActionIcon, Tooltip, Text, Group, ScrollArea, Box, Collapse, UnstyledButton, Button } from '@mantine/core';
 import { 
-  Stack, Box, Tooltip, ActionIcon, Group, Text, ScrollArea, Button, Collapse
-} from '@mantine/core';
-import { 
-  Files, Search, Database, Wand2, Settings, MoreVertical, 
-  ChevronDown, FileCode, FolderOpen, Folder, Plug, X, Table2
+  Files, Search, GitBranch, Settings, Database, 
+  ChevronRight, FileText, Folder, Table2, 
+  PenTool, Wand2, Puzzle // Puzzle icon for Gallery
 } from 'lucide-react';
 
 // --- Types ---
-export type SidebarSection = "files" | "search" | "database" | "wizards";
-export type ViewType = "editor" | "wizard-preamble" | "wizard-table" | "wizard-tikz";
-
-export interface AppTab {
-  id: string;
-  title: string;
-  type: 'editor' | 'table';
-  content?: string;
-  language?: string;
-  isDirty?: boolean;
-  tableName?: string;
-}
+export type SidebarSection = "files" | "search" | "git" | "database" | "settings";
+// UPDATE: Added 'gallery' to ViewType
+export type ViewType = "editor" | "wizard-preamble" | "wizard-table" | "wizard-tikz" | "gallery";
 
 export interface FileSystemNode {
   id: string;
@@ -29,254 +19,178 @@ export interface FileSystemNode {
   children?: FileSystemNode[];
 }
 
+export interface AppTab {
+  id: string;
+  title: string;
+  type: 'editor' | 'table';
+  content?: string;
+  tableName?: string;
+  language?: string;
+  isDirty?: boolean;
+}
+
 interface SidebarProps {
   width: number;
   onResizeStart: (e: React.MouseEvent) => void;
   activeSection: SidebarSection;
   setActiveSection: (s: SidebarSection) => void;
   onNavigate: (view: ViewType) => void;
-  openTabs: AppTab[];
-  activeTabId: string;
-  onTabSelect: (id: string) => void;
+  
+  // File System Props
   projectData: FileSystemNode[];
   onOpenFolder: () => void;
   onOpenFileNode: (node: FileSystemNode) => void;
   loadingFiles: boolean;
+  openTabs: AppTab[];
+  activeTabId: string;
+  onTabSelect: (id: string) => void;
+
+  // DB Props
   dbConnected: boolean;
   dbTables: string[];
   onConnectDB: () => void;
-  onOpenTable: (tableName: string) => void;
+  onOpenTable: (name: string) => void;
 }
 
-// --- Activity Bar Component ---
-const ActivityBar = ({
-  active,
-  setActive,
-}: {
-  active: SidebarSection;
-  setActive: (v: SidebarSection) => void;
-}) => {
-  const items = [
-    { icon: Files, label: "Αρχεία", id: "files" },
-    { icon: Search, label: "Αναζήτηση", id: "search" },
-    { icon: Database, label: "Βάση Δεδομένων", id: "database" },
-    { icon: Wand2, label: "Wizards", id: "wizards" },
-  ];
+// Helper: Recursive File Tree Component
+const FileTreeItem = ({ node, level, onSelect }: { node: FileSystemNode, level: number, onSelect: (n: FileSystemNode) => void }) => {
+  const [expanded, setExpanded] = useState(false);
+  const hasChildren = node.type === 'folder' && node.children && node.children.length > 0;
 
-  return (
-    <Stack w={50} h="100%" align="center" gap="md" py="md" bg="dark.8" style={{ borderRight: "1px solid var(--mantine-color-dark-6)", flexShrink: 0 }}>
-      {items.map((item) => (
-        <Tooltip key={item.id} label={item.label} position="right" withArrow>
-          <ActionIcon 
-            variant={active === item.id ? "filled" : "subtle"} 
-            color={active === item.id ? "blue" : "gray"} 
-            size="lg" 
-            onClick={() => setActive(item.id as SidebarSection)}
-          >
-            <item.icon size={22} strokeWidth={1.5} />
-          </ActionIcon>
-        </Tooltip>
-      ))}
-      <Box style={{ marginTop: "auto" }}><ActionIcon variant="subtle" color="gray" size="lg"><Settings size={22} /></ActionIcon></Box>
-    </Stack>
-  );
-};
-
-// --- Resizer Handle Component ---
-const ResizerHandle = ({ onMouseDown }: { onMouseDown: (e: React.MouseEvent) => void }) => (
-  <Box
-    onMouseDown={onMouseDown}
-    w={6}
-    h="100%"
-    style={{
-      cursor: "col-resize",
-      zIndex: 50,
-      position: 'relative',
-      userSelect: 'none',
-      backgroundColor: 'transparent',
-      transition: "background-color 0.2s",
-    }}
-    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--mantine-color-blue-6)"}
-    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
-  />
-);
-
-// --- File Tree Item Component ---
-const FileTreeItem = ({ 
-  node, 
-  depth, 
-  activeTabId, 
-  onOpenFileNode,
-  getFileIcon
-}: { 
-  node: FileSystemNode;
-  depth: number;
-  activeTabId: string;
-  onOpenFileNode: (node: FileSystemNode) => void;
-  getFileIcon: (name: string) => React.ReactNode;
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  return (
-    <Box>
-      <Group 
-        gap={4} py={2} px={8} 
-        style={{ paddingLeft: depth * 12 + 8, cursor: 'pointer', userSelect: 'none' }}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (node.type === 'folder') setIsOpen(!isOpen);
-          else onOpenFileNode(node);
-        }}
-        bg={node.type === 'file' && activeTabId === node.path ? 'rgba(51, 154, 240, 0.15)' : 'transparent'}
-        c={node.type === 'file' && activeTabId === node.path ? 'blue.3' : 'gray.4'}
-      >
-        <Box style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.1s', opacity: node.type === 'folder' ? 1 : 0 }}>
-           <ChevronDown size={12} style={{ transform: 'rotate(-90deg)' }} /> 
-           {/* Note: Original code used ChevronRight rotated. Simplified here logic */}
-        </Box>
-        {node.type === 'folder' ? (isOpen ? <FolderOpen size={14} color="#EADFA5" /> : <Folder size={14} color="#EADFA5" />) : getFileIcon(node.name)}
-        <Text size="sm" truncate>{node.name}</Text>
-      </Group>
-      {node.type === 'folder' && node.children && (
-        <Collapse in={isOpen}>
-          <Stack gap={0}>
-            {node.children
-              .sort((a, b) => {
-                  if (a.type === b.type) return a.name.localeCompare(b.name);
-                  return a.type === 'folder' ? -1 : 1;
-              })
-              .map(child => <FileTreeItem key={child.id} node={child} depth={depth + 1} activeTabId={activeTabId} onOpenFileNode={onOpenFileNode} getFileIcon={getFileIcon} />)
-            }
-          </Stack>
-        </Collapse>
-      )}
-    </Box>
-  );
-};
-
-export const Sidebar: React.FC<SidebarProps> = React.memo(({
-  width,
-  onResizeStart,
-  activeSection,
-  setActiveSection,
-  onNavigate,
-  openTabs,
-  activeTabId,
-  onTabSelect,
-  projectData,
-  onOpenFolder,
-  onOpenFileNode,
-  dbConnected,
-  dbTables,
-  onConnectDB,
-  onOpenTable
-}) => {
-
-  const getFileIcon = (_name: string) => {
-    // Helper to get icon (moved inside or passed as prop, here simplified logic duplicated from App for self-containment or passed down)
-    // For simplicity, we define basic ones here or expect Lucide imports
-    return <FileCode size={14} color="#4dabf7" />; 
+  const handleClick = () => {
+    if (node.type === 'folder') setExpanded(!expanded);
+    else onSelect(node);
   };
 
   return (
     <>
-      <ActivityBar active={activeSection} setActive={setActiveSection} />
-      
-      <Box w={width} h="100%" style={{ borderRight: "1px solid var(--mantine-color-dark-6)", flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
-        <Stack gap={0} h="100%" bg="dark.7">
-          <Group justify="space-between" px="xs" h={36} style={{ borderBottom: "1px solid var(--mantine-color-dark-6)" }}>
-            <Text size="xs" fw={700} tt="uppercase" c="dimmed">
-              {activeSection === "files" && "Explorer"}
-              {activeSection === "database" && "DataTex DB"}
-              {activeSection === "wizards" && "Wizards"}
-            </Text>
-            <MoreVertical size={14} color="gray" />
-          </Group>
-
-          <ScrollArea style={{ flex: 1 }}>
-            {/* FILES SECTION */}
-            {activeSection === "files" && (
-              <Stack gap={0}>
-                {openTabs.length > 0 && (
-                  <>
-                    <Group gap={4} py={4} px={6} bg="dark.6"><ChevronDown size={14} /><Text size="xs" fw={700} tt="uppercase">Open Editors</Text></Group>
-                    <Stack gap={1} p={4} mb="md">
-                      {openTabs.map((t) => (
-                        <Group
-                          key={t.id} gap={8} pl={16} py={4}
-                          style={{ cursor: "pointer", borderRadius: 4, backgroundColor: t.id === activeTabId ? 'var(--mantine-color-blue-9)' : 'transparent' }}
-                          onClick={() => onTabSelect(t.id)}
-                        >
-                          {t.type === 'editor' ? <FileCode size={14} color="#4dabf7" /> : <Table2 size={14} color="#69db7c" />}
-                          <Text size="sm" c={t.id === activeTabId ? "white" : "gray.4"} truncate>{t.title}</Text>
-                          {t.isDirty && <Box w={6} h={6} bg="white" style={{borderRadius:'50%'}} />}
-                        </Group>
-                      ))}
-                    </Stack>
-                  </>
-                )}
-                <Group gap={4} py={4} px={6} bg="dark.6"><ChevronDown size={14} /><Text size="xs" fw={700} tt="uppercase">Project</Text></Group>
-                
-                {projectData.length === 0 ? (
-                  <Box p="md" ta="center">
-                    <Text size="xs" c="dimmed" mb="sm">Δεν έχει ανοίξει φάκελος</Text>
-                    <Button size="xs" variant="light" onClick={onOpenFolder}>Άνοιγμα Φακέλου</Button>
-                  </Box>
-                ) : (
-                  <Box>
-                    {projectData.map(node => (
-                      <FileTreeItem 
-                        key={node.id} 
-                        node={node} 
-                        depth={0} 
-                        activeTabId={activeTabId}
-                        onOpenFileNode={onOpenFileNode}
-                        getFileIcon={getFileIcon}
-                      />
-                    ))}
-                  </Box>
-                )}
-              </Stack>
-            )}
-
-            {/* WIZARDS SECTION */}
-            {activeSection === "wizards" && (
-              <Stack gap="xs" p="xs">
-                <Button variant="light" justify="start" leftSection={<FileCode size={16} />} onClick={() => onNavigate("wizard-preamble")}>Preamble Wizard</Button>
-                <Button variant="light" justify="start" leftSection={<Table2 size={16} />} onClick={() => onNavigate("wizard-table")}>Table Generator</Button>
-                <Button variant="light" justify="start" leftSection={<Wand2 size={16} />} onClick={() => onNavigate("wizard-tikz")}>TikZ Builder</Button>
-              </Stack>
-            )}
-            
-            {/* DATABASE SECTION */}
-            {activeSection === "database" && (
-              <Stack gap="md" p="xs">
-                {!dbConnected ? (
-                   <Box ta="center" mt="xl">
-                      <Database size={48} color="#373A40" style={{marginBottom: 16}} />
-                      <Text size="sm" c="dimmed" mb="md">No Database Connected</Text>
-                      <Button size="xs" leftSection={<Plug size={14} />} fullWidth variant="light" onClick={onConnectDB}>
-                        Connect SQLite (.db)
-                      </Button>
-                   </Box>
-                ) : (
-                    <Box>
-                        <Group justify="space-between" mb="sm">
-                            <Text size="xs" fw={700} c="dimmed">TABLES ({dbTables.length})</Text>
-                            <ActionIcon size="xs" variant="subtle" color="red" onClick={onConnectDB}><X size={12}/></ActionIcon>
-                        </Group>
-                        {dbTables.map((t) => (
-                            <Group key={t} justify="space-between" mb={4} p={4} style={{ cursor: "pointer", borderRadius: 4 }} onClick={() => onOpenTable(t)}>
-                                <Group gap={6}><Table2 size={14} color="#69db7c" /><Text size="sm" truncate>{t}</Text></Group>
-                            </Group>
-                        ))}
-                    </Box>
-                )}
-              </Stack>
-            )}
-          </ScrollArea>
-        </Stack>
-      </Box>
-      <ResizerHandle onMouseDown={onResizeStart} />
+      <UnstyledButton 
+        onClick={handleClick}
+        style={{ 
+          width: '100%', padding: '4px 8px', 
+          paddingLeft: level * 12 + 8,
+          fontSize: 13, color: '#C1C2C5',
+          display: 'flex', alignItems: 'center',
+          ':hover': { backgroundColor: '#2C2E33' }
+        }}
+      >
+        <Group gap={6} wrap="nowrap">
+          {node.type === 'folder' && (
+             <Box style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.1s' }}>
+                <ChevronRight size={10} />
+             </Box>
+          )}
+          {node.type === 'folder' ? <Folder size={14} color="#fab005" /> : <FileText size={14} color="#4dabf7" />}
+          <Text size="xs" truncate>{node.name}</Text>
+        </Group>
+      </UnstyledButton>
+      {hasChildren && (
+        <Collapse in={expanded}>
+          {node.children!.map(child => (
+            <FileTreeItem key={child.id} node={child} level={level + 1} onSelect={onSelect} />
+          ))}
+        </Collapse>
+      )}
     </>
   );
-});
+};
+
+export const Sidebar: React.FC<SidebarProps> = ({ 
+  width, onResizeStart, activeSection, setActiveSection, onNavigate,
+  projectData, onOpenFolder, onOpenFileNode,
+  dbConnected, dbTables, onConnectDB, onOpenTable
+}) => {
+  
+  return (
+    <Group gap={0} h="100%" align="stretch" style={{ flexShrink: 0, zIndex: 10 }}>
+      {/* Activity Bar (Icons) */}
+      <Stack w={48} h="100%" bg="dark.8" gap={0} justify="space-between" py="md" style={{ borderRight: "1px solid var(--mantine-color-dark-6)" }}>
+        <Stack gap={4} align="center">
+          <Tooltip label="Explorer" position="right"><ActionIcon size="lg" variant={activeSection === "files" ? "light" : "subtle"} onClick={() => setActiveSection("files")}><Files size={20} /></ActionIcon></Tooltip>
+          <Tooltip label="Search" position="right"><ActionIcon size="lg" variant={activeSection === "search" ? "light" : "subtle"} onClick={() => setActiveSection("search")}><Search size={20} /></ActionIcon></Tooltip>
+          <Tooltip label="Source Control" position="right"><ActionIcon size="lg" variant={activeSection === "git" ? "light" : "subtle"} onClick={() => setActiveSection("git")}><GitBranch size={20} /></ActionIcon></Tooltip>
+          <Tooltip label="Database" position="right"><ActionIcon size="lg" variant={activeSection === "database" ? "light" : "subtle"} onClick={() => setActiveSection("database")}><Database size={20} /></ActionIcon></Tooltip>
+        </Stack>
+        <Stack gap={4} align="center">
+          <Tooltip label="Settings" position="right"><ActionIcon size="lg" variant={activeSection === "settings" ? "light" : "subtle"} onClick={() => setActiveSection("settings")}><Settings size={20} /></ActionIcon></Tooltip>
+        </Stack>
+      </Stack>
+
+      {/* Sidebar Content Panel */}
+      <Box w={width} h="100%" bg="dark.7" style={{ display: 'flex', flexDirection: 'column' }}>
+        <Group h={35} px="sm" justify="space-between" bg="dark.8" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)" }}>
+          <Text size="xs" fw={700} tt="uppercase" c="dimmed">{activeSection}</Text>
+        </Group>
+        
+        <ScrollArea style={{ flex: 1 }}>
+          {activeSection === "files" && (
+            <Stack gap={0}>
+                {/* WIZARDS SHORTCUTS */}
+                <Box p="xs">
+                    <Text size="xs" fw={700} c="dimmed" mb={4}>WIZARDS</Text>
+                    <Group gap={4}>
+                        <Tooltip label="Preamble"><ActionIcon variant="light" size="sm" color="violet" onClick={() => onNavigate("wizard-preamble")}><Wand2 size={14}/></ActionIcon></Tooltip>
+                        <Tooltip label="Table"><ActionIcon variant="light" size="sm" color="green" onClick={() => onNavigate("wizard-table")}><Table2 size={14}/></ActionIcon></Tooltip>
+                        <Tooltip label="TikZ/Plots"><ActionIcon variant="light" size="sm" color="orange" onClick={() => onNavigate("wizard-tikz")}><PenTool size={14}/></ActionIcon></Tooltip>
+                        {/* Added Gallery Button */}
+                        <Tooltip label="Package Gallery"><ActionIcon variant="light" size="sm" color="blue" onClick={() => onNavigate("gallery")}><Puzzle size={14}/></ActionIcon></Tooltip>
+                    </Group>
+                </Box>
+                <Divider my={4} color="dark.6" />
+                
+                {/* FILE TREE */}
+                <Box>
+                    <Group justify="space-between" px="xs" py={4}>
+                        <Text size="xs" fw={700} c="dimmed">PROJECT</Text>
+                    </Group>
+                    {projectData.length === 0 ? (
+                        <Box p="md" ta="center">
+                            <Button size="xs" variant="default" onClick={onOpenFolder}>Open Folder</Button>
+                        </Box>
+                    ) : (
+                        projectData.map(node => <FileTreeItem key={node.id} node={node} level={0} onSelect={onOpenFileNode} />)
+                    )}
+                </Box>
+            </Stack>
+          )}
+
+          {activeSection === "database" && (
+             <Stack p="xs" gap="xs">
+                <Button size="xs" variant={dbConnected ? "light" : "filled"} color={dbConnected ? "green" : "blue"} onClick={onConnectDB} fullWidth>
+                    {dbConnected ? "Connected (SQLite)" : "Connect to DB"}
+                </Button>
+                {dbConnected && (
+                    <Stack gap={2}>
+                        <Text size="xs" c="dimmed" fw={700}>TABLES</Text>
+                        {dbTables.map(t => (
+                            <UnstyledButton 
+                                key={t} 
+                                onClick={() => onOpenTable(t)}
+                                style={{ 
+                                    padding: '4px 8px', fontSize: 13, borderRadius: 4,
+                                    color: '#C1C2C5', display: 'flex', alignItems: 'center', gap: 8,
+                                    ':hover': { backgroundColor: '#2C2E33' } 
+                                }}
+                            >
+                                <Table2 size={14} color="#69db7c"/> {t}
+                            </UnstyledButton>
+                        ))}
+                    </Stack>
+                )}
+             </Stack>
+          )}
+        </ScrollArea>
+      </Box>
+
+      {/* Resize Handle */}
+      <Box
+        onMouseDown={onResizeStart}
+        w={4} h="100%" bg="transparent"
+        style={{ cursor: "col-resize", ":hover": { backgroundColor: "var(--mantine-color-blue-6)" } }}
+      />
+    </Group>
+  );
+};
+
+// Required Divider import missing in main code block fix
+import { Divider } from '@mantine/core';

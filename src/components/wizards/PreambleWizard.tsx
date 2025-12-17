@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Stack, Button, Tabs, ScrollArea, Box, Grid
+  Stack, Button, Tabs, ScrollArea, Box, Grid, Code
 } from '@mantine/core';
 import { 
   FileText, Layout, Package, Palette, Code as CodeIcon, List as ListIcon, Check

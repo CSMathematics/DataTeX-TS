@@ -4,8 +4,8 @@ import {
   Box,
   Group,
   MantineProvider,
-  ActionIcon,
-  Text
+  Text,  ActionIcon,
+  Center
 } from "@mantine/core";
 
 import { X } from "lucide-react";
@@ -28,6 +28,7 @@ import { WizardWrapper } from "./components/wizards/WizardWrapper";
 import { PreambleWizard } from "./components/wizards/PreambleWizard";
 import { TableWizard } from "./components/wizards/TableWizard";
 import { TikzWizard } from "./components/wizards/TikzWizard";
+import { PackageGallery } from "./components/wizards/PackageGallery";
 
 // --- Language Config ---
 import { latexLanguage, latexConfiguration } from "./languages/latex";
@@ -74,13 +75,16 @@ export default function App() {
   // --- Derived State ---
   const activeTab = tabs.find(t => t.id === activeTabId);
   const isTexFile = activeTab?.title.toLowerCase().endsWith('.tex') ?? false;
-  const isWizardActive = activeView.startsWith('wizard-');
+  
+  // Logic: Show right panel if a Wizard is open OR if PDF is toggled ON for a .tex file
+  const isWizardActive = activeView.startsWith('wizard-') || activeView === 'gallery';
   const showRightPanel = isWizardActive || (activeView === 'editor' && showPdf && isTexFile);
 
   // --- PDF Logic ---
   useEffect(() => {
     let activeBlobUrl: string | null = null;
     const checkPdf = async () => {
+      // Logic runs only for editor tabs that are .tex files
       if (activeTab && activeTab.type === 'editor' && activeTab.id) {
          const isRealFile = activeTab.id.includes('/') || activeTab.id.includes('\\');
          const isTex = activeTab.title.toLowerCase().endsWith('.tex');
@@ -101,7 +105,7 @@ export default function App() {
                 setPdfUrl(null);
               }
             } catch (e) {
-              console.warn("PDF check failed", e);
+              console.warn("PDF check failed or running in browser", e);
               setPdfUrl(null);
             }
          } else {
@@ -271,7 +275,7 @@ export default function App() {
           
           <Group gap={0} wrap="nowrap" h="100%" align="stretch" style={{ flex: 1, overflow: "hidden", minHeight: 0 }}>
             
-            {/* SIDEBAR */}
+            {/* LEFT: SIDEBAR */}
             <Sidebar 
                 width={sidebarWidth}
                 onResizeStart={startResizeSidebar}
@@ -291,7 +295,7 @@ export default function App() {
                 onOpenTable={handleOpenTable}
             />
             
-            {/* EDITOR AREA */}
+            {/* CENTER: EDITOR AREA */}
             <Box style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
                 <EditorArea 
                     files={tabs} 
@@ -313,9 +317,30 @@ export default function App() {
                   <Box w={rightPanelWidth} h="100%" style={{ flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                     {isWizardActive ? (
                         <>
-                            {activeView === "wizard-preamble" && <WizardWrapper title="Preamble Wizard" onClose={() => setActiveView("editor")}><PreambleWizard onInsert={handleCreateDocument} /></WizardWrapper>}
-                            {activeView === "wizard-table" && <WizardWrapper title="Table Wizard" onClose={() => setActiveView("editor")}><TableWizard onInsert={handleInsertSnippet} /></WizardWrapper>}
-                            {activeView === "wizard-tikz" && <WizardWrapper title="TikZ Wizard" onClose={() => setActiveView("editor")}><TikzWizard onInsert={handleInsertSnippet} /></WizardWrapper>}
+                            {activeView === "wizard-preamble" && (
+                                <WizardWrapper title="Preamble Wizard" onClose={() => setActiveView("editor")}>
+                                    <PreambleWizard onInsert={handleCreateDocument} />
+                                </WizardWrapper>
+                            )}
+                            {activeView === "wizard-table" && (
+                                <WizardWrapper title="Table Wizard" onClose={() => setActiveView("editor")}>
+                                    <TableWizard onInsert={handleInsertSnippet} />
+                                </WizardWrapper>
+                            )}
+                            {activeView === "wizard-tikz" && (
+                                <WizardWrapper title="TikZ Wizard" onClose={() => setActiveView("editor")}>
+                                    <TikzWizard onInsert={handleInsertSnippet} />
+                                </WizardWrapper>
+                            )}
+                            {activeView === "gallery" && (
+                                <WizardWrapper title="Package Gallery" onClose={() => setActiveView("editor")}>
+                                    <PackageGallery 
+                                        onInsert={handleInsertSnippet} 
+                                        onClose={() => setActiveView("editor")} 
+                                        onOpenWizard={setActiveView}
+                                    />
+                                </WizardWrapper>
+                            )}
                         </>
                     ) : (
                         <Box h="100%" bg="dark.6" style={{ borderLeft: "1px solid var(--mantine-color-dark-5)", display: "flex", flexDirection: "column" }}>
@@ -324,7 +349,11 @@ export default function App() {
                                 <ActionIcon size="xs" variant="transparent" onClick={() => setShowPdf(false)}><X size={12} /></ActionIcon>
                             </Group>
                             <Box style={{ flex: 1, position: 'relative', overflow: 'hidden' }} bg="gray.7">
-                                <PdfPreview pdfUrl={pdfUrl} />
+                                {pdfUrl ? (
+                                    <PdfPreview pdfUrl={pdfUrl} />
+                                ) : (
+                                    <Center h="100%"><Text c="dimmed" size="sm">No PDF Loaded</Text></Center>
+                                )}
                             </Box>
                         </Box>
                     )}
