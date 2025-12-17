@@ -6,7 +6,8 @@ import {
   Box,
   Text,
   ActionIcon,
-  Tooltip
+  Tooltip,
+  Loader
 } from "@mantine/core";
 import Editor, { OnMount } from "@monaco-editor/react";
 import {
@@ -24,9 +25,8 @@ import {
   Code2
 } from "lucide-react";
 
-// Imports
 import { TableDataView } from "../database/TableDataView";
-import { AppTab } from "./Sidebar"; // Υποθέτουμε ότι το AppTab εξάγεται από το Sidebar ή ένα types file
+import { AppTab } from "./Sidebar"; 
 
 interface EditorAreaProps {
   files: AppTab[];
@@ -38,6 +38,9 @@ interface EditorAreaProps {
   showPdf: boolean;
   onTogglePdf: () => void;
   isTexFile: boolean;
+  // New Props for Compilation
+  onCompile?: () => void;
+  isCompiling?: boolean;
 }
 
 export const EditorArea: React.FC<EditorAreaProps> = ({ 
@@ -49,7 +52,9 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   onMount,
   showPdf,
   onTogglePdf,
-  isTexFile
+  isTexFile,
+  onCompile,
+  isCompiling
 }) => {
   
   const activeFile = files.find(f => f.id === activeFileId);
@@ -127,9 +132,17 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
           )}
         </Group>
         <Group gap="xs">
-          <Tooltip label="Compile">
-            <ActionIcon size="sm" variant="subtle" color="green">
-              <Play size={14} />
+          <Tooltip label="Compile (Ctrl+B)">
+            <ActionIcon 
+                size="sm" 
+                variant="subtle" 
+                color="green" 
+                onClick={onCompile} 
+                loading={isCompiling}
+                disabled={!isTexFile || isCompiling}
+            >
+              {/* Αν είναι loading, το ActionIcon το δείχνει αυτόματα αν έχει loading prop, αλλιώς: */}
+              {!isCompiling && <Play size={14} />}
             </ActionIcon>
           </Tooltip>
           

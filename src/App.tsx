@@ -4,9 +4,14 @@ import {
   Box,
   Group,
   MantineProvider,
-  Text,  ActionIcon,
-  Center
+  Loader,
+  Center,
+  Notification,
+  ActionIcon,
+  Text,
+  Stack
 } from "@mantine/core";
+import { invoke } from "@tauri-apps/api/core"; 
 
 import { X } from "lucide-react";
 
@@ -62,8 +67,13 @@ export default function App() {
   const [activeTabId, setActiveTabId] = useState<string>('start');
   const editorRef = useRef<any>(null);
 
+  // --- Compilation State ---
+  const [isCompiling, setIsCompiling] = useState(false);
+  const [compileError, setCompileError] = useState<string | null>(null);
+
   // --- File System & DB State ---
   const [projectData, setProjectData] = useState<FileSystemNode[]>([]);
+  const [rootPath, setRootPath] = useState<string | null>(null);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
   const [dbTables, setDbTables] = useState<string[]>([]);
@@ -71,21 +81,22 @@ export default function App() {
   // --- PDF State ---
   const [showPdf, setShowPdf] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfRefreshTrigger, setPdfRefreshTrigger] = useState(0);
 
   // --- Derived State ---
   const activeTab = tabs.find(t => t.id === activeTabId);
   const isTexFile = activeTab?.title.toLowerCase().endsWith('.tex') ?? false;
   
-  // Logic: Show right panel if a Wizard is open OR if PDF is toggled ON for a .tex file
   const isWizardActive = activeView.startsWith('wizard-') || activeView === 'gallery';
   const showRightPanel = isWizardActive || (activeView === 'editor' && showPdf && isTexFile);
 
   // --- PDF Logic ---
-  useEffect(() => {
+useEffect(() => {
     let activeBlobUrl: string | null = null;
-    const checkPdf = async () => {
-      // Logic runs only for editor tabs that are .tex files
+    
+    const loadPdf = async () => {
       if (activeTab && activeTab.type === 'editor' && activeTab.id) {
+         // Check if it looks like a file path (contains separator)
          const isRealFile = activeTab.id.includes('/') || activeTab.id.includes('\\');
          const isTex = activeTab.title.toLowerCase().endsWith('.tex');
 
@@ -93,11 +104,14 @@ export default function App() {
             try {
               // @ts-ignore
               const { exists, readFile } = await import('@tauri-apps/plugin-fs');
+              
               const pdfPath = activeTab.id.replace(/\.tex$/i, '.pdf');
               const doesExist = await exists(pdfPath);
 
               if (doesExist) {
+                // Read PDF as binary Uint8Array
                 const fileContents = await readFile(pdfPath);
+                // Create Blob from binary data
                 const blob = new Blob([fileContents], { type: 'application/pdf' });
                 activeBlobUrl = URL.createObjectURL(blob);
                 setPdfUrl(activeBlobUrl);
@@ -105,7 +119,9 @@ export default function App() {
                 setPdfUrl(null);
               }
             } catch (e) {
-              console.warn("PDF check failed or running in browser", e);
+              console.warn("PDF load error:", e);
+              // Don't setPdfUrl(null) here immediately if it's just a permission error on first load, 
+              // but usually we should.
               setPdfUrl(null);
             }
          } else {
@@ -116,13 +132,65 @@ export default function App() {
       }
     };
 
-    checkPdf();
+    loadPdf();
+
     return () => {
         if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
     };
-  }, [activeTab?.id, activeTab?.title, activeTab?.type]);
+  }, [activeTab?.id, activeTab?.title, activeTab?.type, pdfRefreshTrigger]);
 
-  // --- Handlers ---
+  // --- HELPER: RECURSIVE READ DIRECTORY ---
+  const loadProjectFiles = async (path: string) => {
+      // @ts-ignore
+      const { readDir } = await import('@tauri-apps/plugin-fs');
+      
+      const ignoredExtensions = ['aux', 'log', 'out', 'toc', 'synctex.gz', 'fdb_latexmk', 'fls', 'bbl', 'blg', 'xdv', 'lof', 'lot', 'nav', 'snm', 'vrb'];
+
+      const processDir = async (dirPath: string): Promise<FileSystemNode[]> => {
+          const entries = await readDir(dirPath);
+          const nodes: FileSystemNode[] = [];
+
+          for (const entry of entries) {
+              const name = entry.name;
+              if (name.startsWith('.')) continue; 
+              if (name === 'node_modules' || name === '.git') continue;
+
+              const separator = dirPath.endsWith('/') || dirPath.endsWith('\\') ? '' : (dirPath.includes('\\') ? '\\' : '/');
+              const fullPath = `${dirPath}${separator}${name}`;
+
+              if (entry.isDirectory) {
+                  const children = await processDir(fullPath);
+                  nodes.push({
+                      id: fullPath,
+                      name: name,
+                      type: 'folder',
+                      path: fullPath,
+                      children: children
+                  });
+              } else {
+                  const ext = name.split('.').pop()?.toLowerCase();
+                  if (ext && ignoredExtensions.includes(ext)) continue;
+                  
+                  nodes.push({
+                      id: fullPath,
+                      name: name,
+                      type: 'file',
+                      path: fullPath,
+                      children: []
+                  });
+              }
+          }
+          return nodes.sort((a, b) => {
+              if (a.type === b.type) return a.name.localeCompare(b.name);
+              return a.type === 'folder' ? -1 : 1;
+          });
+      };
+
+      const nodes = await processDir(path);
+      setProjectData(nodes);
+  };
+
+  // --- HANDLERS ---
 
   const handleConnectDB = () => {
     if (dbConnected) { setDbConnected(false); setDbTables([]); } 
@@ -142,49 +210,63 @@ export default function App() {
       setLoadingFiles(true);
       // @ts-ignore
       const { open } = await import('@tauri-apps/plugin-dialog');
-      // @ts-ignore
-      const { readDir } = await import('@tauri-apps/plugin-fs');
-
-      const selectedPath = await open({ directory: true, multiple: false });
+      
+      const selectedPath = await open({ directory: true, multiple: false, title: "Select Project Folder" });
       
       if (selectedPath && typeof selectedPath === 'string') {
-        // @ts-ignore
-        const entries = await readDir(selectedPath); 
-        const ignoredExtensions = ['aux', 'log', 'out', 'toc', 'synctex.gz', 'fdb_latexmk', 'fls', 'bbl', 'blg', 'xdv', 'lof', 'lot'];
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const process = (ents: any[], parentPath: string): FileSystemNode[] => {
-            return ents.filter(e => {
-                  if (e.isDirectory) return true;
-                  const name = e.name || '';
-                  const ext = name.split('.').pop()?.toLowerCase();
-                  if (ext && ignoredExtensions.includes(ext)) return false;
-                  return true;
-              }).map(e => ({
-                id: `${parentPath}/${e.name}`, name: e.name || '', type: e.isDirectory ? 'folder' : 'file', path: `${parentPath}/${e.name}`, children: [] 
-            }));
-        };
-        setProjectData(process(entries, selectedPath));
+        setRootPath(selectedPath); 
+        await loadProjectFiles(selectedPath);
+        setActiveActivity("files");
       }
     } catch (e) {
-      console.warn("Tauri v2 API failed", e);
-      setProjectData([{ id: 'root', name: 'Mock Project', type: 'folder', path: '/root', children: [
-          { id: 'f1', name: 'main.tex', type: 'file', path: '/root/main.tex' },
-          { id: 'f2', name: 'chapter1.tex', type: 'file', path: '/root/chapter1.tex' }
-      ]}]);
+      console.error("Tauri v2 API failed to open folder:", e);
+      setCompileError("Failed to open folder: " + String(e));
     } finally { setLoadingFiles(false); }
   };
 
+  // --- CREATE ITEM HANDLER ---
+  const handleCreateItem = async (name: string, type: 'file' | 'folder', parentPath: string) => {
+      try {
+          const basePath = parentPath === 'root' ? rootPath : parentPath;
+          if (!basePath) { console.error("No project root defined"); return; }
+
+          const separator = basePath.includes('\\') ? '\\' : '/';
+          const fullPath = `${basePath}${separator}${name}`; 
+
+          // @ts-ignore
+          const { writeTextFile, mkdir } = await import('@tauri-apps/plugin-fs');
+
+          if (type === 'file') {
+              await writeTextFile(fullPath, ''); 
+              const newTab: AppTab = { id: fullPath, title: name, type: 'editor', content: '', language: 'latex' };
+              setTabs(prev => [...prev, newTab]);
+              setActiveTabId(fullPath);
+          } else {
+              await mkdir(fullPath);
+          }
+
+          if (rootPath) await loadProjectFiles(rootPath);
+
+      } catch (e) {
+          console.error("Failed to create item:", e);
+          setCompileError(`Failed to create ${type}: ${String(e)}`);
+      }
+  };
+
   const handleOpenFileNode = async (node: FileSystemNode) => {
+    if (node.type === 'folder') return;
     if (tabs.find(t => t.id === node.path)) { setActiveTabId(node.path); return; }
+    
     let content = "";
     try {
         // @ts-ignore
         const { readTextFile } = await import('@tauri-apps/plugin-fs');
         content = await readTextFile(node.path);
     } catch (e) {
-        content = `% Content of ${node.name}\n\\section{${node.name}}\n`;
+        console.error("Failed to read file:", e);
+        content = `Error reading file: ${node.path}\n\n${String(e)}`;
     }
+
     const newTab: AppTab = { id: node.path, title: node.name, type: 'editor', content: content, language: 'latex' };
     setTabs([...tabs, newTab]);
     setActiveTabId(node.path);
@@ -227,6 +309,35 @@ export default function App() {
       monaco.editor.defineTheme("data-tex-dark", dataTexDarkTheme);
     }
     monaco.editor.setTheme("data-tex-dark");
+  };
+
+  // --- Compilation Logic ---
+  const handleCompile = async () => {
+    if (!activeTab || !activeTab.id || !isTexFile) return;
+
+    try {
+        setIsCompiling(true);
+        setCompileError(null);
+
+        // Save File
+        // @ts-ignore
+        const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+        await writeTextFile(activeTab.id, activeTab.content || "");
+
+        // Call Rust Command
+        console.log("Compiling:", activeTab.id);
+        const result = await invoke('compile_tex', { filePath: activeTab.id });
+        console.log("Compilation Result:", result);
+
+        // Refresh PDF
+        setPdfRefreshTrigger(prev => prev + 1);
+        
+    } catch (error: any) {
+        console.error("Compilation Failed:", error);
+        setCompileError(typeof error === 'string' ? error : "Unknown error occurred during compilation");
+    } finally {
+        setIsCompiling(false);
+    }
   };
 
   // --- Resize Logic ---
@@ -293,10 +404,22 @@ export default function App() {
                 dbTables={dbTables}
                 onConnectDB={handleConnectDB}
                 onOpenTable={handleOpenTable}
+                onCreateItem={handleCreateItem}
             />
             
             {/* CENTER: EDITOR AREA */}
             <Box style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
+                {/* Error Notification Overlay */}
+                {compileError && (
+                    <Box style={{position: 'absolute', top: 10, right: 10, zIndex: 1000, maxWidth: 400}}>
+                        <Notification color="red" title="Compilation Failed" onClose={() => setCompileError(null)} withBorder>
+                            <Box style={{ maxHeight: 200, overflow: 'auto' }}>
+                                <pre style={{ fontSize: 10, whiteSpace: 'pre-wrap' }}>{compileError}</pre>
+                            </Box>
+                        </Notification>
+                    </Box>
+                )}
+
                 <EditorArea 
                     files={tabs} 
                     activeFileId={activeTabId} 
@@ -307,6 +430,8 @@ export default function App() {
                     showPdf={showPdf}
                     onTogglePdf={() => setShowPdf(!showPdf)}
                     isTexFile={isTexFile}
+                    onCompile={handleCompile}
+                    isCompiling={isCompiling}
                 />
             </Box>
 
@@ -346,13 +471,21 @@ export default function App() {
                         <Box h="100%" bg="dark.6" style={{ borderLeft: "1px solid var(--mantine-color-dark-5)", display: "flex", flexDirection: "column" }}>
                             <Group justify="space-between" px="xs" py={4} bg="dark.7" style={{ borderBottom: "1px solid var(--mantine-color-dark-5)", flexShrink: 0 }}>
                                 <Text size="xs" fw={700} c="dimmed">PDF PREVIEW</Text>
-                                <ActionIcon size="xs" variant="transparent" onClick={() => setShowPdf(false)}><X size={12} /></ActionIcon>
+                                <Group gap={4}>
+                                    {isCompiling && <Loader size="xs" />}
+                                    <ActionIcon size="xs" variant="transparent" onClick={() => setShowPdf(false)}><X size={12} /></ActionIcon>
+                                </Group>
                             </Group>
                             <Box style={{ flex: 1, position: 'relative', overflow: 'hidden' }} bg="gray.7">
                                 {pdfUrl ? (
                                     <PdfPreview pdfUrl={pdfUrl} />
                                 ) : (
-                                    <Center h="100%"><Text c="dimmed" size="sm">No PDF Loaded</Text></Center>
+                                    <Center h="100%">
+                                        {isCompiling ? 
+                                            <Stack align="center" gap="xs"><Loader type="bars" /><Text size="xs" c="dimmed">Compiling...</Text></Stack> :
+                                            <Text c="dimmed" size="sm">No PDF Loaded</Text>
+                                        }
+                                    </Center>
                                 )}
                             </Box>
                         </Box>
