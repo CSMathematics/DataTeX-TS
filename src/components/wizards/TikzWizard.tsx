@@ -14,8 +14,8 @@ interface TikzWizardProps {
   onInsert: (code: string) => void;
 }
 
-type Mode = 'shapes' | 'plots' | 'text' | 'templates';
-type ShapeType = 'circle' | 'rectangle' | 'line' | 'grid';
+type Mode = 'shapes' | 'plots' | 'text' | 'templates' | 'coordinates';
+type ShapeType = 'circle' | 'rectangle' | 'line' | 'grid' | 'ellipse' | 'arc';
 type LineStyle = 'solid' | 'dashed' | 'dotted';
 type ArrowType = 'none' | '->' | '<-' | '<->';
 
@@ -71,6 +71,12 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
   const [x2, setX2] = useState(2);
   const [y2, setY2] = useState(2);
 
+  // New Shapes Params
+  const [rx, setRx] = useState(2);
+  const [ry, setRy] = useState(1);
+  const [startAngle, setStartAngle] = useState(0);
+  const [endAngle, setEndAngle] = useState(90);
+
   // --- Plots State ---
   const [functionStr, setFunctionStr] = useState('sin(x)');
   const [xMin, setXMin] = useState(-5);
@@ -80,6 +86,9 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
 
   // --- Text (Node) State ---
   const [textContent, setTextContent] = useState('Label');
+
+  // --- Coordinates State ---
+  const [coordName, setCoordName] = useState('A');
 
   const toSvgX = (val: number) => 150 + (val * 20);
   const toSvgY = (val: number) => 150 - (val * 20); 
@@ -110,6 +119,34 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
     return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
   }, [isResizingVert, isResizingHoriz]);
 
+  // --- Interactive Preview Click ---
+  const handlePreviewClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+
+    // Calculate click position relative to SVG element (0 to width/height)
+    const rawX = e.clientX - rect.left;
+    const rawY = e.clientY - rect.top;
+
+    // Map to viewBox 0-300
+    // We assume viewBox is 0 0 300 300
+    const scaleX = 300 / rect.width;
+    const scaleY = 300 / rect.height;
+
+    const svgX = rawX * scaleX;
+    const svgY = rawY * scaleY;
+
+    // Map to TikZ coordinates
+    // toSvgX(val) = 150 + (val * 20)  => val = (svgX - 150) / 20
+    // toSvgY(val) = 150 - (val * 20)  => val = (150 - svgY) / 20
+
+    const tikzX = (svgX - 150) / 20;
+    const tikzY = (150 - svgY) / 20;
+
+    setX(parseFloat(tikzX.toFixed(1)));
+    setY(parseFloat(tikzY.toFixed(1)));
+  };
+
   // --- Snippet Injection ---
   const insertSnippet = (snippet: string) => {
     shouldSkipUpdate.current = true;
@@ -126,7 +163,7 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
   const generateCommand = (el: SceneElement | null): string => {
     const type = el ? el.type : (activeTab as Mode);
     // @ts-ignore
-    const p = el ? el.params : { x, y, radius, width, height, x2, y2, functionStr, xMin, xMax, samples, showAxis, textContent, shapeType };
+    const p = el ? el.params : { x, y, radius, width, height, x2, y2, rx, ry, startAngle, endAngle, functionStr, xMin, xMax, samples, showAxis, textContent, shapeType, coordName };
     const s = el ? el.style : { color, fill, lineWidth, opacity, lineStyle, arrowHead };
 
     const styleOptions = [];
@@ -143,6 +180,8 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
     if (type === 'shapes') {
         const st = p.shapeType;
         if (st === 'circle') return `\\draw${styleStr} (${p.x},${p.y}) circle (${p.radius}cm);`;
+        if (st === 'ellipse') return `\\draw${styleStr} (${p.x},${p.y}) ellipse (${p.rx}cm and ${p.ry}cm);`;
+        if (st === 'arc') return `\\draw${styleStr} (${p.x},${p.y}) arc (${p.startAngle}:${p.endAngle}:${p.radius}cm);`;
         if (st === 'rectangle') return `\\draw${styleStr} (${p.x},${p.y}) rectangle ++(${p.width},${p.height});`;
         if (st === 'line') return `\\draw${styleStr} (${p.x},${p.y}) -- (${p.x2},${p.y2});`;
         if (st === 'grid') return `\\draw[step=1cm,gray,very thin] (${p.x},${p.y}) grid (${p.x2},${p.y2});`;
@@ -150,6 +189,9 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
     else if (type === 'text') {
         return `\\node${styleStr} at (${p.x},${p.y}) {${p.textContent}};`;
     } 
+    else if (type === 'coordinates') {
+        return `\\coordinate (${p.coordName}) at (${p.x},${p.y});`;
+    }
     else if (type === 'plots') {
         return `\\addplot${styleStr} {${p.functionStr}};`;
     }
@@ -242,6 +284,28 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
             return;
         }
 
+        // 1b. Ellipse: \draw[...] (x,y) ellipse (rx cm and ry cm);
+        const ellipseMatch = trimmed.match(/\\draw(?:\[(.*?)\])?\s*\(([\d.-]+),([\d.-]+)\)\s*ellipse\s*\(([\d.-]+)cm\s+and\s+([\d.-]+)cm\);/);
+        if (ellipseMatch) {
+            newElements.push({
+                id: Math.random().toString(36).substr(2, 9), type: 'shapes',
+                style: getStyle(ellipseMatch[1]),
+                params: { shapeType: 'ellipse', x: parseFloat(ellipseMatch[2]), y: parseFloat(ellipseMatch[3]), rx: parseFloat(ellipseMatch[4]), ry: parseFloat(ellipseMatch[5]) }
+            });
+            return;
+        }
+
+        // 1c. Arc: \draw[...] (x,y) arc (start:end:radius cm);
+        const arcMatch = trimmed.match(/\\draw(?:\[(.*?)\])?\s*\(([\d.-]+),([\d.-]+)\)\s*arc\s*\(([\d.-]+):([\d.-]+):([\d.-]+)cm\);/);
+        if (arcMatch) {
+             newElements.push({
+                id: Math.random().toString(36).substr(2, 9), type: 'shapes',
+                style: getStyle(arcMatch[1]),
+                params: { shapeType: 'arc', x: parseFloat(arcMatch[2]), y: parseFloat(arcMatch[3]), startAngle: parseFloat(arcMatch[4]), endAngle: parseFloat(arcMatch[5]), radius: parseFloat(arcMatch[6]) }
+            });
+            return;
+        }
+
         // 2. Rectangle: \draw[...] (x,y) rectangle ++(w,h);
         const rectMatch = trimmed.match(/\\draw(?:\[(.*?)\])?\s*\(([\d.-]+),([\d.-]+)\)\s*rectangle\s*\+\+\(([\d.-]+),([\d.-]+)\);/);
         if (rectMatch) {
@@ -278,6 +342,17 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
             return;
         }
 
+        // 4b. Coordinate: \coordinate (Name) at (x,y);
+        const coordMatch = trimmed.match(/\\coordinate\s*\((.*?)\)\s*at\s*\(([\d.-]+),([\d.-]+)\);/);
+        if (coordMatch) {
+             newElements.push({
+                id: Math.random().toString(36).substr(2, 9), type: 'coordinates',
+                style: getStyle(undefined),
+                params: { coordName: coordMatch[1], x: parseFloat(coordMatch[2]), y: parseFloat(coordMatch[3]) }
+            });
+            return;
+        }
+
         // 5. Plot: \addplot[...] {func};
         const plotMatch = trimmed.match(/\\addplot(?:\[(.*?)\])?\s*\{(.*?)\};/);
         if (plotMatch) {
@@ -306,7 +381,7 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
     const newEl: SceneElement = {
         id: Date.now().toString(),
         type: activeTab as Mode,
-        params: { x, y, radius, width, height, x2, y2, functionStr, xMin, xMax, samples, showAxis, textContent, shapeType },
+        params: { x, y, radius, width, height, x2, y2, rx, ry, startAngle, endAngle, functionStr, xMin, xMax, samples, showAxis, textContent, shapeType, coordName },
         style: { color, fill, lineWidth, opacity, lineStyle, arrowHead }
     };
     // Adding element resets the skip update flag implicitly because the button click isn't a text edit
@@ -322,7 +397,7 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
   const renderSvgElement = (el: SceneElement | null, isDraft: boolean) => {
     const type = el ? el.type : (activeTab as Mode);
     // @ts-ignore
-    const p = el ? el.params : { x, y, radius, width, height, x2, y2, functionStr, xMin, xMax, textContent, shapeType };
+    const p = el ? el.params : { x, y, radius, width, height, x2, y2, rx, ry, startAngle, endAngle, functionStr, xMin, xMax, textContent, shapeType, coordName };
     const s = el ? el.style : { color, fill, lineWidth, opacity, lineStyle, arrowHead };
 
     const stroke = s.color;
@@ -336,11 +411,76 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
     if (type === 'shapes') {
         const st = p.shapeType;
         if (st === 'circle') return <circle cx={toSvgX(p.x)} cy={toSvgY(p.y)} r={p.radius * 20} stroke={stroke} strokeWidth={sw} fill={fillVal} opacity={op} strokeDasharray={dashArray} />;
+        if (st === 'ellipse') return <ellipse cx={toSvgX(p.x)} cy={toSvgY(p.y)} rx={p.rx * 20} ry={p.ry * 20} stroke={stroke} strokeWidth={sw} fill={fillVal} opacity={op} strokeDasharray={dashArray} />;
+        if (st === 'arc') {
+            // Calculate start and end points of arc
+            // SVG path arc: A rx ry x-axis-rotation large-arc-flag sweep-flag x y
+            // We need to convert start/end angles to points.
+            const startRad = (p.startAngle * Math.PI) / 180;
+            const endRad = (p.endAngle * Math.PI) / 180;
+            // Arc starts at startAngle relative to center (p.x, p.y)
+            const xStart = p.x + p.radius * Math.cos(startRad);
+            const yStart = p.y + p.radius * Math.sin(startRad);
+            const xEnd = p.x + p.radius * Math.cos(endRad);
+            const yEnd = p.y + p.radius * Math.sin(endRad);
+
+            // Flags
+            const largeArc = Math.abs(p.endAngle - p.startAngle) > 180 ? 1 : 0;
+            const sweep = p.endAngle > p.startAngle ? 0 : 1; // Actually in TikZ positive is CCW. SVG y is flipped.
+            // SVG coordinate system: y increases downwards. TikZ: y increases upwards.
+            // So +angle in TikZ (CCW) is -angle in SVG (CCW visually but logic differs).
+            // Let's rely on simple point calculation.
+            // TikZ arc: starts at current point!
+            // Wait, TikZ: \draw (x,y) arc (start:end:radius); means center is NOT (x,y).
+            // It means arc starts at (x,y). The center is calculated based on start angle and radius.
+            // Center is (x - r*cos(start), y - r*sin(start)).
+            // Then it goes to end angle.
+
+            // Let's re-read TikZ manual logic for `arc`.
+            // \draw (0,0) arc (0:90:1cm); starts at (0,0), radius 1, from 0 to 90.
+            // Center is (0 - 1*cos(0), 0 - 1*sin(0)) = (-1, 0).
+            // Then it draws to (-1 + 1*cos(90), 0 + 1*sin(90)) = (-1, 1).
+
+            // So: CenterX = p.x - p.radius * cos(startRad)
+            //     CenterY = p.y - p.radius * sin(startRad)
+            const cx = p.x - p.radius * Math.cos(startRad);
+            const cy = p.y - p.radius * Math.sin(startRad);
+
+            const xEndP = cx + p.radius * Math.cos(endRad);
+            const yEndP = cy + p.radius * Math.sin(endRad);
+
+            // SVG Path: M startX startY A r r 0 largeArc sweep endX endY
+            // We need to flip Y for SVG
+
+            // However, implementing full arc logic in SVG preview might be complex due to Y-flip.
+            // Simplified approach: Render a small path using points for draft?
+            // Or try to compute correct SVG Arc path.
+
+            // Let's use the polyline approximation for simplicity and correctness in flipped coords.
+            const points = [];
+            const steps = 20;
+            for(let i=0; i<=steps; i++) {
+                const ang = p.startAngle + (p.endAngle - p.startAngle) * (i/steps);
+                const r = (ang * Math.PI) / 180;
+                const px = cx + p.radius * Math.cos(r);
+                const py = cy + p.radius * Math.sin(r);
+                points.push(`${toSvgX(px)},${toSvgY(py)}`);
+            }
+            return <polyline points={points.join(' ')} fill="none" stroke={stroke} strokeWidth={sw} opacity={op} strokeDasharray={dashArray} />;
+        }
+
         if (st === 'rectangle') return <rect x={toSvgX(p.x)} y={toSvgY(p.y + p.height)} width={p.width * 20} height={p.height * 20} stroke={stroke} strokeWidth={sw} fill={fillVal} opacity={op} strokeDasharray={dashArray} />;
         if (st === 'line') return <line x1={toSvgX(p.x)} y1={toSvgY(p.y)} x2={toSvgX(p.x2)} y2={toSvgY(p.y2)} stroke={stroke} strokeWidth={sw} opacity={op} strokeDasharray={dashArray} />;
         if (st === 'grid') return <path d={`M ${toSvgX(p.x)} ${toSvgY(p.y)} H ${toSvgX(p.x2)} V ${toSvgY(p.y2)} H ${toSvgX(p.x)} Z`} stroke="gray" fill="none" strokeDasharray="2,2" />;
     } else if (type === 'text') {
         return <text x={toSvgX(p.x)} y={toSvgY(p.y)} fill={s.color} fontSize={16} textAnchor="middle" alignmentBaseline="middle" opacity={op}>{p.textContent}</text>;
+    } else if (type === 'coordinates') {
+        return (
+            <g opacity={op}>
+                <circle cx={toSvgX(p.x)} cy={toSvgY(p.y)} r={3} fill="red" />
+                <text x={toSvgX(p.x)+5} y={toSvgY(p.y)-5} fill="red" fontSize={10} fontWeight="bold">{p.coordName}</text>
+            </g>
+        );
     } else if (type === 'plots') {
         try {
             const points = [];
@@ -369,6 +509,7 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
             <Tabs.List grow>
                 <Tabs.Tab value="shapes" leftSection={<Square size={14} />}>Shapes</Tabs.Tab>
                 <Tabs.Tab value="text" leftSection={<Type size={14} />}>Text</Tabs.Tab>
+                <Tabs.Tab value="coordinates" leftSection={<MousePointer2 size={14} />}>Coords</Tabs.Tab>
                 <Tabs.Tab value="plots" leftSection={<TrendingUp size={14} />}>Plots</Tabs.Tab>
                 <Tabs.Tab value="templates" leftSection={<LayoutTemplate size={14} />}>Templates</Tabs.Tab>
             </Tabs.List>
@@ -389,31 +530,42 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
                  </Stack>
             ) : (
                 <Stack gap="xs" p="xs">
-                    <Divider label="Styling" labelPosition="center" color="dark.4" />
-                    <Group grow>
-                        <ColorInput label="Color" value={color} onChange={setColor} size="xs" />
-                        <Select label="Style" value={lineStyle} onChange={(v) => setLineStyle(v as LineStyle)} data={['solid', 'dashed', 'dotted']} size="xs" />
-                    </Group>
-                    <Group grow>
-                        <NumberInput label="Width (mm)" value={lineWidth} onChange={(v) => setLineWidth(Number(v))} step={0.1} min={0} size="xs" />
-                        <Select label="Arrow" value={arrowHead} onChange={(v) => setArrowHead(v as ArrowType)} data={['none', '->', '<-', '<->']} size="xs" />
-                    </Group>
-                    <Stack gap={0}>
-                        <Text size="xs" fw={500}>Opacity</Text>
-                        <Slider value={opacity} onChange={setOpacity} size="sm" />
-                    </Stack>
-                    {activeTab === 'shapes' && <ColorInput label="Fill" value={fill} onChange={setFill} size="xs" placeholder="None" />}
+                    {activeTab !== 'coordinates' && (
+                    <>
+                        <Divider label="Styling" labelPosition="center" color="dark.4" />
+                        <Group grow>
+                            <ColorInput label="Color" value={color} onChange={setColor} size="xs" />
+                            <Select label="Style" value={lineStyle} onChange={(v) => setLineStyle(v as LineStyle)} data={['solid', 'dashed', 'dotted']} size="xs" />
+                        </Group>
+                        <Group grow>
+                            <NumberInput label="Width (mm)" value={lineWidth} onChange={(v) => setLineWidth(Number(v))} step={0.1} min={0} size="xs" />
+                            <Select label="Arrow" value={arrowHead} onChange={(v) => setArrowHead(v as ArrowType)} data={['none', '->', '<-', '<->']} size="xs" />
+                        </Group>
+                        <Stack gap={0}>
+                            <Text size="xs" fw={500}>Opacity</Text>
+                            <Slider value={opacity} onChange={setOpacity} size="sm" />
+                        </Stack>
+                        {activeTab === 'shapes' && <ColorInput label="Fill" value={fill} onChange={setFill} size="xs" placeholder="None" />}
+                    </>
+                    )}
 
                     <Divider label="Parameters" labelPosition="center" color="dark.4" />
 
                     {activeTab === 'shapes' && (
                         <>
-                        <Select label="Type" value={shapeType} onChange={(v) => setShapeType(v as ShapeType)} data={['circle', 'rectangle', 'line', 'grid']} size="xs" />
+                        <Select label="Type" value={shapeType} onChange={(v) => setShapeType(v as ShapeType)} data={['circle', 'ellipse', 'arc', 'rectangle', 'line', 'grid']} size="xs" />
                         <Group grow>
                             <NumberInput label="X" value={x} onChange={(v) => setX(Number(v))} size="xs" />
                             <NumberInput label="Y" value={y} onChange={(v) => setY(Number(v))} size="xs" />
                         </Group>
                         {shapeType === 'circle' && <NumberInput label="Radius" value={radius} onChange={(v) => setRadius(Number(v))} size="xs" />}
+                        {shapeType === 'ellipse' && <Group grow><NumberInput label="Radius X" value={rx} onChange={(v) => setRx(Number(v))} size="xs" /><NumberInput label="Radius Y" value={ry} onChange={(v) => setRy(Number(v))} size="xs" /></Group>}
+                        {shapeType === 'arc' && (
+                            <>
+                                <NumberInput label="Radius" value={radius} onChange={(v) => setRadius(Number(v))} size="xs" />
+                                <Group grow><NumberInput label="Start Angle" value={startAngle} onChange={(v) => setStartAngle(Number(v))} size="xs" /><NumberInput label="End Angle" value={endAngle} onChange={(v) => setEndAngle(Number(v))} size="xs" /></Group>
+                            </>
+                        )}
                         {shapeType === 'rectangle' && <Group grow><NumberInput label="W" value={width} onChange={(v) => setWidth(Number(v))} size="xs" /><NumberInput label="H" value={height} onChange={(v) => setHeight(Number(v))} size="xs" /></Group>}
                         {(shapeType === 'line' || shapeType === 'grid') && <Group grow><NumberInput label="End X" value={x2} onChange={(v) => setX2(Number(v))} size="xs" /><NumberInput label="End Y" value={y2} onChange={(v) => setY2(Number(v))} size="xs" /></Group>}
                         </>
@@ -422,6 +574,16 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
                     {activeTab === 'text' && (
                         <>
                         <TextInput label="Label" value={textContent} onChange={(e) => setTextContent(e.currentTarget.value)} size="xs" />
+                        <Group grow>
+                            <NumberInput label="X" value={x} onChange={(v) => setX(Number(v))} size="xs" />
+                            <NumberInput label="Y" value={y} onChange={(v) => setY(Number(v))} size="xs" />
+                        </Group>
+                        </>
+                    )}
+
+                    {activeTab === 'coordinates' && (
+                        <>
+                        <TextInput label="Point Name" value={coordName} onChange={(e) => setCoordName(e.currentTarget.value)} size="xs" />
                         <Group grow>
                             <NumberInput label="X" value={x} onChange={(v) => setX(Number(v))} size="xs" />
                             <NumberInput label="Y" value={y} onChange={(v) => setY(Number(v))} size="xs" />
@@ -475,7 +637,7 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
         <Box h={topSectionHeight} style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <Box style={{ flex: 1, position: 'relative', overflow: 'hidden', borderBottom: '1px solid var(--mantine-color-dark-4)' }}>
                 <Box style={{ position: 'absolute', top: 8, left: 8, zIndex: 10 }}><Badge color="gray" variant="light">Live Preview</Badge></Box>
-                <svg width="100%" height="100%" viewBox="0 0 300 300">
+                <svg width="100%" height="100%" viewBox="0 0 300 300" onClick={handlePreviewClick} style={{ cursor: 'crosshair' }}>
                     <defs>
                         <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
                         <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#333" strokeWidth="0.5"/>
