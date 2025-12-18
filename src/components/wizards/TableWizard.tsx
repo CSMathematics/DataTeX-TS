@@ -5,12 +5,12 @@ import {
   Select, ColorPicker, Popover, NumberInput
 } from '@mantine/core';
 import { 
-  AlignLeft, AlignCenter, AlignRight,
-  Check, Copy,
+  Plus, Trash, AlignLeft, AlignCenter, AlignRight, 
+  Table as TableIcon, Check, Copy, 
   Bold, Italic, PaintBucket, Minimize2, Maximize2, Eraser, GripHorizontal, Settings
 } from 'lucide-react';
 
-import { IconTableRow,IconTableColumn } from '@tabler/icons-react';
+import { IconTableRow, IconTableColumn, IconRowRemove, IconColumnRemove } from '@tabler/icons-react';
 
 interface TableWizardProps {
   onInsert: (code: string) => void;
@@ -66,12 +66,12 @@ export const TableWizard: React.FC<TableWizardProps> = ({ onInsert }) => {
   // Options
   const [useBooktabs, setUseBooktabs] = useState(true);
   const [isCentered, setIsCentered] = useState(true);
-  const [verticalLines, setVerticalLines] = useState(false); // NEW
+  const [verticalLines, setVerticalLines] = useState(false);
   const [placement, setPlacement] = useState('h');
   const [caption, setCaption] = useState('');
   const [label, setLabel] = useState('');
-  const [fontSize, setFontSize] = useState('normalsize'); // NEW
-  const [rowStretch, setRowStretch] = useState(1.2); // NEW (Default 1.2 looks better)
+  const [fontSize, setFontSize] = useState('normalsize');
+  const [rowStretch, setRowStretch] = useState(1.2);
   
   // Toolbar State
   const [bgColor, setBgColor] = useState('#f0f0f0');
@@ -95,6 +95,47 @@ export const TableWizard: React.FC<TableWizardProps> = ({ onInsert }) => {
     ]);
     setGrid(newGrid);
     setCols(c => c + 1);
+  };
+
+  // --- Delete Functions ---
+  const deleteRow = () => {
+    if (rows <= 1) return; // Don't delete the last row
+    const r = activeCell.r;
+    
+    // Check if row has content
+    const hasContent = grid[r].some(cell => cell.content.trim() !== '');
+    if (hasContent) {
+        if (!confirm("Η γραμμή περιέχει δεδομένα. Είστε σίγουροι ότι θέλετε να τη διαγράψετε;")) return;
+    }
+
+    const newGrid = grid.filter((_, idx) => idx !== r);
+    setGrid(newGrid);
+    setRows(prev => prev - 1);
+
+    // Adjust active cell if needed
+    if (activeCell.r >= newGrid.length) {
+        setActiveCell(prev => ({ ...prev, r: Math.max(0, newGrid.length - 1) }));
+    }
+  };
+
+  const deleteCol = () => {
+    if (cols <= 1) return; // Don't delete the last column
+    const c = activeCell.c;
+
+    // Check if column has content
+    const hasContent = grid.some(row => row[c].content.trim() !== '');
+    if (hasContent) {
+        if (!confirm("Η στήλη περιέχει δεδομένα. Είστε σίγουροι ότι θέλετε να τη διαγράψετε;")) return;
+    }
+
+    const newGrid = grid.map(row => row.filter((_, idx) => idx !== c));
+    setGrid(newGrid);
+    setCols(prev => prev - 1);
+
+    // Adjust active cell if needed
+    if (activeCell.c >= newGrid[0].length) {
+        setActiveCell(prev => ({ ...prev, c: Math.max(0, newGrid[0].length - 1) }));
+    }
   };
 
   // --- Selection Handlers ---
@@ -124,10 +165,8 @@ export const TableWizard: React.FC<TableWizardProps> = ({ onInsert }) => {
     const move = (e: MouseEvent) => {
       if (isResizing && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        // Calculate percentage relative to container top
         const offsetY = e.clientY - rect.top;
         const percentage = (offsetY / rect.height) * 100;
-        // Limit between 20% and 80%
         setSplitRatio(Math.max(20, Math.min(percentage, 80)));
       }
     };
@@ -232,7 +271,6 @@ export const TableWizard: React.FC<TableWizardProps> = ({ onInsert }) => {
     const hasColors = grid.some(row => row.some(c => c.bgColor));
     const hasMultiRow = grid.some(row => row.some(c => c.rowSpan > 1));
     
-    // Comments for required packages
     if (hasColors || hasMultiRow) {
         code += `% Requires: ${hasColors ? '\\usepackage[table]{xcolor} ' : ''}${hasMultiRow ? '\\usepackage{multirow} ' : ''}\n`;
     }
@@ -245,23 +283,15 @@ export const TableWizard: React.FC<TableWizardProps> = ({ onInsert }) => {
     if (caption) code += `  \\caption{${caption}}\n`;
     if (label) code += `  \\label{${label}}\n`;
 
-    // Column Specification Logic
-    // const colSpecChar = useBooktabs ? 'c' : '|c';
+    const colSpecChar = useBooktabs ? 'c' : '|c';
     let colSpec = '';
-    // If vertical lines are enabled, we force lines. If booktabs, we warn or mix (user choice)
     const vert = verticalLines ? '|' : '';
     
-    // We need to scan actual columns to see if there are alignment overrides, 
-    // but for simplicity we assume 'c' as default and use the global vertical line setting.
-    // If user selected 'Vertical Lines', we prepend/append '|'.
-    
     for(let i=0; i<cols; i++) {
-        // Here we could check if specific column has alignment preference, but our data model stores alignment PER CELL.
-        // So we default columns to 'c' and rely on \multicolumn for overrides.
-        colSpec += (i === 0 ? vert : '') + 'c' + vert;
+        colSpec += (i === 0 ? vert : '') + colSpecChar + vert;
     }
 
-    code += `  \\begin{tabular}{${colSpec}}\n`;
+    code += `  \\begin{tabular}{${colSpec.trim()}}\n`;
     if (useBooktabs) code += `    \\toprule\n`; else code += `    \\hline\n`;
 
     grid.forEach((row, rIdx) => {
@@ -285,14 +315,16 @@ export const TableWizard: React.FC<TableWizardProps> = ({ onInsert }) => {
 
         if (cell.colSpan > 1) {
             const align = cell.align || 'c';
-            // Determine borders for multicolumn based on global settings
             const lBorder = (verticalLines && cIdx === 0) ? '|' : '';
             const rBorder = verticalLines ? '|' : '';
-            cellContent = `\\multicolumn{${cell.colSpan}}{${lBorder}${align}${rBorder}}{${cellContent}}`;
+            const effectiveL = (!useBooktabs && cIdx === 0) || (verticalLines && cIdx === 0) ? '|' : '';
+            const effectiveR = (!useBooktabs) || verticalLines ? '|' : '';
+            
+            cellContent = `\\multicolumn{${cell.colSpan}}{${effectiveL}${align}${effectiveR}}{${cellContent}}`;
         } else if (cell.align && cell.align !== 'c') {
-             const lBorder = (verticalLines && cIdx === 0) ? '|' : '';
-             const rBorder = verticalLines ? '|' : '';
-             cellContent = `\\multicolumn{1}{${lBorder}${cell.align}${rBorder}}{${cellContent}}`;
+             const effectiveL = (!useBooktabs && cIdx === 0) || (verticalLines && cIdx === 0) ? '|' : '';
+             const effectiveR = (!useBooktabs) || verticalLines ? '|' : '';
+             cellContent = `\\multicolumn{1}{${effectiveL}${cell.align}${effectiveR}}{${cellContent}}`;
         }
 
         rowCodeParts.push(cellContent);
@@ -321,19 +353,33 @@ export const TableWizard: React.FC<TableWizardProps> = ({ onInsert }) => {
       
       {/* TOOLBAR */}
       <Group p="xs" bg="dark.7" style={{ borderBottom: '1px solid var(--mantine-color-dark-5)' }} gap={4}>
-        <Tooltip label="Add Row"><ActionIcon variant="subtle" size="sm" onClick={addRow}><IconTableRow stroke={2} /></ActionIcon></Tooltip>
-        <Tooltip label="Add Column"><ActionIcon variant="subtle" size="sm" onClick={addCol}><IconTableColumn stroke={2} /></ActionIcon></Tooltip>
+        {/* Row Operations */}
+        <Group gap={0}>
+          <Tooltip label="Add Row"><ActionIcon variant="subtle" size="sm" onClick={addRow}><IconTableRow stroke={2} /></ActionIcon></Tooltip>
+          <Tooltip label="Delete Row"><ActionIcon variant="subtle" size="sm" color="red" onClick={deleteRow}><IconRowRemove size={14} /></ActionIcon></Tooltip>
+        </Group>
         <Divider orientation="vertical" />
+        
+        {/* Column Operations */}
+        <Group gap={0}>
+          <Tooltip label="Add Column"><ActionIcon variant="subtle" size="sm" onClick={addCol}><IconTableColumn stroke={2} /></ActionIcon></Tooltip>
+          <Tooltip label="Delete Column"><ActionIcon variant="subtle" size="sm" color="red" onClick={deleteCol}><IconColumnRemove size={14}/></ActionIcon></Tooltip>
+        </Group>
+        <Divider orientation="vertical" />
+        
         <Tooltip label="Merge Cells"><ActionIcon variant="subtle" size="sm" onClick={mergeCells}><Minimize2 size={14}/></ActionIcon></Tooltip>
         <Tooltip label="Split Cells"><ActionIcon variant="subtle" size="sm" onClick={splitCells}><Maximize2 size={14}/></ActionIcon></Tooltip>
         <Divider orientation="vertical" />
+        
         <Tooltip label="Bold"><ActionIcon variant={grid[activeCell.r][activeCell.c].bold ? "filled" : "subtle"} size="sm" onClick={toggleBold}><Bold size={14}/></ActionIcon></Tooltip>
         <Tooltip label="Italic"><ActionIcon variant={grid[activeCell.r][activeCell.c].italic ? "filled" : "subtle"} size="sm" onClick={toggleItalic}><Italic size={14}/></ActionIcon></Tooltip>
         <Divider orientation="vertical" />
+        
         <Tooltip label="Align Left"><ActionIcon variant={grid[activeCell.r][activeCell.c].align==='l' ? "filled" : "subtle"} size="sm" onClick={() => setAlign('l')}><AlignLeft size={14}/></ActionIcon></Tooltip>
         <Tooltip label="Align Center"><ActionIcon variant={grid[activeCell.r][activeCell.c].align==='c' || !grid[activeCell.r][activeCell.c].align ? "filled" : "subtle"} size="sm" onClick={() => setAlign('c')}><AlignCenter size={14}/></ActionIcon></Tooltip>
         <Tooltip label="Align Right"><ActionIcon variant={grid[activeCell.r][activeCell.c].align==='r' ? "filled" : "subtle"} size="sm" onClick={() => setAlign('r')}><AlignRight size={14}/></ActionIcon></Tooltip>
         <Divider orientation="vertical" />
+        
         <Popover position="bottom" withArrow shadow="md">
             <Popover.Target>
                 <ActionIcon variant="subtle" size="sm" bg={bgColor}><PaintBucket size={14} color={bgColor === '#ffffff' ? 'black' : 'white'} /></ActionIcon>
@@ -471,7 +517,7 @@ export const TableWizard: React.FC<TableWizardProps> = ({ onInsert }) => {
                 
                 {/* Scrollable Code Area fills remaining vertical space */}
                 <ScrollArea type="auto" offsetScrollbars style={{ flex: 1, borderRadius: 4, border: '1px solid var(--mantine-color-dark-6)' }} bg="dark.9">
-                    <Code block style={{ fontSize: 11, background: 'transparent' }}>{generateCode()}</Code>
+                    <Code block style={{ fontSize: 12, background: 'transparent' }}>{generateCode()}</Code>
                 </ScrollArea>
                 
                 <Button mt="xs" fullWidth size="xs" leftSection={<Check size={14} />} onClick={() => onInsert(generateCode())}>Insert Code</Button>

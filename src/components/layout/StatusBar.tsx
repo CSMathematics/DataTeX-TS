@@ -14,9 +14,9 @@ export const StatusBar: React.FC<StatusBarProps> = React.memo(({ activeFile, dbC
       h={24} 
       px="xs" 
       justify="space-between" 
-      bg="blue.8" 
+      bg="#235fceff" 
       c="white" 
-      style={{ fontSize: "11px", userSelect: "none" }}
+      style={{ fontSize: "12px", userSelect: "none" }}
     >
       <Group gap="lg">
         <Group gap={4}>
@@ -31,7 +31,7 @@ export const StatusBar: React.FC<StatusBarProps> = React.memo(({ activeFile, dbC
         </Text>
         <Text size="xs" inherit>UTF-8</Text>
         <Group gap={4}>
-          <Database size={10} color={dbConnected ? 'white' : '#ff8787'} />
+          <Database size={10} color={dbConnected ? 'white' : '#ff3e3eff'} />
           <Text size="xs" inherit>
             DataTex DB: {dbConnected ? 'Connected' : 'Disconnected'}
           </Text>
