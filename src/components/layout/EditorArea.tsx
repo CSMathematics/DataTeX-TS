@@ -1,8 +1,8 @@
 import React from 'react';
-import { Stack, ScrollArea, Group, Box, Text, ActionIcon, Tooltip, Loader } from "@mantine/core";
+import { Stack, ScrollArea, Group, Box, Text, ActionIcon, Tooltip } from "@mantine/core";
 import Editor, { OnMount } from "@monaco-editor/react";
 import { 
-    FileCode, BookOpen, FileCog, FileText, Image as ImageIcon, File, Table2, 
+    FileCode, BookOpen, FileCog, FileText, Image as ImageIcon, File,
     X, Play, PanelRight, Code2, Puzzle, Square, Home, ChevronRight 
 } from "lucide-react";
 import { TableDataView } from "../database/TableDataView";
@@ -28,12 +28,15 @@ interface EditorAreaProps {
   onCreateEmpty: () => void;
   onOpenWizard: () => void;
   onCreateFromTemplate: (code: string) => void;
+
+  recentProjects?: string[];
+  onOpenRecent?: (path: string) => void;
 }
 
 export const EditorArea: React.FC<EditorAreaProps> = ({ 
   files, activeFileId, onFileSelect, onFileClose, onContentChange, onMount, 
-  showPdf, onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile, onOpenGallery,
-  onCreateEmpty, onOpenWizard, onCreateFromTemplate
+  onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile, onOpenGallery,
+  onCreateEmpty, onOpenWizard, onCreateFromTemplate, recentProjects, onOpenRecent
 }) => {
   
   const activeFile = files.find(f => f.id === activeFileId);
@@ -109,6 +112,8 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
                 onCreateEmpty={onCreateEmpty}
                 onOpenWizard={onOpenWizard}
                 onCreateFromTemplate={onCreateFromTemplate}
+                recentProjects={recentProjects || []}
+                onOpenRecent={onOpenRecent || (() => {})}
              />
           ) : (
              <Box h="100%" style={{display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>

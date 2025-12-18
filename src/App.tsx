@@ -37,14 +37,6 @@ import { PackageGallery } from "./components/wizards/PackageGallery";
 import { latexLanguage, latexConfiguration } from "./languages/latex";
 import { dataTexDarkTheme } from "./themes/monaco-theme";
 
-const INITIAL_CODE = `\\documentclass{article}
-\\usepackage{amsmath}
-
-\\begin{document}
-  \\section{Hello DataTex}
-  Start typing...
-\\end{document}`;
-
 export default function App() {
   // --- Layout State ---
   const [activeActivity, setActiveActivity] = useState<SidebarSection>("files");
@@ -77,6 +69,9 @@ export default function App() {
   const [dbConnected, setDbConnected] = useState(false);
   const [dbTables, setDbTables] = useState<string[]>([]);
 
+  // --- Recent Projects State ---
+  const [recentProjects, setRecentProjects] = useState<string[]>([]);
+
   // --- PDF State ---
   const [showPdf, setShowPdf] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -90,6 +85,22 @@ export default function App() {
   const showRightPanel = isWizardActive || (activeView === 'editor' && showPdf && isTexFile);
 
   // --- Handlers ---
+  // --- Load Recent Projects on Mount ---
+  useEffect(() => {
+      const saved = localStorage.getItem('recentProjects');
+      if (saved) {
+          try {
+              setRecentProjects(JSON.parse(saved));
+          } catch (e) { console.error("Failed to parse recent projects", e); }
+      }
+  }, []);
+
+  const addToRecent = (path: string) => {
+      const newRecent = [path, ...recentProjects.filter(p => p !== path)].slice(0, 10);
+      setRecentProjects(newRecent);
+      localStorage.setItem('recentProjects', JSON.stringify(newRecent));
+  };
+
   const handleToggleSidebar = (section: SidebarSection) => {
     if (activeActivity === section) {
       setIsSidebarOpen(!isSidebarOpen); 
@@ -212,10 +223,23 @@ export default function App() {
         setRootPath(selectedPath); 
         await loadProjectFiles(selectedPath);
         setActiveActivity("files");
+        addToRecent(selectedPath);
       }
     } catch (e) {
       setCompileError("Failed to open folder: " + String(e));
     } finally { setLoadingFiles(false); }
+  };
+
+  const handleOpenRecent = async (path: string) => {
+      try {
+          setLoadingFiles(true);
+          setRootPath(path);
+          await loadProjectFiles(path);
+          setActiveActivity("files");
+          addToRecent(path);
+      } catch (e) {
+          setCompileError("Failed to open recent project: " + String(e));
+      } finally { setLoadingFiles(false); }
   };
   
   const handleCreateItem = async (name: string, type: 'file' | 'folder', parentPath: string) => {
@@ -234,6 +258,54 @@ export default function App() {
           } else { await mkdir(fullPath); }
           if (rootPath) await loadProjectFiles(rootPath);
       } catch (e) { setCompileError(`Failed to create ${type}: ${String(e)}`); }
+  };
+
+  const handleRenameItem = async (node: FileSystemNode, newName: string) => {
+      try {
+          // @ts-ignore
+          const { rename } = await import('@tauri-apps/plugin-fs');
+
+          const lastSlashIndex = node.path.lastIndexOf(node.path.includes('\\') ? '\\' : '/');
+          const parentDir = node.path.substring(0, lastSlashIndex);
+          const separator = node.path.includes('\\') ? '\\' : '/';
+          const newPath = `${parentDir}${separator}${newName}`;
+
+          await rename(node.path, newPath);
+
+          // Update tabs if file is open
+          if (node.type === 'file') {
+             setTabs(prev => prev.map(t => t.id === node.path ? { ...t, id: newPath, title: newName } : t));
+             if (activeTabId === node.path) setActiveTabId(newPath);
+          }
+
+          if (rootPath) await loadProjectFiles(rootPath);
+      } catch (e) {
+          setCompileError(`Failed to rename: ${String(e)}`);
+      }
+  };
+
+  const handleDeleteItem = async (node: FileSystemNode) => {
+      try {
+          // @ts-ignore
+          const { remove, exists } = await import('@tauri-apps/plugin-fs');
+          // @ts-ignore
+          const { confirm } = await import('@tauri-apps/plugin-dialog');
+
+          const confirmed = await confirm(`Are you sure you want to delete '${node.name}'?`, { title: 'Delete Item', kind: 'warning' });
+          if (!confirmed) return;
+
+          await remove(node.path, { recursive: node.type === 'folder' });
+
+          // Close tab if file is open
+          if (node.type === 'file') {
+              const isOpen = tabs.find(t => t.id === node.path);
+              if (isOpen) handleCloseTab(node.path, { stopPropagation: () => {} } as React.MouseEvent);
+          }
+
+          if (rootPath) await loadProjectFiles(rootPath);
+      } catch (e) {
+          setCompileError(`Failed to delete: ${String(e)}`);
+      }
   };
 
   const handleOpenFileNode = async (node: FileSystemNode) => {
@@ -263,9 +335,6 @@ export default function App() {
   const handleEditorChange = (id: string, val: string) => {
     setTabs(prev => prev.map(t => t.id === id ? { ...t, content: val, isDirty: true } : t));
   };
-
-  // Reused by Header (Menu) to trigger Save As flow for new file
-  const handleCreateDocument = (code: string) => { createTabWithContent(code, 'Untitled.tex'); };
 
   const handleInsertSnippet = (code: string) => {
     if (!activeTab || activeTab.type !== 'editor') return;
@@ -426,6 +495,8 @@ export default function App() {
                     projectData={projectData} onOpenFolder={handleOpenFolder} onOpenFileNode={handleOpenFileNode}
                     loadingFiles={loadingFiles} dbConnected={dbConnected} dbTables={dbTables} onConnectDB={handleConnectDB} onOpenTable={handleOpenTable}
                     onCreateItem={handleCreateItem}
+                    onRenameItem={handleRenameItem}
+                    onDeleteItem={handleDeleteItem}
                 />
                 
                 {/* 2. CENTER: EDITOR AREA */}
@@ -442,6 +513,8 @@ export default function App() {
                         onCreateEmpty={() => createTabWithContent('', 'Untitled.tex')}
                         onOpenWizard={handleOpenPreambleWizard}
                         onCreateFromTemplate={handleCreateFromTemplate}
+                        recentProjects={recentProjects}
+                        onOpenRecent={handleOpenRecent}
                     />
                 </Box>
 
