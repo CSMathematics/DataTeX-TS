@@ -1,5 +1,5 @@
 import React from 'react';
-import { SimpleGrid, Stack, Checkbox, Text, Group, ColorInput, Switch } from '@mantine/core';
+import { SimpleGrid, Stack, Checkbox, Text } from '@mantine/core';
 import { PreambleConfig } from '../generators/preambleGenerators';
 
 interface PackagesTabProps {
@@ -45,34 +45,6 @@ export const PackagesTab: React.FC<PackagesTabProps> = ({ config, onChange }) =>
       <Stack gap="xs">
         <Text fw={700} size="sm">References & Code</Text>
         <Checkbox label="Hyperref" checked={config.pkgHyperref} onChange={(e) => onChange('pkgHyperref', e.currentTarget.checked)} />
-
-        {config.pkgHyperref && (
-            <Stack gap={4} pl="md" style={{ borderLeft: '2px solid var(--mantine-color-gray-3)' }}>
-                 <Switch
-                    label="Colored Links"
-                    size="xs"
-                    checked={config.hyperrefColors}
-                    onChange={(e) => onChange('hyperrefColors', e.currentTarget.checked)}
-                 />
-                 {config.hyperrefColors && (
-                    <Group grow>
-                        <ColorInput
-                            size="xs"
-                            label="Link"
-                            value={config.hyperrefLinkColor}
-                            onChange={(v) => onChange('hyperrefLinkColor', v)}
-                        />
-                        <ColorInput
-                            size="xs"
-                            label="URL"
-                            value={config.hyperrefUrlColor}
-                            onChange={(v) => onChange('hyperrefUrlColor', v)}
-                        />
-                    </Group>
-                 )}
-            </Stack>
-        )}
-
         <Checkbox label="Cleveref" checked={config.pkgCleveref} onChange={(e) => onChange('pkgCleveref', e.currentTarget.checked)} />
         <Checkbox label="Listings" checked={config.pkgListings} onChange={(e) => onChange('pkgListings', e.currentTarget.checked)} />
         <Checkbox label="Todonotes" checked={config.pkgTodonotes} onChange={(e) => onChange('pkgTodonotes', e.currentTarget.checked)} />

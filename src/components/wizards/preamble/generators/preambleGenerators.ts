@@ -7,15 +7,9 @@ export interface PreambleConfig {
   paperSize: string;
   encoding: string;
   mainLang: string;
-  fontFamily: string; // New field
   title: string;
   author: string;
   date: boolean;
-
-  // Bibliography (New fields)
-  bibBackend: string; // 'none', 'bibtex', 'biber'
-  bibStyle: string;
-  bibFile: string;
   
   // Geometry
   pkgGeometry: boolean;
@@ -45,9 +39,6 @@ export interface PreambleConfig {
   pkgAmsmath: boolean;
   pkgGraphicx: boolean;
   pkgHyperref: boolean;
-  hyperrefColors: boolean; // New field
-  hyperrefLinkColor: string; // New field
-  hyperrefUrlColor: string; // New field
   pkgTikz: boolean;
   pkgPgfplots: boolean;
   pkgBooktabs: boolean;
@@ -89,21 +80,6 @@ export const generateGeneral = (config: PreambleConfig): string => {
   code += `\\documentclass[${classOpts.join(', ')}]{${config.docClass}}\n`;
   code += `\\usepackage[${config.encoding}]{inputenc}\n`;
   code += `\\usepackage[T1]{fontenc}\n`;
-
-  // Font Selection
-  if (config.fontFamily && config.fontFamily !== 'lmodern') {
-      if (config.fontFamily === 'times') code += `\\usepackage{mathptmx}\n`;
-      else if (config.fontFamily === 'palatino') code += `\\usepackage{mathpazo}\n`;
-      else if (config.fontFamily === 'helvet') code += `\\usepackage{helvet}\n\\renewcommand{\\familydefault}{\\sfdefault}\n`;
-      else if (config.fontFamily === 'utopia') code += `\\usepackage{fourier}\n`;
-      else if (config.fontFamily === 'charter') code += `\\usepackage{charter}\n`;
-      else if (config.fontFamily === 'bookman') code += `\\usepackage{bookman}\n`;
-      else if (config.fontFamily === 'courier') code += `\\usepackage{courier}\n`;
-      else if (config.fontFamily === 'avant') code += `\\usepackage{avant}\n`;
-      else if (config.fontFamily === 'chancery') code += `\\usepackage{chancery}\n`;
-  } else {
-      code += `\\usepackage{lmodern}\n`;
-  }
 
   let babelOpts = ['english'];
   if (config.mainLang !== 'english') babelOpts.push(config.mainLang);
@@ -277,44 +253,12 @@ export const generateCodeHighlighting = (
   return code;
 };
 
-export const generateBibliography = (config: PreambleConfig): string => {
-  if (config.bibBackend === 'none') return '';
-
-  let code = `\n% --- Bibliography ---\n`;
-  if (config.bibBackend === 'bibtex') {
-      // BibTeX is usually handled at the end of document, but we can put style here?
-      // Actually style goes in preamble or before bibliography command?
-      // Standard LaTeX: \bibliographystyle{...} in document.
-      // But we are generating preamble.
-      // We can add a comment or just leave it for the document body.
-      // However, we can add natbib if needed?
-      // Let's assume standard bibtex for now or maybe natbib.
-      // Let's add natbib as it is very common for BibTeX users.
-      code += `\\usepackage[square,numbers]{natbib}\n`;
-      code += `\\bibliographystyle{${config.bibStyle || 'plain'}}\n`;
-  } else if (config.bibBackend === 'biber') {
-      code += `\\usepackage[backend=biber, style=${config.bibStyle || 'numeric'}]{biblatex}\n`;
-      code += `\\addbibresource{${config.bibFile || 'references.bib'}}\n`;
-  }
-  return code;
-};
-
 export const generateFooterAndMeta = (config: PreambleConfig): string => {
   let code = '';
   
   // Hyperref usually goes last
   if (config.pkgHyperref) {
-      code += `\\usepackage{hyperref}\n`;
-      let hOpts: string[] = [];
-      if (config.hyperrefColors) {
-          hOpts.push(`colorlinks=true`);
-          if (config.hyperrefLinkColor) hOpts.push(`linkcolor=${config.hyperrefLinkColor}`);
-          if (config.hyperrefUrlColor) hOpts.push(`urlcolor=${config.hyperrefUrlColor}`);
-          if (config.hyperrefLinkColor) hOpts.push(`citecolor=${config.hyperrefLinkColor}`); // Default match
-      } else {
-          hOpts.push(`hidelinks`);
-      }
-      if (hOpts.length > 0) code += `\\hypersetup{${hOpts.join(', ')}}\n`;
+      code += `\\usepackage{hyperref}\n\\hypersetup{colorlinks=true, linkcolor=blue}\n`;
   }
   // Cleveref goes AFTER hyperref
   if (config.pkgCleveref) {
@@ -348,19 +292,9 @@ export const generateFullPreamble = (
   full += generatePackages(config, customColors, codeSettings.engine);
   full += generateLists(config, customLists);
   full += generateCodeHighlighting(codeSettings.engine, codeSettings);
-  full += generateBibliography(config);
   full += generateFooterAndMeta(config);
   
-  full += `\n\\begin{document}\n\n\\maketitle\n\n\\section{Introduction}\n% Content here\n\n`;
-
-  // Add bibliography command placeholder
-  if (config.bibBackend === 'bibtex') {
-      full += `\\bibliography{${config.bibFile || 'references'}}\n`;
-  } else if (config.bibBackend === 'biber') {
-      full += `\\printbibliography\n`;
-  }
-
-  full += `\\end{document}`;
+  full += `\n\\begin{document}\n\n\\maketitle\n\n\\section{Introduction}\n% Content here\n\n\\end{document}`;
   
   return full;
 };

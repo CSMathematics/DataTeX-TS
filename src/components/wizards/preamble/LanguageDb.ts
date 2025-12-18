@@ -6,49 +6,6 @@ export const PAGE_HEIGHT_PX = PAGE_WIDTH_PX * A4_ASPECT_RATIO;
 export const A4_WIDTH_CM = 21;
 export const CM_TO_PX = PAGE_WIDTH_PX / A4_WIDTH_CM;
 
-export const FONT_FAMILIES = [
-  { value: 'lmodern', label: 'Latin Modern (Default)' },
-  { value: 'times', label: 'Times New Roman (mathptmx)' },
-  { value: 'palatino', label: 'Palatino (mathpazo)' },
-  { value: 'helvet', label: 'Helvetica (helvet)' },
-  { value: 'utopia', label: 'Utopia (fourier)' },
-  { value: 'charter', label: 'Charter (charter)' },
-  { value: 'bookman', label: 'Bookman (bookman)' },
-  { value: 'courier', label: 'Courier (courier)' },
-  { value: 'avant', label: 'Avant Garde (avant)' },
-  { value: 'chancery', label: 'Zapf Chancery (chancery)' },
-];
-
-export const BIB_BACKENDS = [
-  { value: 'none', label: 'None' },
-  { value: 'bibtex', label: 'BibTeX (Standard)' },
-  { value: 'biber', label: 'Biber (BibLaTeX)' },
-];
-
-export const BIB_STYLES_BIBTEX = [
-  { value: 'plain', label: 'Plain' },
-  { value: 'unsrt', label: 'Unsorted' },
-  { value: 'abbrv', label: 'Abbreviated' },
-  { value: 'alpha', label: 'Alphabetic' },
-  { value: 'ieeetr', label: 'IEEE' },
-  { value: 'acm', label: 'ACM' },
-  { value: 'siam', label: 'SIAM' },
-  { value: 'apalike', label: 'APA-like' },
-];
-
-export const BIB_STYLES_BIBLATEX = [
-  { value: 'numeric', label: 'Numeric' },
-  { value: 'alphabetic', label: 'Alphabetic' },
-  { value: 'authoryear', label: 'Author-Year' },
-  { value: 'authortitle', label: 'Author-Title' },
-  { value: 'verbose', label: 'Verbose' },
-  { value: 'ieee', label: 'IEEE' },
-  { value: 'apa', label: 'APA' },
-  { value: 'nature', label: 'Nature' },
-  { value: 'science', label: 'Science' },
-  { value: 'mla', label: 'MLA' },
-];
-
 export const LANGUAGES = [
   { value: 'english', label: 'English' },
   { value: 'greek', label: 'Greek (Ελληνικά)' },

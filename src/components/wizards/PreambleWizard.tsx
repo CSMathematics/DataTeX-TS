@@ -3,7 +3,7 @@ import {
   Stack, Button, Tabs, ScrollArea, Box, Grid, Code
 } from '@mantine/core';
 import { 
-  FileText, Layout, Package, Palette, Code as CodeIcon, List as ListIcon, Check, BookOpen
+  FileText, Layout, Package, Palette, Code as CodeIcon, List as ListIcon, Check
 } from 'lucide-react';
 
 // --- Imports from Separated Files ---
@@ -23,7 +23,6 @@ import { PackagesTab } from './preamble/tabs/PackagesTab';
 import { CodeHighlightingTab, CodeHighlightConfig } from './preamble/tabs/CodeHighlightingTab';
 import { ListsTab } from './preamble/tabs/ListsTab';
 import { ColorsTab } from './preamble/tabs/ColorsTab';
-import { BibliographyTab } from './preamble/tabs/BibliographyTab'; // New Import
 import { PageVisualizer } from './preamble/preview/PageVisualizer';
 
 interface PreambleWizardProps {
@@ -42,16 +41,10 @@ export const PreambleWizard: React.FC<PreambleWizardProps> = ({ onInsert }) => {
     paperSize: 'a4paper',
     encoding: 'utf8',
     mainLang: 'english',
-    fontFamily: 'lmodern', // Default font
     title: '',
     author: '',
     date: true,
     
-    // Bibliography
-    bibBackend: 'none',
-    bibStyle: 'plain',
-    bibFile: 'references.bib',
-
     // Geometry
     pkgGeometry: true,
     marginTop: 2.5, marginBottom: 2.5, marginLeft: 2.5, marginRight: 2.5,
@@ -63,7 +56,6 @@ export const PreambleWizard: React.FC<PreambleWizardProps> = ({ onInsert }) => {
     
     // Packages
     pkgAmsmath: true, pkgGraphicx: true, pkgHyperref: true,
-    hyperrefColors: true, hyperrefLinkColor: 'blue', hyperrefUrlColor: 'blue',
     pkgTikz: false, pkgPgfplots: false, pkgBooktabs: false,
     pkgFloat: false, pkgFancyhdr: false, pkgXcolor: true,
 
@@ -147,7 +139,6 @@ export const PreambleWizard: React.FC<PreambleWizardProps> = ({ onInsert }) => {
                 <Tabs.Tab value="general" leftSection={<FileText size={16}/>}>General</Tabs.Tab>
                 <Tabs.Tab value="layout" leftSection={<Layout size={16}/>}>Layout</Tabs.Tab>
                 <Tabs.Tab value="packages" leftSection={<Package size={16}/>}>Packages</Tabs.Tab>
-                <Tabs.Tab value="biblio" leftSection={<BookOpen size={16}/>}>Biblio</Tabs.Tab>
                 <Tabs.Tab value="code" leftSection={<CodeIcon size={16}/>}>Code</Tabs.Tab>
                 <Tabs.Tab value="lists" leftSection={<ListIcon size={16}/>}>Lists</Tabs.Tab>
                 <Tabs.Tab value="colors" leftSection={<Palette size={16}/>}>Colors</Tabs.Tab>
@@ -159,7 +150,6 @@ export const PreambleWizard: React.FC<PreambleWizardProps> = ({ onInsert }) => {
                 {activeTab === 'general' && <GeneralTab config={config} onChange={handleChange} />}
                 {activeTab === 'layout' && <LayoutTab config={config} onChange={handleChange} />}
                 {activeTab === 'packages' && <PackagesTab config={config} onChange={handleChange} />}
-                {activeTab === 'biblio' && <BibliographyTab config={config} onChange={handleChange} />}
                 {activeTab === 'code' && (
                     <CodeHighlightingTab 
                         config={codeSettings} 

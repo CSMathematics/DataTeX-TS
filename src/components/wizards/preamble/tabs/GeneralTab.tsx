@@ -2,7 +2,7 @@ import React from 'react';
 import { 
   SimpleGrid, Select, Divider, TextInput, Group, Switch 
 } from '@mantine/core';
-import { LANGUAGES, PAPER_SIZES, FONT_FAMILIES } from '../LanguageDb';
+import { LANGUAGES, PAPER_SIZES } from '../LanguageDb';
 import { PreambleConfig } from '../generators/preambleGenerators';
 
 interface GeneralTabProps {
@@ -38,12 +38,6 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ config, onChange }) => {
           value={config.mainLang} 
           onChange={(v) => onChange('mainLang', v)} 
           searchable 
-        />
-        <Select
-          label="Font Family"
-          data={FONT_FAMILIES}
-          value={config.fontFamily}
-          onChange={(v) => onChange('fontFamily', v)}
         />
       </SimpleGrid>
       
