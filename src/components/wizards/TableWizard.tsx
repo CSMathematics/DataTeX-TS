@@ -5,8 +5,8 @@ import {
   Select, ColorPicker, Popover, NumberInput
 } from '@mantine/core';
 import { 
-  Plus, Trash, AlignLeft, AlignCenter, AlignRight, 
-  Table as TableIcon, Check, Copy, 
+  AlignLeft, AlignCenter, AlignRight,
+  Check, Copy,
   Bold, Italic, PaintBucket, Minimize2, Maximize2, Eraser, GripHorizontal, Settings
 } from 'lucide-react';
 
@@ -315,8 +315,8 @@ export const TableWizard: React.FC<TableWizardProps> = ({ onInsert }) => {
 
         if (cell.colSpan > 1) {
             const align = cell.align || 'c';
-            const lBorder = (verticalLines && cIdx === 0) ? '|' : '';
-            const rBorder = verticalLines ? '|' : '';
+            // const lBorder = (verticalLines && cIdx === 0) ? '|' : '';
+            // const rBorder = verticalLines ? '|' : '';
             const effectiveL = (!useBooktabs && cIdx === 0) || (verticalLines && cIdx === 0) ? '|' : '';
             const effectiveR = (!useBooktabs) || verticalLines ? '|' : '';
             
