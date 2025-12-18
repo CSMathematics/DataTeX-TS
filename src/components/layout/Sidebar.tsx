@@ -10,6 +10,9 @@ import {
   faFolder, faFile, faFilePdf
 } from "@fortawesome/free-solid-svg-icons";
 
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faBook } from '@fortawesome/free-solid-svg-icons'
+
 // --- Types ---
 export type SidebarSection = "files" | "search" | "git" | "database" | "settings";
 export type ViewType = "editor" | "wizard-preamble" | "wizard-table" | "wizard-tikz" | "gallery";

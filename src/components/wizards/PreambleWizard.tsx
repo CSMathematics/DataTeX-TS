@@ -210,7 +210,7 @@ export const PreambleWizard: React.FC<PreambleWizardProps> = ({ onInsert }) => {
             <Box style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
                 {previewMode === 'code' ? (
                     <ScrollArea h="100%">
-                        <Code block style={{ whiteSpace: 'pre-wrap', backgroundColor: 'transparent', minHeight: '100%', fontSize: 11 }}>
+                        <Code block style={{ whiteSpace: 'pre-wrap', backgroundColor: 'transparent', minHeight: '100%', fontSize: 14 }}>
                             {generatedCode}
                         </Code>
                     </ScrollArea>
