@@ -10,6 +10,7 @@ import {
 import { TableDataView } from "../database/TableDataView";
 import { AppTab } from "./Sidebar"; 
 import { StartPage } from "./StartPage"; // Import StartPage
+import { EditorToolbar } from "./EditorToolbar";
 
 interface EditorAreaProps {
   files: AppTab[];
@@ -42,6 +43,12 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 }) => {
   
   const activeFile = files.find(f => f.id === activeFileId);
+  const [editorInstance, setEditorInstance] = React.useState<any>(null);
+
+  const handleEditorMount: OnMount = (editor, monaco) => {
+    setEditorInstance(editor);
+    if (onMount) onMount(editor, monaco);
+  };
 
   const getFileIcon = (name: string, type: string) => {
     if (type === 'start-page') return <FontAwesomeIcon icon={faHome} style={{ width: 14, height: 14, color: "#fab005" }} />;
@@ -89,24 +96,29 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 
       {/* Toolbar (Κρυμμένο αν είναι Start Page) */}
       {activeFile?.type !== 'start-page' && (
-          <Group h={32} px="md" bg="dark.7" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)", flexShrink: 0 }}>
-              <Group gap={4}>
-                <Text size="xs" c="dimmed">DataTex</Text>
-                {activeFile && <><FontAwesomeIcon icon={faChevronRight} style={{ width: 12, height: 12, color: "gray" }} /><Text size="xs" c="white" truncate>{activeFile.title}</Text></>}
-              </Group>
-              <Group gap="xs">
-                 {isCompiling && <Tooltip label="Stop"><ActionIcon size="sm" variant="subtle" color="red" onClick={onStopCompile}><FontAwesomeIcon icon={faStop} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
-                 <Tooltip label="Compile"><ActionIcon size="sm" variant="subtle" color="green" onClick={onCompile} loading={isCompiling} disabled={!isTexFile || isCompiling}>{!isCompiling && <FontAwesomeIcon icon={faPlay} style={{ width: 14, height: 14 }} />}</ActionIcon></Tooltip>
-                 {activeFile?.type === 'editor' && isTexFile && <Tooltip label="Package Gallery"><ActionIcon size="sm" variant="subtle" color="#ca3ff5ff" onClick={onOpenGallery}><FontAwesomeIcon icon={faCube} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
-                 {activeFile?.type === 'editor' && isTexFile && <Tooltip label="PDF"><ActionIcon size="sm" variant="subtle" color="blue" onClick={onTogglePdf}><FontAwesomeIcon icon={faColumns} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
-              </Group>
-          </Group>
+          <Stack gap={0} style={{ flexShrink: 0 }}>
+            <Group h={32} px="md" bg="dark.7" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)" }}>
+                <Group gap={4}>
+                  <Text size="xs" c="dimmed">DataTex</Text>
+                  {activeFile && <><FontAwesomeIcon icon={faChevronRight} style={{ width: 12, height: 12, color: "gray" }} /><Text size="xs" c="white" truncate>{activeFile.title}</Text></>}
+                </Group>
+                <Group gap="xs">
+                  {isCompiling && <Tooltip label="Stop"><ActionIcon size="sm" variant="subtle" color="red" onClick={onStopCompile}><FontAwesomeIcon icon={faStop} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
+                  <Tooltip label="Compile"><ActionIcon size="sm" variant="subtle" color="green" onClick={onCompile} loading={isCompiling} disabled={!isTexFile || isCompiling}>{!isCompiling && <FontAwesomeIcon icon={faPlay} style={{ width: 14, height: 14 }} />}</ActionIcon></Tooltip>
+                  {activeFile?.type === 'editor' && isTexFile && <Tooltip label="Package Gallery"><ActionIcon size="sm" variant="subtle" color="#ca3ff5ff" onClick={onOpenGallery}><FontAwesomeIcon icon={faCube} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
+                  {activeFile?.type === 'editor' && isTexFile && <Tooltip label="PDF"><ActionIcon size="sm" variant="subtle" color="blue" onClick={onTogglePdf}><FontAwesomeIcon icon={faColumns} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
+                </Group>
+            </Group>
+            {activeFile?.type === 'editor' && isTexFile && editorInstance && (
+                <EditorToolbar editor={editorInstance} />
+            )}
+          </Stack>
       )}
 
       {/* Main Content */}
       <Box style={{ flex: 1, position: "relative", minWidth: 0, height: "100%", overflow: "hidden" }}>
           {activeFile?.type === 'editor' ? (
-             <Editor path={activeFile.id} height="100%" defaultLanguage="my-latex" defaultValue={activeFile.content} value={activeFile.content} onMount={onMount} onChange={(value) => onContentChange(activeFile.id, value || '')} options={{ minimap: { enabled: true, scale: 0.75 }, fontSize: 14, fontFamily: "Consolas, monospace", scrollBeyondLastLine: false, automaticLayout: true, theme: "data-tex-dark", wordWrap: "on" }} />
+             <Editor path={activeFile.id} height="100%" defaultLanguage="my-latex" defaultValue={activeFile.content} value={activeFile.content} onMount={handleEditorMount} onChange={(value) => onContentChange(activeFile.id, value || '')} options={{ minimap: { enabled: true, scale: 0.75 }, fontSize: 14, fontFamily: "Consolas, monospace", scrollBeyondLastLine: false, automaticLayout: true, theme: "data-tex-dark", wordWrap: "on" }} />
           ) : activeFile?.type === 'table' ? (
              <TableDataView tableName={activeFile.tableName || ''} />
           ) : activeFile?.type === 'start-page' ? (
