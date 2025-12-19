@@ -17,6 +17,7 @@ import { LANGUAGES_DB, MINTED_STYLES } from './preamble/LanguageDb';
 
 import { TikzWizard } from './TikzWizard';
 import { TableWizard } from './TableWizard';
+import { AMS_SYMBOLS_DATA } from './amsSymbolsData';
 
 interface PackageGalleryProps {
   onInsert: (code: string) => void;
@@ -88,6 +89,59 @@ const AmsMathConfig = ({ onChange }: { onChange: (code: string) => void }) => {
         <TextInput label="Math Content" value={content} onChange={(e) => setContent(e.currentTarget.value)} style={{ fontFamily: 'monospace' }} />
         {type !== 'inline' && <TextInput label="Label" placeholder="e.g. energy" value={label} onChange={(e) => setLabel(e.currentTarget.value)} />}
         <Group><Button variant="default" size="xs" onClick={() => setContent(prev => prev + ' \\sum_{i=0}^{n} ')}>Sum</Button><Button variant="default" size="xs" onClick={() => setContent(prev => prev + ' \\int_{a}^{b} ')}>Int</Button><Button variant="default" size="xs" onClick={() => setContent(prev => prev + ' \\frac{a}{b} ')}>Frac</Button></Group>
+    </Stack>
+  );
+};
+
+// 1b. AMS SYMBOLS CONFIGURATOR
+const AmsSymbolsConfig = ({ onChange }: { onChange: (code: string) => void }) => {
+  const [content, setContent] = useState('');
+  const [activeTab, setActiveTab] = useState<string | null>(AMS_SYMBOLS_DATA[0].id);
+
+  useEffect(() => {
+    onChange(content);
+  }, [content]);
+
+  return (
+    <Stack>
+        <SegmentedControl
+            value={activeTab || ''}
+            onChange={setActiveTab}
+            data={AMS_SYMBOLS_DATA.map(cat => ({ label: cat.label, value: cat.id }))}
+            styles={{ root: { overflowX: 'auto', flexWrap: 'nowrap' } }} // Ensure horizontal scroll if many tabs
+        />
+
+        <Box h={300} style={{ overflowY: 'auto' }}>
+            {AMS_SYMBOLS_DATA.map(cat => (
+                cat.id === activeTab && (
+                    <Box key={cat.id}>
+                        <Text size="sm" fw={500} mb="xs">{cat.label}</Text>
+                        <Group gap="xs">
+                            {cat.symbols.map(sym => (
+                                <Tooltip key={sym.command} label={sym.command}>
+                                    <Button
+                                        variant="default"
+                                        size="xs"
+                                        onClick={() => setContent(prev => prev + ' ' + sym.command)}
+                                        title={sym.name}
+                                    >
+                                        {sym.name}
+                                    </Button>
+                                </Tooltip>
+                            ))}
+                        </Group>
+                    </Box>
+                )
+            ))}
+        </Box>
+
+        <Textarea
+            label="Symbol Sequence"
+            value={content}
+            onChange={(e) => setContent(e.currentTarget.value)}
+            minRows={3}
+            styles={{ input: { fontFamily: 'monospace' } }}
+        />
     </Stack>
   );
 };
@@ -328,6 +382,7 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
             ) : (
                 <ScrollArea style={{ flex: 1 }} p="md">
                     {selectedPkgId === 'amsmath' && <AmsMathConfig onChange={setGeneratedCode} />}
+                    {selectedPkgId === 'amssymb' && <AmsSymbolsConfig onChange={setGeneratedCode} />}
 
                     {/* Unified Code Wizard for Listings AND Minted */}
                     {(selectedPkgId === 'listings' || selectedPkgId === 'minted') && (
