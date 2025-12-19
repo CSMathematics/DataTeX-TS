@@ -33,7 +33,7 @@ export interface AppTab {
 }
 
 interface SidebarProps {
-  width: number;
+  width: number | string;
   isOpen: boolean; 
   onResizeStart: (e: React.MouseEvent) => void;
   activeSection: SidebarSection;

@@ -438,19 +438,51 @@ export default function App() {
   const startResizeSidebar = useCallback((e: React.MouseEvent) => { e.preventDefault(); setIsResizingSidebar(true); }, []);
   const startResizeRightPanel = useCallback((e: React.MouseEvent) => { e.preventDefault(); setIsResizingRightPanel(true); }, []);
   
+  // Sync state with CSS variables on mount and when state changes (programmatically)
+  useEffect(() => {
+     document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`);
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+     document.documentElement.style.setProperty('--right-panel-width', `${rightPanelWidth}px`);
+  }, [rightPanelWidth]);
+
   useEffect(() => {
     const move = (e: MouseEvent) => {
        if (rafRef.current) return;
        rafRef.current = requestAnimationFrame(() => {
-          if (isResizingSidebar) setSidebarWidth(Math.max(150, Math.min(600, e.clientX - 50)));
+          if (isResizingSidebar) {
+             const w = Math.max(150, Math.min(600, e.clientX - 50));
+             document.documentElement.style.setProperty('--sidebar-width', `${w}px`);
+          }
           if (isResizingRightPanel) {
              const newWidth = window.innerWidth - e.clientX;
-             setRightPanelWidth(Math.max(300, Math.min(1200, newWidth)));
+             const w = Math.max(300, Math.min(1200, newWidth));
+             document.documentElement.style.setProperty('--right-panel-width', `${w}px`);
           }
           rafRef.current = null;
        });
     };
-    const up = () => { setIsResizingSidebar(false); setIsResizingRightPanel(false); if(rafRef.current) cancelAnimationFrame(rafRef.current); };
+
+    const up = () => {
+        // Sync final values back to React state
+        if (isResizingSidebar) {
+            const wStr = document.documentElement.style.getPropertyValue('--sidebar-width');
+            const w = parseInt(wStr) || 300;
+            setSidebarWidth(w);
+        }
+        if (isResizingRightPanel) {
+            const wStr = document.documentElement.style.getPropertyValue('--right-panel-width');
+            const w = parseInt(wStr) || 600;
+            setRightPanelWidth(w);
+        }
+
+        setIsResizingSidebar(false);
+        setIsResizingRightPanel(false);
+
+        if(rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+
     if(isResizingSidebar || isResizingRightPanel) { 
         window.addEventListener('mousemove', move); window.addEventListener('mouseup', up); document.body.style.cursor = 'col-resize'; 
     } else { document.body.style.cursor = 'default'; }
@@ -486,7 +518,7 @@ export default function App() {
                 
                 {/* 1. SIDEBAR */}
                 <Sidebar 
-                    width={sidebarWidth} 
+                    width="var(--sidebar-width)"
                     isOpen={isSidebarOpen}
                     onResizeStart={startResizeSidebar}
                     activeSection={activeActivity} 
@@ -523,7 +555,7 @@ export default function App() {
                 {showRightPanel && (
                     <>
                         <ResizerHandle onMouseDown={startResizeRightPanel} isResizing={isResizingRightPanel} />
-                        <Box w={rightPanelWidth} h="100%" style={{ flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                        <Box w="var(--right-panel-width)" h="100%" style={{ flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                             {isWizardActive ? (
                                 <>
                                     {activeView === "wizard-preamble" && (
