@@ -506,7 +506,7 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
                                     config={listConfig as any}
                                     customLists={galleryLists}
                                     onChange={(key, val) => setListConfig(prev => ({ ...prev, [key]: val }))}
-                                    onAddList={(name, type, label, options) => {
+                                    onAddList={(name, type, label, _options) => {
                                         // "label" argument here receives the options string constructed in ListsTab
                                         const newList: CustomListDef = { 
                                             id: Date.now(), 
