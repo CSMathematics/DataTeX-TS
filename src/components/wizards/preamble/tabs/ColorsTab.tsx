@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Stack, Checkbox, Card, Text, Group, TextInput, Select, ColorInput, Button, 
   Tooltip, Badge, ActionIcon, MultiSelect, SegmentedControl, Slider, Box, Divider,
-  SimpleGrid, NumberInput, ColorPicker, Tabs, Paper, Code
+  SimpleGrid, NumberInput, ColorPicker, Paper, Code
 } from '@mantine/core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faPlus, faSync, faTrash, faPalette, faFlask, faPrint, faList, faCheckCircle,
-  faCode, faFileAlt, faHighlighter, faBorderAll, faFont
+  faCode
 } from '@fortawesome/free-solid-svg-icons';
 import { PreambleConfig } from '../generators/preambleGenerators';
 import { CustomColorDef, COLOR_MODELS, hexToModelValue } from '../LanguageDb';
@@ -164,7 +164,6 @@ export const ColorsTab: React.FC<ColorsTabProps> = ({
       return Array.from(new Set([...STANDARD_LATEX_COLORS, ...customColors.map(c => c.name)]));
   }, [customColors]);
   
-  const supportedModelsText = useMemo(() => COLOR_MODELS.map(m => m.label).join(', '), []);
 
   return (
     <Stack gap="md" h="100%" style={{ overflow: 'hidden' }}>
