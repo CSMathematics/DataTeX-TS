@@ -1,11 +1,12 @@
-import React from 'react';
-import { Group, ActionIcon, Tooltip, Text } from "@mantine/core";
+import React, { useState, useLayoutEffect, useRef, useMemo } from 'react';
+import { Group, ActionIcon, Tooltip, Menu, Text, Box } from "@mantine/core";
+import { useElementSize } from '@mantine/hooks';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faBold, faItalic, faUnderline, faStrikethrough, faFont, faPen, faCode,
   faQuoteRight, faEllipsisH, faListUl, faListOl, faSubscript, faSuperscript,
   faLink, faUnlink, faAlignLeft, faAlignCenter, faAlignRight, faAlignJustify,
-  faUndo, faRedo
+  faUndo, faRedo, faEllipsisV
 } from "@fortawesome/free-solid-svg-icons";
 
 interface EditorToolbarProps {
@@ -40,15 +41,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
     if (text.length === 0) {
         // Adjust position: current position is after insertion.
         // We want it after prefix.
-        // But executeEdits moves cursor to end of edit if forceMoveMarkers is true.
-        // We need to calculate manually.
-        const newPos = {
-            lineNumber: selection.startLineNumber,
-            column: selection.startColumn + prefix.length
-        };
-        editor.setPosition(newPos);
+        const position = editor.getPosition();
+        if (position) {
+             const newPos = {
+                lineNumber: position.lineNumber,
+                column: position.column - suffix.length
+            };
+            editor.setPosition(newPos);
+        }
     }
-
     editor.focus();
   };
 
@@ -59,60 +60,197 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
   const handleUndo = () => editor.trigger('toolbar', 'undo', null);
   const handleRedo = () => editor.trigger('toolbar', 'redo', null);
 
-  // --- Toolbar Groups ---
+  // --- Toolbar Groups Configuration ---
+  const toolbarGroups = useMemo(() => [
+      {
+          id: 'formatting',
+          render: () => (
+            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+                <Tooltip label="Bold (\textbf)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\textbf{', '}')}><FontAwesomeIcon icon={faBold} /></ActionIcon></Tooltip>
+                <Tooltip label="Italic (\textit)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\textit{', '}')}><FontAwesomeIcon icon={faItalic} /></ActionIcon></Tooltip>
+                <Tooltip label="Underline (\underline)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\underline{', '}')}><FontAwesomeIcon icon={faUnderline} /></ActionIcon></Tooltip>
+                <Tooltip label="Strikethrough (\st)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\st{', '}')}><FontAwesomeIcon icon={faStrikethrough} /></ActionIcon></Tooltip>
+                <Tooltip label="Text (\text)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\text{', '}')}><FontAwesomeIcon icon={faFont} /></ActionIcon></Tooltip>
+                <Tooltip label="Highlight (\hl)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\hl{', '}')}><FontAwesomeIcon icon={faPen} /></ActionIcon></Tooltip>
+                <Tooltip label="Code (\texttt)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\texttt{', '}')}><FontAwesomeIcon icon={faCode} /></ActionIcon></Tooltip>
+            </Group>
+          )
+      },
+      {
+          id: 'headings',
+          render: () => (
+            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+                <Tooltip label="Heading 1 (\section)"><ActionIcon variant="subtle" size="sm" w={28} onClick={() => wrapSelection('\\section{', '}')}><Text size="xs" fw={700}>H1</Text></ActionIcon></Tooltip>
+                <Tooltip label="Heading 2 (\subsection)"><ActionIcon variant="subtle" size="sm" w={28} onClick={() => wrapSelection('\\subsection{', '}')}><Text size="xs" fw={700} c="blue.4">H2</Text></ActionIcon></Tooltip>
+                <Tooltip label="Heading 3 (\subsubsection)"><ActionIcon variant="subtle" size="sm" w={28} onClick={() => wrapSelection('\\subsubsection{', '}')}><Text size="xs" fw={700}>H3</Text></ActionIcon></Tooltip>
+                <Tooltip label="Heading 4 (\paragraph)"><ActionIcon variant="subtle" size="sm" w={28} onClick={() => wrapSelection('\\paragraph{', '}')}><Text size="xs" fw={700}>H4</Text></ActionIcon></Tooltip>
+            </Group>
+          )
+      },
+      {
+          id: 'lists',
+          render: () => (
+            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+                <Tooltip label="Quote environment"><ActionIcon variant="subtle" size="sm" onClick={() => wrapEnvironment('quote')}><FontAwesomeIcon icon={faQuoteRight} /></ActionIcon></Tooltip>
+                <Tooltip label="Ellipsis (\dots)"><ActionIcon variant="subtle" size="sm" onClick={() => insertText('\\dots')}><FontAwesomeIcon icon={faEllipsisH} /></ActionIcon></Tooltip>
+                <Tooltip label="Bullet List (itemize)"><ActionIcon variant="subtle" size="sm" onClick={() => insertText('\\begin{itemize}\n  \\item \n\\end{itemize}')}><FontAwesomeIcon icon={faListUl} /></ActionIcon></Tooltip>
+                <Tooltip label="Numbered List (enumerate)"><ActionIcon variant="subtle" size="sm" onClick={() => insertText('\\begin{enumerate}\n  \\item \n\\end{enumerate}')}><FontAwesomeIcon icon={faListOl} /></ActionIcon></Tooltip>
+                <Tooltip label="Subscript (_{})"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('_{', '}')}><FontAwesomeIcon icon={faSubscript} /></ActionIcon></Tooltip>
+                <Tooltip label="Superscript (^{})"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('^{', '}')}><FontAwesomeIcon icon={faSuperscript} /></ActionIcon></Tooltip>
+            </Group>
+          )
+      },
+      {
+          id: 'links',
+          render: () => (
+            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+                <Tooltip label="Link (\href)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\href{url}{', '}')}><FontAwesomeIcon icon={faLink} /></ActionIcon></Tooltip>
+                <Tooltip label="Unlink (Remove Link)"><ActionIcon variant="subtle" size="sm" disabled><FontAwesomeIcon icon={faUnlink} /></ActionIcon></Tooltip>
+            </Group>
+          )
+      },
+      {
+          id: 'align',
+          render: () => (
+            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+                <Tooltip label="Align Left (flushleft)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapEnvironment('flushleft')}><FontAwesomeIcon icon={faAlignLeft} /></ActionIcon></Tooltip>
+                <Tooltip label="Align Center (center)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapEnvironment('center')}><FontAwesomeIcon icon={faAlignCenter} /></ActionIcon></Tooltip>
+                <Tooltip label="Align Right (flushright)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapEnvironment('flushright')}><FontAwesomeIcon icon={faAlignRight} /></ActionIcon></Tooltip>
+                <Tooltip label="Justify (default)"><ActionIcon variant="subtle" size="sm" disabled><FontAwesomeIcon icon={faAlignJustify} /></ActionIcon></Tooltip>
+            </Group>
+          )
+      },
+      {
+          id: 'history',
+          render: () => (
+            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+                <Tooltip label="Undo"><ActionIcon variant="subtle" size="sm" onClick={handleUndo}><FontAwesomeIcon icon={faUndo} /></ActionIcon></Tooltip>
+                <Tooltip label="Redo"><ActionIcon variant="subtle" size="sm" onClick={handleRedo}><FontAwesomeIcon icon={faRedo} /></ActionIcon></Tooltip>
+            </Group>
+          )
+      }
+  ], [editor]);
+
+  // --- Responsive Logic ---
+  const { ref: containerRef, width: containerWidth } = useElementSize();
+  const [groupWidths, setGroupWidths] = useState<number[]>([]);
+  const ghostRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // Measure ghost elements
+  useLayoutEffect(() => {
+     // We only need to measure once unless groups change substantially.
+     // If we haven't measured yet, or if count mismatches (defensive)
+     if (ghostRefs.current.length > 0 && (groupWidths.length === 0 || groupWidths.length !== toolbarGroups.length)) {
+         // Small delay to ensure render? usually useLayoutEffect is enough.
+         const widths = ghostRefs.current.map(el => el?.getBoundingClientRect().width || 0);
+         // Only set if we got valid widths
+         if (widths.some(w => w > 0)) {
+             setGroupWidths(widths);
+         }
+     }
+  }, [toolbarGroups]);
+
+  // Calculate Visible Count
+  let visibleCount = toolbarGroups.length;
+  if (groupWidths.length > 0 && containerWidth > 0) {
+      const moreBtnWidth = 32;
+      const gap = 8;
+      let currentWidth = 0;
+      visibleCount = 0;
+
+      for (let i = 0; i < groupWidths.length; i++) {
+          const w = groupWidths[i];
+          // Calculate if this item fits.
+          // If it is the last item, we don't need the 'more' button.
+          // If it is NOT the last item, we need to check if it fits ALONG with the more button (in case next one doesn't fit).
+
+          // Logic:
+          // Can we fit this item?
+          // If we fit this item, will we need a more button?
+          // We need a more button if (i < length - 1).
+
+          // Actually simpler:
+          // Try to fit item `i`.
+          // If `currentWidth + w > containerWidth`, we stop. `visibleCount` stays as is.
+          // BUT, if we stop, we need to ensure the PREVIOUS items + MoreButton fit?
+          // No, we are iterating. `currentWidth` already contains previous items.
+          // We need to check: `currentWidth + w + (needsMore ? moreBtnWidth : 0) <= containerWidth`
+
+          // If we include item `i`, do we need more button?
+          // Only if `i < total - 1`.
+
+          // Optimization: If we fit ALL, we don't need more button.
+
+          const needsMoreIfChecking = (i < groupWidths.length - 1);
+          const widthWithItem = currentWidth + w;
+          const totalRequired = widthWithItem + (needsMoreIfChecking ? gap + moreBtnWidth : 0);
+
+          if (totalRequired <= containerWidth) {
+              visibleCount++;
+              currentWidth += w + gap;
+          } else {
+              // Can't fit this one (or this one + more button).
+              // So we stop.
+              break;
+          }
+      }
+
+      // Edge case: If 0 items fit, maybe show 0? Or always show 1 if possible?
+      // User said "hide icons that don't fit".
+      // If visibleCount is 0, we only show More button.
+  }
+
+  const visibleGroups = toolbarGroups.slice(0, visibleCount);
+  const hiddenGroups = toolbarGroups.slice(visibleCount);
 
   return (
-    <Group p={4} bg="dark.7" gap={8} style={{ borderBottom: "1px solid var(--mantine-color-dark-6)", flexShrink: 0, overflowX: "auto" }}>
+    <div ref={containerRef} style={{ width: '100%', overflow: 'hidden' }}>
+        <Group p={4} bg="dark.7" gap={8} wrap="nowrap" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)" }}>
 
-      {/* Formatting Group */}
-      <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4 }}>
-        <Tooltip label="Bold (\textbf)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\textbf{', '}')}><FontAwesomeIcon icon={faBold} /></ActionIcon></Tooltip>
-        <Tooltip label="Italic (\textit)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\textit{', '}')}><FontAwesomeIcon icon={faItalic} /></ActionIcon></Tooltip>
-        <Tooltip label="Underline (\underline)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\underline{', '}')}><FontAwesomeIcon icon={faUnderline} /></ActionIcon></Tooltip>
-        <Tooltip label="Strikethrough (\st)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\st{', '}')}><FontAwesomeIcon icon={faStrikethrough} /></ActionIcon></Tooltip>
-        <Tooltip label="Text (\text)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\text{', '}')}><FontAwesomeIcon icon={faFont} /></ActionIcon></Tooltip>
-        <Tooltip label="Highlight (\hl)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\hl{', '}')}><FontAwesomeIcon icon={faPen} /></ActionIcon></Tooltip>
-        <Tooltip label="Code (\texttt)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\texttt{', '}')}><FontAwesomeIcon icon={faCode} /></ActionIcon></Tooltip>
-      </Group>
+            {visibleGroups.map((group) => (
+                <React.Fragment key={group.id}>
+                    {group.render()}
+                </React.Fragment>
+            ))}
 
-      {/* Headings Group */}
-      <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4 }}>
-        <Tooltip label="Heading 1 (\section)"><ActionIcon variant="subtle" size="sm" w={28} onClick={() => wrapSelection('\\section{', '}')}><Text size="xs" fw={700}>H1</Text></ActionIcon></Tooltip>
-        <Tooltip label="Heading 2 (\subsection)"><ActionIcon variant="subtle" size="sm" w={28} onClick={() => wrapSelection('\\subsection{', '}')}><Text size="xs" fw={700} c="blue.4">H2</Text></ActionIcon></Tooltip>
-        <Tooltip label="Heading 3 (\subsubsection)"><ActionIcon variant="subtle" size="sm" w={28} onClick={() => wrapSelection('\\subsubsection{', '}')}><Text size="xs" fw={700}>H3</Text></ActionIcon></Tooltip>
-        <Tooltip label="Heading 4 (\paragraph)"><ActionIcon variant="subtle" size="sm" w={28} onClick={() => wrapSelection('\\paragraph{', '}')}><Text size="xs" fw={700}>H4</Text></ActionIcon></Tooltip>
-      </Group>
+            {hiddenGroups.length > 0 && (
+                <Menu shadow="md" width={200} position="bottom-end">
+                    <Menu.Target>
+                        <ActionIcon variant="subtle" size="md" color="gray">
+                            <FontAwesomeIcon icon={faEllipsisV} />
+                        </ActionIcon>
+                    </Menu.Target>
+                    <Menu.Dropdown bg="dark.7" style={{ border: "1px solid var(--mantine-color-dark-4)" }}>
+                        {hiddenGroups.map((group) => (
+                            <Box key={group.id} p={4} style={{ borderBottom: "1px solid var(--mantine-color-dark-6)" }}>
+                                {group.render()}
+                            </Box>
+                        ))}
+                    </Menu.Dropdown>
+                </Menu>
+            )}
 
-      {/* Lists & Quotes Group */}
-      <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4 }}>
-        <Tooltip label="Quote environment"><ActionIcon variant="subtle" size="sm" onClick={() => wrapEnvironment('quote')}><FontAwesomeIcon icon={faQuoteRight} /></ActionIcon></Tooltip>
-        <Tooltip label="Ellipsis (\dots)"><ActionIcon variant="subtle" size="sm" onClick={() => insertText('\\dots')}><FontAwesomeIcon icon={faEllipsisH} /></ActionIcon></Tooltip>
-        <Tooltip label="Bullet List (itemize)"><ActionIcon variant="subtle" size="sm" onClick={() => insertText('\\begin{itemize}\n  \\item \n\\end{itemize}')}><FontAwesomeIcon icon={faListUl} /></ActionIcon></Tooltip>
-        <Tooltip label="Numbered List (enumerate)"><ActionIcon variant="subtle" size="sm" onClick={() => insertText('\\begin{enumerate}\n  \\item \n\\end{enumerate}')}><FontAwesomeIcon icon={faListOl} /></ActionIcon></Tooltip>
-        <Tooltip label="Subscript (_{})"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('_{', '}')}><FontAwesomeIcon icon={faSubscript} /></ActionIcon></Tooltip>
-        <Tooltip label="Superscript (^{})"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('^{', '}')}><FontAwesomeIcon icon={faSuperscript} /></ActionIcon></Tooltip>
-      </Group>
+            {/* Ghost Toolbar for Measurement */}
+            <div
+                style={{
+                    position: 'absolute',
+                    top: -9999,
+                    left: 0,
+                    visibility: 'hidden',
+                    pointerEvents: 'none',
+                    display: 'flex',
+                    gap: 8
+                }}
+                aria-hidden="true"
+            >
+                {toolbarGroups.map((group, i) => (
+                    <div key={group.id} ref={(el) => { ghostRefs.current[i] = el; }}>
+                        {group.render()}
+                    </div>
+                ))}
+            </div>
 
-      {/* Links Group */}
-      <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4 }}>
-        <Tooltip label="Link (\href)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\href{url}{', '}')}><FontAwesomeIcon icon={faLink} /></ActionIcon></Tooltip>
-        <Tooltip label="Unlink (Remove Link)"><ActionIcon variant="subtle" size="sm" disabled><FontAwesomeIcon icon={faUnlink} /></ActionIcon></Tooltip>
-      </Group>
-
-      {/* Alignment Group */}
-      <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4 }}>
-        <Tooltip label="Align Left (flushleft)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapEnvironment('flushleft')}><FontAwesomeIcon icon={faAlignLeft} /></ActionIcon></Tooltip>
-        <Tooltip label="Align Center (center)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapEnvironment('center')}><FontAwesomeIcon icon={faAlignCenter} /></ActionIcon></Tooltip>
-        <Tooltip label="Align Right (flushright)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapEnvironment('flushright')}><FontAwesomeIcon icon={faAlignRight} /></ActionIcon></Tooltip>
-        <Tooltip label="Justify (default)"><ActionIcon variant="subtle" size="sm" disabled><FontAwesomeIcon icon={faAlignJustify} /></ActionIcon></Tooltip>
-      </Group>
-
-      {/* History Group */}
-      <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4 }}>
-        <Tooltip label="Undo"><ActionIcon variant="subtle" size="sm" onClick={handleUndo}><FontAwesomeIcon icon={faUndo} /></ActionIcon></Tooltip>
-        <Tooltip label="Redo"><ActionIcon variant="subtle" size="sm" onClick={handleRedo}><FontAwesomeIcon icon={faRedo} /></ActionIcon></Tooltip>
-      </Group>
-
-    </Group>
+        </Group>
+    </div>
   );
 };
