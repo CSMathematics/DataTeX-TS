@@ -66,13 +66,13 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
           id: 'formatting',
           render: () => (
             <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
-                <Tooltip label="Bold (\textbf)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\textbf{', '}')}><FontAwesomeIcon icon={faBold} /></ActionIcon></Tooltip>
-                <Tooltip label="Italic (\textit)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\textit{', '}')}><FontAwesomeIcon icon={faItalic} /></ActionIcon></Tooltip>
-                <Tooltip label="Underline (\underline)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\underline{', '}')}><FontAwesomeIcon icon={faUnderline} /></ActionIcon></Tooltip>
-                <Tooltip label="Strikethrough (\st)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\st{', '}')}><FontAwesomeIcon icon={faStrikethrough} /></ActionIcon></Tooltip>
-                <Tooltip label="Text (\text)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\text{', '}')}><FontAwesomeIcon icon={faFont} /></ActionIcon></Tooltip>
-                <Tooltip label="Highlight (\hl)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\hl{', '}')}><FontAwesomeIcon icon={faPen} /></ActionIcon></Tooltip>
-                <Tooltip label="Code (\texttt)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\texttt{', '}')}><FontAwesomeIcon icon={faCode} /></ActionIcon></Tooltip>
+                <Tooltip label="Bold (\textbf)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\textbf{', '}')}><FontAwesomeIcon icon={faBold} /></ActionIcon></Tooltip>
+                <Tooltip label="Italic (\textit)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\textit{', '}')}><FontAwesomeIcon icon={faItalic} /></ActionIcon></Tooltip>
+                <Tooltip label="Underline (\underline)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\underline{', '}')}><FontAwesomeIcon icon={faUnderline} /></ActionIcon></Tooltip>
+                <Tooltip label="Strikethrough (\st)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\st{', '}')}><FontAwesomeIcon icon={faStrikethrough} /></ActionIcon></Tooltip>
+                <Tooltip label="Text (\text)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\text{', '}')}><FontAwesomeIcon icon={faFont} /></ActionIcon></Tooltip>
+                <Tooltip label="Highlight (\hl)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\hl{', '}')}><FontAwesomeIcon icon={faPen} /></ActionIcon></Tooltip>
+                <Tooltip label="Code (\texttt)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\texttt{', '}')}><FontAwesomeIcon icon={faCode} /></ActionIcon></Tooltip>
             </Group>
           )
       },
@@ -80,32 +80,10 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
           id: 'headings',
           render: () => (
             <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
-                <Tooltip label="Heading 1 (\section)"><ActionIcon variant="subtle" size="sm" w={28} onClick={() => wrapSelection('\\section{', '}')}><Text size="xs" fw={700}>H1</Text></ActionIcon></Tooltip>
-                <Tooltip label="Heading 2 (\subsection)"><ActionIcon variant="subtle" size="sm" w={28} onClick={() => wrapSelection('\\subsection{', '}')}><Text size="xs" fw={700} c="blue.4">H2</Text></ActionIcon></Tooltip>
-                <Tooltip label="Heading 3 (\subsubsection)"><ActionIcon variant="subtle" size="sm" w={28} onClick={() => wrapSelection('\\subsubsection{', '}')}><Text size="xs" fw={700}>H3</Text></ActionIcon></Tooltip>
-                <Tooltip label="Heading 4 (\paragraph)"><ActionIcon variant="subtle" size="sm" w={28} onClick={() => wrapSelection('\\paragraph{', '}')}><Text size="xs" fw={700}>H4</Text></ActionIcon></Tooltip>
-            </Group>
-          )
-      },
-      {
-          id: 'lists',
-          render: () => (
-            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
-                <Tooltip label="Quote environment"><ActionIcon variant="subtle" size="sm" onClick={() => wrapEnvironment('quote')}><FontAwesomeIcon icon={faQuoteRight} /></ActionIcon></Tooltip>
-                <Tooltip label="Ellipsis (\dots)"><ActionIcon variant="subtle" size="sm" onClick={() => insertText('\\dots')}><FontAwesomeIcon icon={faEllipsisH} /></ActionIcon></Tooltip>
-                <Tooltip label="Bullet List (itemize)"><ActionIcon variant="subtle" size="sm" onClick={() => insertText('\\begin{itemize}\n  \\item \n\\end{itemize}')}><FontAwesomeIcon icon={faListUl} /></ActionIcon></Tooltip>
-                <Tooltip label="Numbered List (enumerate)"><ActionIcon variant="subtle" size="sm" onClick={() => insertText('\\begin{enumerate}\n  \\item \n\\end{enumerate}')}><FontAwesomeIcon icon={faListOl} /></ActionIcon></Tooltip>
-                <Tooltip label="Subscript (_{})"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('_{', '}')}><FontAwesomeIcon icon={faSubscript} /></ActionIcon></Tooltip>
-                <Tooltip label="Superscript (^{})"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('^{', '}')}><FontAwesomeIcon icon={faSuperscript} /></ActionIcon></Tooltip>
-            </Group>
-          )
-      },
-      {
-          id: 'links',
-          render: () => (
-            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
-                <Tooltip label="Link (\href)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapSelection('\\href{url}{', '}')}><FontAwesomeIcon icon={faLink} /></ActionIcon></Tooltip>
-                <Tooltip label="Unlink (Remove Link)"><ActionIcon variant="subtle" size="sm" disabled><FontAwesomeIcon icon={faUnlink} /></ActionIcon></Tooltip>
+                <Tooltip label="Heading 1 (\section)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\section{', '}')}><Text size="xs" fw={700}>H1</Text></ActionIcon></Tooltip>
+                <Tooltip label="Heading 2 (\subsection)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\subsection{', '}')}><Text size="xs" fw={700}>H2</Text></ActionIcon></Tooltip>
+                <Tooltip label="Heading 3 (\subsubsection)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\subsubsection{', '}')}><Text size="xs" fw={700}>H3</Text></ActionIcon></Tooltip>
+                <Tooltip label="Heading 4 (\paragraph)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\paragraph{', '}')}><Text size="xs" fw={700}>H4</Text></ActionIcon></Tooltip>
             </Group>
           )
       },
@@ -113,10 +91,54 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
           id: 'align',
           render: () => (
             <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
-                <Tooltip label="Align Left (flushleft)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapEnvironment('flushleft')}><FontAwesomeIcon icon={faAlignLeft} /></ActionIcon></Tooltip>
-                <Tooltip label="Align Center (center)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapEnvironment('center')}><FontAwesomeIcon icon={faAlignCenter} /></ActionIcon></Tooltip>
-                <Tooltip label="Align Right (flushright)"><ActionIcon variant="subtle" size="sm" onClick={() => wrapEnvironment('flushright')}><FontAwesomeIcon icon={faAlignRight} /></ActionIcon></Tooltip>
-                <Tooltip label="Justify (default)"><ActionIcon variant="subtle" size="sm" disabled><FontAwesomeIcon icon={faAlignJustify} /></ActionIcon></Tooltip>
+                <Tooltip label="Align Left (flushleft)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapEnvironment('flushleft')}><FontAwesomeIcon icon={faAlignLeft} /></ActionIcon></Tooltip>
+                <Tooltip label="Align Center (center)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapEnvironment('center')}><FontAwesomeIcon icon={faAlignCenter} /></ActionIcon></Tooltip>
+                <Tooltip label="Align Right (flushright)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapEnvironment('flushright')}><FontAwesomeIcon icon={faAlignRight} /></ActionIcon></Tooltip>
+                <Tooltip label="Justify (default)"><ActionIcon variant="subtle" size="sm" color='gray.5' disabled><FontAwesomeIcon icon={faAlignJustify} /></ActionIcon></Tooltip>
+            </Group>
+          )
+      },
+      {
+          id: 'lists',
+          render: () => (
+            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+                <Tooltip label="Quote environment"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapEnvironment('quote')}><FontAwesomeIcon icon={faQuoteRight} /></ActionIcon></Tooltip>
+                <Tooltip label="Ellipsis (\dots)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\dots')}><FontAwesomeIcon icon={faEllipsisH} /></ActionIcon></Tooltip>
+                <Tooltip label="Bullet List (itemize)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\begin{itemize}\n  \\item \n\\end{itemize}')}><FontAwesomeIcon icon={faListUl} /></ActionIcon></Tooltip>
+                <Tooltip label="Numbered List (enumerate)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\begin{enumerate}\n  \\item \n\\end{enumerate}')}><FontAwesomeIcon icon={faListOl} /></ActionIcon></Tooltip>
+            </Group>
+          )
+        },
+        {
+            id: 'math',
+            render: () => (
+                <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+                    <Tooltip label="Inline Math ($...$)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('$', '$')}><Text size="xs" fw={200}>Σ</Text></ActionIcon></Tooltip>
+                    <Tooltip label="Display Math (\[...\])"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\[', '\\]')}><Text size="xs" fw={700}>Σ</Text></ActionIcon></Tooltip>
+                    <Tooltip label="Subscript (_{})"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('_{', '}')}><FontAwesomeIcon icon={faSubscript} /></ActionIcon></Tooltip>
+                    <Tooltip label="Superscript (^{})"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('^{', '}')}><FontAwesomeIcon icon={faSuperscript} /></ActionIcon></Tooltip>
+                </Group>
+            )
+      },
+      {
+            id: 'spacing',
+            render: () => (
+                <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+                    <Tooltip label="Horizontal Space (\hspace)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\hspace{length}')}><Text size="xs" fw={700}>HS</Text></ActionIcon></Tooltip>
+                    <Tooltip label="Vertical Space (\vspace)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\vspace{length}')}><Text size="xs" fw={700}>VS</Text></ActionIcon></Tooltip>
+                    <Tooltip label="Small Space (\,)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\,')}><Text size="xs" fw={700}>,</Text></ActionIcon></Tooltip>
+                    <Tooltip label="Medium Space (\:)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\:')}><Text size="xs" fw={700}>:</Text></ActionIcon></Tooltip>
+                    <Tooltip label="Large Space (\;)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\;')}><Text size="xs" fw={700}>;</Text></ActionIcon></Tooltip>
+                    <Tooltip label=" Negative Space (\!)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\!')}><Text size="xs" fw={700}>!</Text></ActionIcon></Tooltip>
+                </Group>
+            )
+      },
+      {
+          id: 'links',
+          render: () => (
+            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+                <Tooltip label="Link (\href)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\href{url}{', '}')}><FontAwesomeIcon icon={faLink} /></ActionIcon></Tooltip>
+                <Tooltip label="Unlink (Remove Link)"><ActionIcon variant="subtle" size="sm" color='gray.5' disabled><FontAwesomeIcon icon={faUnlink} /></ActionIcon></Tooltip>
             </Group>
           )
       },
@@ -124,8 +146,8 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
           id: 'history',
           render: () => (
             <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
-                <Tooltip label="Undo"><ActionIcon variant="subtle" size="sm" onClick={handleUndo}><FontAwesomeIcon icon={faUndo} /></ActionIcon></Tooltip>
-                <Tooltip label="Redo"><ActionIcon variant="subtle" size="sm" onClick={handleRedo}><FontAwesomeIcon icon={faRedo} /></ActionIcon></Tooltip>
+                <Tooltip label="Undo"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={handleUndo}><FontAwesomeIcon icon={faUndo} /></ActionIcon></Tooltip>
+                <Tooltip label="Redo"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={handleRedo}><FontAwesomeIcon icon={faRedo} /></ActionIcon></Tooltip>
             </Group>
           )
       }

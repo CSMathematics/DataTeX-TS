@@ -116,7 +116,6 @@ export const SYMBOLS_DB: Record<SymbolCategory, LatexSymbol[]> = {
   misc: [
     { cmd: '\\ell', char: 'ℓ' }, { cmd: '\\Re', char: 'ℜ' }, { cmd: '\\Im', char: 'ℑ' },
     { cmd: '\\aleph', char: 'ℵ' }, { cmd: '\\hbar', char: 'ℏ' }, { cmd: '\\emptyset', char: '∅' },
-    { cmd: '\\clubsuit', char: '♣' }, { cmd: '\\diamondsuit', char: '♢' }, { cmd: '\\heartsuit', char: '♡' }, { cmd: '\\spadesuit', char: '♠' },
     { cmd: '\\flat', char: '♭' }, { cmd: '\\natural', char: '♮' }, { cmd: '\\sharp', char: '♯' }
   ]
 };

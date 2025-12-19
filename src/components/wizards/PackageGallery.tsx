@@ -9,17 +9,18 @@ import {
   faSearch, faCalculator, faImage,
   faTable, faLayerGroup, faCode, faBoxOpen,
   faCheck, faCopy, faInfoCircle, faChevronRight, faSquareRootAlt, faFileCode, faCog,
-  faBars, faArrowLeft, faColumns, faPalette
+  faBars, faArrowLeft, faColumns, faPalette, 
 } from '@fortawesome/free-solid-svg-icons';
 import { ViewType } from '../layout/Sidebar';
 
 // IMPORT SHARED DATA
-import { LANGUAGES_DB, MINTED_STYLES, CustomColorDef } from './preamble/LanguageDb';
+import { LANGUAGES_DB, MINTED_STYLES, CustomColorDef, CustomListDef } from './preamble/LanguageDb';
 import { SYMBOLS_DB, SymbolCategory } from './preamble/SymbolDB';
 
 import { TikzWizard } from './TikzWizard';
 import { TableWizard } from './TableWizard';
 import { ColorsTab } from './preamble/tabs/ColorsTab';
+import { ListsTab } from './preamble/tabs/ListsTab';
 
 interface PackageGalleryProps {
   onInsert: (code: string) => void;
@@ -43,6 +44,11 @@ const PACKAGES_DB: LatexPackage[] = [
   // COLORS
   { id: 'xcolor', name: 'XColor', category: 'colors', description: 'Driver-independent color extensions.', hasWizard: true },
 
+  // LAYOUT (Updated with Enumitem)
+  { id: 'geometry', name: 'Geometry', category: 'layout', description: 'Page dimensions and margins.', hasWizard: true },
+  { id: 'fancyhdr', name: 'Fancyhdr', category: 'layout', description: 'Custom headers and footers.', command: '\\usepackage{fancyhdr}' },
+  { id: 'enumitem', name: 'Enumitem', category: 'layout', description: 'Custom lists, spacing and labels.', hasWizard: true },
+
   // MATH
   { id: 'amsmath', name: 'AMS Math', category: 'math', description: 'Equations, matrices, and alignment.', command: '\\usepackage{amsmath}' },
   { id: 'amssymb', name: 'AMS Symbols', category: 'math', description: 'Extended symbol collection.', command: '\\usepackage{amssymb}' },
@@ -57,10 +63,6 @@ const PACKAGES_DB: LatexPackage[] = [
   { id: 'booktabs', name: 'Booktabs', category: 'tables', description: 'Professional table layout.', hasWizard: true },
   { id: 'multirow', name: 'Multirow', category: 'tables', description: 'Cells spanning multiple rows.', hasWizard: true },
   
-  // LAYOUT
-  { id: 'geometry', name: 'Geometry', category: 'layout', description: 'Page dimensions and margins.', hasWizard: true },
-  { id: 'fancyhdr', name: 'Fancyhdr', category: 'layout', description: 'Custom headers and footers.', command: '\\usepackage{fancyhdr}' },
-
   // CODE (Unified Wizard)
   { id: 'listings', name: 'Listings', category: 'code', description: 'Source code printing (Native LaTeX).', command: '\\usepackage{listings}' },
   { id: 'minted', name: 'Minted', category: 'code', description: 'Highlighted source code (Requires Pygments).', command: '\\usepackage{minted}' }, 
@@ -98,7 +100,7 @@ const AmsMathConfig = ({ onChange }: { onChange: (code: string) => void }) => {
   );
 };
 
-// 2. AMS SYMBOLS Configurator (New)
+// 2. AMS SYMBOLS Configurator
 const AmsSymbolConfig = ({ onInsert }: { onInsert: (code: string) => void }) => {
     const [search, setSearch] = useState('');
 
@@ -115,21 +117,22 @@ const AmsSymbolConfig = ({ onInsert }: { onInsert: (code: string) => void }) => 
     ];
 
     return (
-        <Stack h="100%">
+        <Stack h="100%" gap="xs">
             <TextInput 
                 placeholder="Search symbol command..." 
                 value={search} onChange={(e) => setSearch(e.currentTarget.value)} 
                 leftSection={<FontAwesomeIcon icon={faSearch} style={{ width: 14 }} />}
             />
-            <Tabs defaultValue="greek" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            {/* Tabs container with constrained height to force scrolling in panel */}
+            <Tabs defaultValue="greek" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <Tabs.List style={{ flexWrap: 'nowrap', overflowX: 'auto', overflowY: 'hidden' }}>
                     {categories.map(cat => <Tabs.Tab key={cat.key} value={cat.key} style={{ whiteSpace: 'nowrap' }}>{cat.label}</Tabs.Tab>)}
                 </Tabs.List>
 
                 {categories.map(cat => (
-                    <Tabs.Panel key={cat.key} value={cat.key} style={{ flex: 1, overflow: 'hidden' }}>
-                        <ScrollArea h="100%" pt="md">
-                            <SimpleGrid cols={6} spacing="xs">
+                    <Tabs.Panel key={cat.key} value={cat.key} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                        <ScrollArea h="100%" pt="md" type="auto" offsetScrollbars>
+                            <SimpleGrid cols={6} spacing="xs" pr="sm">
                                 {SYMBOLS_DB[cat.key]
                                     .filter(s => s.cmd.toLowerCase().includes(search.toLowerCase()))
                                     .map((s) => (
@@ -144,12 +147,13 @@ const AmsSymbolConfig = ({ onInsert }: { onInsert: (code: string) => void }) => 
                                                 alignItems: 'center', 
                                                 justifyContent: 'center',
                                                 height: 40,
+                                                width: '100%',
                                                 cursor: 'pointer',
                                                 backgroundColor: 'var(--mantine-color-dark-6)',
                                                 fontSize: '1.2rem',
-                                                border: '1px solid transparent'
+                                                border: '1px solid transparent',
+                                                color: 'inherit'
                                             }}
-                                            // Add hover effect via style prop or class if needed, Mantine Paper handles basic hover
                                         >
                                             {s.char}
                                         </Paper>
@@ -167,7 +171,7 @@ const AmsSymbolConfig = ({ onInsert }: { onInsert: (code: string) => void }) => 
     );
 };
 
-// 3. UNIFIED CODE WIZARD (Listings & Minted)
+// 3. UNIFIED CODE WIZARD
 const CodeWizard = ({ engine, onChange }: { engine: 'listings' | 'minted', onChange: (code: string) => void }) => {
   const [lang, setLang] = useState('python'); 
   const [caption, setCaption] = useState('');
@@ -178,7 +182,6 @@ const CodeWizard = ({ engine, onChange }: { engine: 'listings' | 'minted', onCha
   const [breakLines, setBreakLines] = useState(false);
   const [mintedStyle, setMintedStyle] = useState('friendly');
 
-  // Filter languages based on engine support
   const availableLangs = useMemo(() => {
       if (engine === 'listings') return LANGUAGES_DB.filter(l => l.listings !== null).map(l => ({ value: l.value, label: l.label }));
       return LANGUAGES_DB.map(l => ({ value: l.value, label: l.label }));
@@ -198,20 +201,14 @@ const CodeWizard = ({ engine, onChange }: { engine: 'listings' | 'minted', onCha
         if (breakLines) code += `, breaklines=true`;
         code += `]\n${codeContent}\n\\end{lstlisting}`;
     } else {
-        // Minted Logic
-        if (mintedStyle && mintedStyle !== 'default') {
-            code += `\\usemintedstyle{${mintedStyle}}\n`;
-        }
-        
+        if (mintedStyle && mintedStyle !== 'default') code += `\\usemintedstyle{${mintedStyle}}\n`;
         code += `\\begin{minted}`;
         const opts = [];
         if (showNumbers) opts.push('linenos');
         if (frame) opts.push('frame=lines');
         if (breakLines) opts.push('breaklines');
         if (opts.length > 0) code += `[${opts.join(', ')}]`;
-        
         code += `{${langIdentifier}}\n${codeContent}\n\\end{minted}`;
-        
         if (caption || label) {
             let wrap = `\\begin{listing}[H]\n`;
             if (caption) wrap += `  \\caption{${caption}}\n`;
@@ -225,25 +222,8 @@ const CodeWizard = ({ engine, onChange }: { engine: 'listings' | 'minted', onCha
 
   return (
     <Stack>
-        <Select 
-            label="Language" 
-            value={lang} 
-            onChange={(v) => setLang(v || 'python')} 
-            data={availableLangs} 
-            searchable
-        />
-        
-        {engine === 'minted' && (
-            <Select 
-                label="Theme" 
-                description="Select a Pygments style."
-                value={mintedStyle} 
-                onChange={(v) => setMintedStyle(v || 'friendly')} 
-                data={MINTED_STYLES} 
-                searchable
-            />
-        )}
-
+        <Select label="Language" value={lang} onChange={(v) => setLang(v || 'python')} data={availableLangs} searchable />
+        {engine === 'minted' && <Select label="Theme" value={mintedStyle} onChange={(v) => setMintedStyle(v || 'friendly')} data={MINTED_STYLES} searchable />}
         <Group grow>
             <TextInput label="Caption" value={caption} onChange={(e) => setCaption(e.currentTarget.value)} />
             <TextInput label="Label" placeholder="mycode" value={label} onChange={(e) => setLabel(e.currentTarget.value)} />
@@ -253,13 +233,7 @@ const CodeWizard = ({ engine, onChange }: { engine: 'listings' | 'minted', onCha
             <Switch label="Frame" checked={frame} onChange={(e) => setFrame(e.currentTarget.checked)} />
             <Switch label="Break Lines" checked={breakLines} onChange={(e) => setBreakLines(e.currentTarget.checked)} />
         </Group>
-        <Textarea 
-            label="Source Code" 
-            value={codeContent} 
-            onChange={(e) => setCodeContent(e.currentTarget.value)} 
-            minRows={6} 
-            styles={{ input: { fontFamily: 'monospace', fontSize: 12 } }} 
-        />
+        <Textarea label="Source Code" value={codeContent} onChange={(e) => setCodeContent(e.currentTarget.value)} minRows={6} styles={{ input: { fontFamily: 'monospace', fontSize: 12 } }} />
     </Stack>
   );
 };
@@ -276,40 +250,71 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
   const [selectedPkgId, setSelectedPkgId] = useState<string>('amsmath');
   const [searchQuery, setSearchQuery] = useState('');
   const [generatedCode, setGeneratedCode] = useState('');
-  const [isSidebarOpen, setSidebarOpen] = useState(true); // Toggle State
+  const [isSidebarOpen, setSidebarOpen] = useState(true);
 
-  // --- XColor Local State (Independent from Global Preamble Config) ---
+  // --- LOCAL STATES FOR WIZARDS ---
+  
+  // 1. XColor State
   const [colorConfig, setColorConfig] = useState({ pkgXcolor: true, xcolorOptions: ['table', 'dvipsnames'] });
   const [galleryColors, setGalleryColors] = useState<CustomColorDef[]>([]);
 
-  // Update Generated Code for XColor
+  // 2. Enumitem State
+  const [listConfig, setListConfig] = useState({ 
+      pkgEnumitem: true, 
+      enumitemSep: 'default', 
+      enumitemItemize: 'default', 
+      enumitemEnumerate: 'default' 
+  });
+  const [galleryLists, setGalleryLists] = useState<CustomListDef[]>([]);
+
+  // --- EFFECT: UPDATE GENERATED CODE ---
   useEffect(() => {
+    // A. XCOLOR GENERATION
     if (selectedPkgId === 'xcolor') {
         let code = '';
-        // 1. Package loading (Optional check if user wants to copy only this)
         if (colorConfig.pkgXcolor) {
              const opts = colorConfig.xcolorOptions && colorConfig.xcolorOptions.length > 0 
                 ? `[${colorConfig.xcolorOptions.join(',')}]` 
                 : '';
              code += `\\usepackage${opts}{xcolor}\n\n`;
         }
-        
-        // 2. Color Definitions
         if (galleryColors.length > 0) {
             code += `% --- Custom Colors ---\n`;
             galleryColors.forEach(c => {
-                if (c.model === 'named (mix)') {
-                    code += `\\colorlet{${c.name}}{${c.value}}\n`;
-                } else {
-                    code += `\\definecolor{${c.name}}{${c.model}}{${c.value}}\n`;
-                }
+                if (c.model === 'named (mix)') code += `\\colorlet{${c.name}}{${c.value}}\n`;
+                else code += `\\definecolor{${c.name}}{${c.model}}{${c.value}}\n`;
             });
-        } else {
-            code += `% Add colors using the wizard to generate code here.`;
+        }
+        setGeneratedCode(code);
+    } 
+    // B. ENUMITEM GENERATION
+    else if (selectedPkgId === 'enumitem') {
+        let code = '';
+        if (listConfig.pkgEnumitem) {
+            code += `\\usepackage{enumitem}\n\n`;
+            
+            // Global Settings
+            if (listConfig.enumitemSep === 'nosep') code += `\\setlist{nosep}\n`;
+            else if (listConfig.enumitemSep === 'half') code += `\\setlist{itemsep=0.5em}\n`;
+            
+            if (listConfig.enumitemItemize && listConfig.enumitemItemize !== 'default') {
+                code += `\\setlist[itemize]{${listConfig.enumitemItemize}}\n`;
+            }
+            if (listConfig.enumitemEnumerate && listConfig.enumitemEnumerate !== 'default') {
+                code += `\\setlist[enumerate]{${listConfig.enumitemEnumerate}}\n`;
+            }
+        }
+        // Custom Lists
+        if (galleryLists.length > 0) {
+            code += `\n% --- Custom Lists ---\n`;
+            galleryLists.forEach(l => {
+                code += `\\newlist{${l.name}}{${l.baseType}}{3}\n`;
+                code += `\\setlist[${l.name}]{${l.label}}\n`;
+            });
         }
         setGeneratedCode(code);
     }
-  }, [selectedPkgId, colorConfig, galleryColors]);
+  }, [selectedPkgId, colorConfig, galleryColors, listConfig, galleryLists]);
 
   const activePackage = PACKAGES_DB.find(p => p.id === selectedPkgId);
 
@@ -335,19 +340,20 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
     if (pkg.hasWizard) {
         if (pkg.id === 'geometry') {
             onOpenWizard('wizard-preamble'); 
-        } else if (!['tikz', 'pgfplots', 'booktabs', 'multirow', 'xcolor'].includes(pkg.id)) {
+        } else if (!['tikz', 'pgfplots', 'booktabs', 'multirow', 'xcolor', 'enumitem'].includes(pkg.id)) {
             alert(`Opening specialized wizard for ${pkg.name}...`);
         }
     }
   };
 
-  const isEmbeddedWizard = ['tikz', 'pgfplots', 'booktabs', 'multirow', 'xcolor'].includes(selectedPkgId);
+  const isEmbeddedWizard = ['tikz', 'pgfplots', 'booktabs', 'multirow', 'xcolor', 'enumitem'].includes(selectedPkgId);
   const isSymbolPalette = selectedPkgId === 'amssymb';
 
   return (
-    <Group h="100%" gap={0} align="stretch" style={{ overflow: 'hidden' }}>
+    // MAIN LAYOUT - Replaced Group with Flex Box for better scroll control
+    <Box h="100%" style={{ display: 'flex', flexDirection: 'row', overflow: 'hidden', alignItems: 'stretch' }}>
         
-        {/* LEFT: PACKAGE BROWSER (Collapsible with Animation) */}
+        {/* LEFT: PACKAGE BROWSER (Resizable / Collapsible) */}
         <Box 
             style={{ 
                 width: isSidebarOpen ? 300 : 0,
@@ -355,12 +361,15 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
                 borderRight: isSidebarOpen ? '1px solid var(--mantine-color-dark-6)' : 'none',
                 transition: 'width 0.3s ease, opacity 0.2s ease', 
                 overflow: 'hidden',
-                flexShrink: 0
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column'
             }}
         >
-            {/* Inner Container: Keeps content fixed width to avoid ugly wrapping during collapse */}
-            <Box w={300} h="100%" style={{ display: 'flex', flexDirection: 'column' }}>
-                <Box p="sm" bg="dark.8" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {/* Inner container with Fixed width to avoid text wrapping during collapse */}
+            <Box w={300} h="100%" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                {/* Search Bar - Fixed Height */}
+                <Box p="sm" bg="dark.8" style={{ flexShrink: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
                     <TextInput 
                         placeholder="Search..." 
                         style={{ flex: 1 }}
@@ -374,38 +383,38 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
                         </ActionIcon>
                     </Tooltip>
                 </Box>
-                <ScrollArea style={{ flex: 1 }}>
-                    <Stack gap={4} p="xs">
-                        {/* Render Categories */}
-                        {(Object.keys(categories) as Category[]).map(cat => {
-                            const pkgs = getFilteredPackages().filter(p => p.category === cat);
-                            if (pkgs.length === 0) return null;
-                            
-                            return (
-                                <Box key={cat} mb="sm">
-                                    <Group gap="xs" px="xs" mb={4}>
-                                        {categories[cat]}
-                                        <Text size="xs" fw={700} tt="uppercase" c="dimmed">{cat}</Text>
-                                    </Group>
-                                    {pkgs.map(pkg => (
-                                        <NavLink 
-                                            key={pkg.id}
-                                            label={pkg.name}
-                                            description={<Text size="xs" truncate>{pkg.description}</Text>}
-                                            active={pkg.id === selectedPkgId}
-                                            onClick={() => {
-                                                setSelectedPkgId(pkg.id);
-                                            }}
-                                            variant="light"
-                                            leftSection={activePackage?.id === pkg.id && <FontAwesomeIcon icon={faChevronRight} style={{ width: 12, height: 12 }} />}
-                                            style={{ borderRadius: 4 }}
-                                        />
-                                    ))}
-                                </Box>
-                            );
-                        })}
-                    </Stack>
-                </ScrollArea>
+                
+                {/* Scrollable Package List - Takes remaining height */}
+                <Box style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                    <ScrollArea h="100%" type="auto" offsetScrollbars>
+                        <Stack gap={4} p="xs">
+                            {(Object.keys(categories) as Category[]).map(cat => {
+                                const pkgs = getFilteredPackages().filter(p => p.category === cat);
+                                if (pkgs.length === 0) return null;
+                                return (
+                                    <Box key={cat} mb="sm">
+                                        <Group gap="xs" px="xs" mb={4}>
+                                            {categories[cat]}
+                                            <Text size="xs" fw={700} tt="uppercase" c="dimmed">{cat}</Text>
+                                        </Group>
+                                        {pkgs.map(pkg => (
+                                            <NavLink 
+                                                key={pkg.id}
+                                                label={pkg.name}
+                                                description={<Text size="xs" truncate>{pkg.description}</Text>}
+                                                active={pkg.id === selectedPkgId}
+                                                onClick={() => setSelectedPkgId(pkg.id)}
+                                                variant="light"
+                                                leftSection={activePackage?.id === pkg.id && <FontAwesomeIcon icon={faChevronRight} style={{ width: 12, height: 12 }} />}
+                                                style={{ borderRadius: 4 }}
+                                            />
+                                        ))}
+                                    </Box>
+                                );
+                            })}
+                        </Stack>
+                    </ScrollArea>
+                </Box>
             </Box>
         </Box>
 
@@ -416,16 +425,14 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
                 display: 'flex', 
                 flexDirection: 'column', 
                 backgroundColor: 'var(--mantine-color-dark-8)',
-                minWidth: 0, // Critical for Flex children to shrink properly
-                height: '100%'
+                minWidth: 0, 
+                height: '100%',
+                overflow: 'hidden'
             }}
         >
-            
-            {/* Header */}
-            <Box p="md" style={{ borderBottom: '1px solid var(--mantine-color-dark-6)' }}>
+            <Box p="md" style={{ borderBottom: '1px solid var(--mantine-color-dark-6)', flexShrink: 0 }}>
                 <Group justify="space-between">
                     <Group>
-                        {/* Show Sidebar Button (Only if hidden) */}
                         {!isSidebarOpen && (
                             <Tooltip label="Show Packages">
                                 <ActionIcon variant="default" onClick={() => setSidebarOpen(true)} mr="xs">
@@ -433,11 +440,11 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
                                 </ActionIcon>
                             </Tooltip>
                         )}
-
                         <ThemeIcon size="lg" variant="light" color="blue">
                             {activePackage?.category === 'math' ? <FontAwesomeIcon icon={faSquareRootAlt} /> :
                              activePackage?.category === 'code' ? <FontAwesomeIcon icon={faFileCode} /> :
                              activePackage?.category === 'colors' ? <FontAwesomeIcon icon={faPalette} /> :
+                             activePackage?.category === 'layout' ? <FontAwesomeIcon icon={faLayerGroup} /> :
                              <FontAwesomeIcon icon={faBoxOpen} />}
                         </ThemeIcon>
                         <Stack gap={0}>
@@ -460,8 +467,6 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
                         <Tooltip label="Package Info">
                             <ActionIcon variant="subtle" color="gray"><FontAwesomeIcon icon={faInfoCircle} style={{ width: 18, height: 18 }} /></ActionIcon>
                         </Tooltip>
-                        
-                        {/* Toggle Layout Button (Alternative location) */}
                         <Tooltip label={isSidebarOpen ? "Expand View" : "Show List"}>
                             <ActionIcon variant="subtle" color="gray" onClick={() => setSidebarOpen(!isSidebarOpen)}>
                                 <FontAwesomeIcon icon={faColumns} />
@@ -471,7 +476,6 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
                 </Group>
             </Box>
 
-            {/* Dynamic Configurator Area */}
             {isEmbeddedWizard ? (
                 <Box style={{ flex: 1, overflow: 'hidden' }}>
                     {(selectedPkgId === 'tikz' || selectedPkgId === 'pgfplots') && (
@@ -495,22 +499,38 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
                              />
                         </Box>
                     )}
+                    {selectedPkgId === 'enumitem' && (
+                        <Box p="md" h="100%">
+                            <ScrollArea h="100%" type="auto" offsetScrollbars>
+                                <ListsTab 
+                                    config={listConfig as any}
+                                    customLists={galleryLists}
+                                    onChange={(key, val) => setListConfig(prev => ({ ...prev, [key]: val }))}
+                                    onAddList={(name, type, label, options) => {
+                                        // "label" argument here receives the options string constructed in ListsTab
+                                        const newList: CustomListDef = { 
+                                            id: Date.now(), 
+                                            name, 
+                                            baseType: type as any, 
+                                            label: label // Stores full options string
+                                        };
+                                        setGalleryLists(prev => [...prev, newList]);
+                                    }}
+                                    onRemoveList={(id) => setGalleryLists(prev => prev.filter(l => l.id !== id))}
+                                />
+                            </ScrollArea>
+                        </Box>
+                    )}
                 </Box>
             ) : (
-                <ScrollArea style={{ flex: 1 }} p="md">
-                    {/* AMS Symbols Palette (Special Case) */}
+                <ScrollArea style={{ flex: 1, minHeight: 0 }} p="md" type="auto" offsetScrollbars>
                     {selectedPkgId === 'amssymb' && <AmsSymbolConfig onInsert={onInsert} />}
-
                     {selectedPkgId === 'amsmath' && <AmsMathConfig onChange={setGeneratedCode} />}
-
-                    {/* Unified Code Wizard for Listings AND Minted */}
                     {(selectedPkgId === 'listings' || selectedPkgId === 'minted') && (
                         <CodeWizard engine={selectedPkgId as 'listings' | 'minted'} onChange={setGeneratedCode} />
                     )}
-
                     {selectedPkgId === 'graphicx' && <GraphicxConfig onChange={setGeneratedCode} />}
                     {selectedPkgId === 'tabularx' && <Text c="dimmed">Tabularx settings would appear here.</Text>}
-
                     {activePackage?.hasWizard && !['amsmath', 'listings', 'minted', 'graphicx'].includes(selectedPkgId) && selectedPkgId !== 'amssymb' && (
                         <Stack align="center" mt="xl">
                             <Text>This package has a dedicated Full Wizard.</Text>
@@ -520,13 +540,12 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
                 </ScrollArea>
             )}
 
-            {/* Footer: Preview & Insert - HIDDEN for Symbol Palette as it inserts directly */}
-            {(!isEmbeddedWizard && !isSymbolPalette) || selectedPkgId === 'xcolor' ? (
-                <Stack gap={0} p="md" bg="dark.9" style={{ borderTop: '1px solid var(--mantine-color-dark-6)' }}>
+            {(!isEmbeddedWizard && !isSymbolPalette) || ['xcolor', 'enumitem'].includes(selectedPkgId) ? (
+                <Stack gap={0} p="md" bg="dark.9" style={{ borderTop: '1px solid var(--mantine-color-dark-6)', flexShrink: 0 }}>
                     <Group justify="space-between" mb="xs">
                         <Text size="xs" fw={700} c="dimmed">GENERATED CODE</Text>
                         <Group gap="xs">
-                            {activePackage?.command && selectedPkgId !== 'xcolor' && (
+                            {activePackage?.command && !['xcolor', 'enumitem'].includes(selectedPkgId) && (
                                 <Button
                                     variant="default"
                                     size="compact-xs"
@@ -552,6 +571,6 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
             ) : null}
 
         </Box>
-    </Group>
+    </Box>
   );
 };
