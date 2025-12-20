@@ -1,6 +1,19 @@
 // Database of LaTeX Math Symbols mapped to Unicode for preview
 
-export type SymbolCategory = 'greek' | 'operators' | 'relations' | 'arrows' | 'delimiters' | 'misc' | 'logic' | 'calculus' | 'linear_algebra';
+export type SymbolCategory =
+  'greek' |
+  'operators' |
+  'relations' |
+  'arrows' |
+  'delimiters' |
+  'misc' |
+  'logic' |
+  'calculus' |
+  'linear_algebra' |
+  'cyrillic' |
+  'misc_text' |
+  'fontawesome' |
+  'special';
 
 export interface LatexSymbol {
   cmd: string;
@@ -117,5 +130,18 @@ export const SYMBOLS_DB: Record<SymbolCategory, LatexSymbol[]> = {
     { cmd: '\\ell', char: 'ℓ' }, { cmd: '\\Re', char: 'ℜ' }, { cmd: '\\Im', char: 'ℑ' },
     { cmd: '\\aleph', char: 'ℵ' }, { cmd: '\\hbar', char: 'ℏ' }, { cmd: '\\emptyset', char: '∅' },
     { cmd: '\\flat', char: '♭' }, { cmd: '\\natural', char: '♮' }, { cmd: '\\sharp', char: '♯' }
+  ],
+  cyrillic: [
+      { cmd: '\\cyr', char: 'cyr' }
+  ],
+  misc_text: [
+      { cmd: '\\dag', char: '†' }, { cmd: '\\ddag', char: '‡' }, { cmd: '\\S', char: '§' }, { cmd: '\\P', char: '¶' },
+      { cmd: '\\copyright', char: '©' }, { cmd: '\\pounds', char: '£' }
+  ],
+  fontawesome: [
+      { cmd: '\\faHome', char: '' }, { cmd: '\\faUser', char: '' }, { cmd: '\\faCog', char: '' }
+  ],
+  special: [
+      { cmd: '\\%', char: '%' }, { cmd: '\\#', char: '#' }, { cmd: '\\&', char: '&' }, { cmd: '\\_', char: '_' }
   ]
 };

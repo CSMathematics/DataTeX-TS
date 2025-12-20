@@ -11,6 +11,9 @@ import { TableDataView } from "../database/TableDataView";
 import { AppTab } from "./Sidebar"; 
 import { StartPage } from "./StartPage"; // Import StartPage
 import { EditorToolbar } from "./EditorToolbar";
+import { SymbolSidebar } from "./SymbolSidebar";
+import { SymbolPanel } from "./SymbolPanel";
+import { SymbolCategory } from "../wizards/preamble/SymbolDB";
 
 interface EditorAreaProps {
   files: AppTab[];
@@ -44,10 +47,21 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   
   const activeFile = files.find(f => f.id === activeFileId);
   const [editorInstance, setEditorInstance] = React.useState<any>(null);
+  const [activeSymbolCategory, setActiveSymbolCategory] = React.useState<SymbolCategory | null>(null);
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     setEditorInstance(editor);
     if (onMount) onMount(editor, monaco);
+  };
+
+  const handleInsertSymbol = (text: string) => {
+    if (editorInstance) {
+        const selection = editorInstance.getSelection();
+        if (!selection) return;
+        const op = { range: selection, text: text, forceMoveMarkers: true };
+        editorInstance.executeEdits("symbol-panel", [op]);
+        editorInstance.focus();
+    }
   };
 
   const getFileIcon = (name: string, type: string) => {
@@ -118,7 +132,19 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
       {/* Main Content */}
       <Box style={{ flex: 1, position: "relative", minWidth: 0, height: "100%", overflow: "hidden" }}>
           {activeFile?.type === 'editor' ? (
-             <Editor path={activeFile.id} height="100%" defaultLanguage="my-latex" defaultValue={activeFile.content} value={activeFile.content} onMount={handleEditorMount} onChange={(value) => onContentChange(activeFile.id, value || '')} options={{ minimap: { enabled: true, scale: 0.75 }, fontSize: 14, fontFamily: "Consolas, monospace", scrollBeyondLastLine: false, automaticLayout: true, theme: "data-tex-dark", wordWrap: "on" }} />
+             <Box style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
+                 {isTexFile && (
+                     <>
+                        <SymbolSidebar activeCategory={activeSymbolCategory} onSelectCategory={setActiveSymbolCategory} />
+                        {activeSymbolCategory && (
+                            <SymbolPanel category={activeSymbolCategory} onInsert={handleInsertSymbol} />
+                        )}
+                     </>
+                 )}
+                 <Box style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
+                    <Editor path={activeFile.id} height="100%" defaultLanguage="my-latex" defaultValue={activeFile.content} value={activeFile.content} onMount={handleEditorMount} onChange={(value) => onContentChange(activeFile.id, value || '')} options={{ minimap: { enabled: true, scale: 0.75 }, fontSize: 14, fontFamily: "Consolas, monospace", scrollBeyondLastLine: false, automaticLayout: true, theme: "data-tex-dark", wordWrap: "on" }} />
+                 </Box>
+             </Box>
           ) : activeFile?.type === 'table' ? (
              <TableDataView tableName={activeFile.tableName || ''} />
           ) : activeFile?.type === 'start-page' ? (

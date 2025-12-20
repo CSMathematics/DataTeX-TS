@@ -114,6 +114,10 @@ const AmsSymbolConfig = ({ onInsert }: { onInsert: (code: string) => void }) => 
         { key: 'delimiters', label: 'Delimiters' },
         { key: 'logic', label: 'Logic' },
         { key: 'misc', label: 'Misc' },
+        { key: 'cyrillic', label: 'Cyrillic' },
+        { key: 'misc_text', label: 'Misc Text' },
+        { key: 'fontawesome', label: 'FontAwesome' },
+        { key: 'special', label: 'Special' },
     ];
 
     return (
