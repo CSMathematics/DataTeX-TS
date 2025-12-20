@@ -48,6 +48,37 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   const activeFile = files.find(f => f.id === activeFileId);
   const [editorInstance, setEditorInstance] = React.useState<any>(null);
   const [activeSymbolCategory, setActiveSymbolCategory] = React.useState<SymbolCategory | null>(null);
+  const [symbolPanelWidth, setSymbolPanelWidth] = React.useState(250);
+  const [isResizingSymbolPanel, setIsResizingSymbolPanel] = React.useState(false);
+
+  const startResizingSymbolPanel = React.useCallback(() => {
+      setIsResizingSymbolPanel(true);
+  }, []);
+
+  const stopResizingSymbolPanel = React.useCallback(() => {
+      setIsResizingSymbolPanel(false);
+  }, []);
+
+  const resizeSymbolPanel = React.useCallback(
+      (mouseMoveEvent: MouseEvent) => {
+          if (isResizingSymbolPanel) {
+              const newWidth = mouseMoveEvent.clientX - 40; // Subtract Sidebar width (approx 40px)
+              if (newWidth > 150 && newWidth < 600) {
+                  setSymbolPanelWidth(newWidth);
+              }
+          }
+      },
+      [isResizingSymbolPanel]
+  );
+
+  React.useEffect(() => {
+      window.addEventListener("mousemove", resizeSymbolPanel);
+      window.addEventListener("mouseup", stopResizingSymbolPanel);
+      return () => {
+          window.removeEventListener("mousemove", resizeSymbolPanel);
+          window.removeEventListener("mouseup", stopResizingSymbolPanel);
+      };
+  }, [resizeSymbolPanel, stopResizingSymbolPanel]);
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     setEditorInstance(editor);
@@ -136,9 +167,35 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
                  {isTexFile && (
                      <>
                         <SymbolSidebar activeCategory={activeSymbolCategory} onSelectCategory={setActiveSymbolCategory} />
-                        {activeSymbolCategory && (
-                            <SymbolPanel category={activeSymbolCategory} onInsert={handleInsertSymbol} />
-                        )}
+                         <Box
+                             style={{
+                                 width: activeSymbolCategory ? symbolPanelWidth : 0,
+                                 transition: isResizingSymbolPanel ? 'none' : 'width 0.3s ease',
+                                 overflow: 'hidden',
+                                 display: 'flex',
+                                 flexDirection: 'row'
+                             }}
+                         >
+                            {activeSymbolCategory && (
+                                <>
+                                    <SymbolPanel category={activeSymbolCategory} onInsert={handleInsertSymbol} width={symbolPanelWidth} />
+                                    <Box
+                                        onMouseDown={startResizingSymbolPanel}
+                                        style={{
+                                            width: 4,
+                                            height: '100%',
+                                            cursor: 'col-resize',
+                                            backgroundColor: isResizingSymbolPanel ? 'var(--mantine-color-blue-6)' : 'transparent',
+                                            transition: 'background-color 0.2s',
+                                            borderRight: '1px solid var(--mantine-color-dark-6)',
+                                            flexShrink: 0,
+                                            zIndex: 10
+                                        }}
+                                        className="resize-handle-symbol"
+                                    />
+                                </>
+                            )}
+                         </Box>
                      </>
                  )}
                  <Box style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>

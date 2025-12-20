@@ -5,14 +5,15 @@ import { SYMBOLS_DB, SymbolCategory } from '../wizards/preamble/SymbolDB';
 interface SymbolPanelProps {
     category: SymbolCategory;
     onInsert: (code: string) => void;
+    width?: number;
 }
 
-export const SymbolPanel: React.FC<SymbolPanelProps> = ({ category, onInsert }) => {
+export const SymbolPanel: React.FC<SymbolPanelProps> = ({ category, onInsert, width = 250 }) => {
     const symbols = SYMBOLS_DB[category] || [];
 
     return (
         <Box
-            w={250}
+            w={width}
             h="100%"
             bg="dark.7"
             style={{
@@ -47,7 +48,9 @@ export const SymbolPanel: React.FC<SymbolPanelProps> = ({ category, onInsert }) 
                                         fontSize: '1.2rem',
                                         border: '1px solid transparent',
                                         color: 'inherit',
-                                        transition: 'background-color 0.2s'
+                                        transition: 'background-color 0.2s',
+                                        fontFamily: s.fontFamily || 'inherit',
+                                        fontWeight: s.fontFamily === 'Font Awesome 6 Free' ? 900 : (s.fontFamily ? 400 : 'inherit')
                                     }}
                                 >
                                     {s.char}
