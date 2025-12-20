@@ -33,7 +33,7 @@ const CATEGORIES: { id: SymbolCategory; icon: any; label: string }[] = [
     { id: 'special', icon: faStar, label: 'Special' },
 ];
 
-export const SymbolSidebar: React.FC<SymbolSidebarProps> = ({ activeCategory, onSelectCategory }) => {
+export const SymbolSidebar = React.memo<SymbolSidebarProps>(({ activeCategory, onSelectCategory }) => {
     return (
         <Stack
             w={40}
@@ -64,4 +64,4 @@ export const SymbolSidebar: React.FC<SymbolSidebarProps> = ({ activeCategory, on
             ))}
         </Stack>
     );
-};
+});

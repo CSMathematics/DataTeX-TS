@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Stack, ScrollArea, Group, Box, Text, ActionIcon, Tooltip } from "@mantine/core";
 import Editor, { OnMount } from "@monaco-editor/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -9,7 +9,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { TableDataView } from "../database/TableDataView";
 import { AppTab } from "./Sidebar"; 
-import { StartPage } from "./StartPage"; // Import StartPage
+import { StartPage } from "./StartPage";
 import { EditorToolbar } from "./EditorToolbar";
 import { SymbolSidebar } from "./SymbolSidebar";
 import { SymbolPanel } from "./SymbolPanel";
@@ -85,7 +85,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
     if (onMount) onMount(editor, monaco);
   };
 
-  const handleInsertSymbol = (text: string) => {
+  const handleInsertSymbol = useCallback((text: string) => {
     if (editorInstance) {
         const selection = editorInstance.getSelection();
         if (!selection) return;
@@ -93,7 +93,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
         editorInstance.executeEdits("symbol-panel", [op]);
         editorInstance.focus();
     }
-  };
+  }, [editorInstance]);
 
   const getFileIcon = (name: string, type: string) => {
     if (type === 'start-page') return <FontAwesomeIcon icon={faHome} style={{ width: 14, height: 14, color: "#fab005" }} />;
@@ -139,7 +139,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
         </Group>
       </ScrollArea>
 
-      {/* Toolbar (Κρυμμένο αν είναι Start Page) */}
+      {/* Toolbar */}
       {activeFile?.type !== 'start-page' && (
           <Stack gap={0} style={{ flexShrink: 0 }}>
             <Group h={32} px="md" bg="dark.7" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)" }}>
@@ -199,7 +199,15 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
                      </>
                  )}
                  <Box style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
-                    <Editor path={activeFile.id} height="100%" defaultLanguage="my-latex" defaultValue={activeFile.content} value={activeFile.content} onMount={handleEditorMount} onChange={(value) => onContentChange(activeFile.id, value || '')} options={{ minimap: { enabled: true, scale: 0.75 }, fontSize: 14, fontFamily: "Consolas, monospace", scrollBeyondLastLine: false, automaticLayout: true, theme: "data-tex-dark", wordWrap: "on" }} />
+                    <Editor
+                        path={activeFile.id}
+                        height="100%"
+                        defaultLanguage="my-latex"
+                        defaultValue={activeFile.content}
+                        onMount={handleEditorMount}
+                        onChange={(value) => onContentChange(activeFile.id, value || '')}
+                        options={{ minimap: { enabled: true, scale: 0.75 }, fontSize: 14, fontFamily: "Consolas, monospace", scrollBeyondLastLine: false, automaticLayout: true, theme: "data-tex-dark", wordWrap: "on" }}
+                    />
                  </Box>
              </Box>
           ) : activeFile?.type === 'table' ? (

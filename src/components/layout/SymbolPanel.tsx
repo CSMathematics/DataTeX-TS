@@ -8,7 +8,7 @@ interface SymbolPanelProps {
     width?: number;
 }
 
-export const SymbolPanel: React.FC<SymbolPanelProps> = ({ category, onInsert, width = 250 }) => {
+export const SymbolPanel = React.memo<SymbolPanelProps>(({ category, onInsert, width = 250 }) => {
     const symbols = SYMBOLS_DB[category] || [];
 
     return (
@@ -65,4 +65,4 @@ export const SymbolPanel: React.FC<SymbolPanelProps> = ({ category, onInsert, wi
             </ScrollArea>
         </Box>
     );
-};
+});
