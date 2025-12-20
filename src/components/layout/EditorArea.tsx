@@ -7,6 +7,7 @@ import {
   faTimes, faPlay, faColumns, faCode, faCube, faStop, faHome, faChevronRight,
   faFilePdf
 } from "@fortawesome/free-solid-svg-icons";
+import { debounce } from "lodash";
 import { TableDataView } from "../database/TableDataView";
 import { AppTab } from "./Sidebar"; 
 import { StartPage } from "./StartPage"; // Import StartPage
@@ -51,20 +52,52 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   const [symbolPanelWidth, setSymbolPanelWidth] = React.useState(250);
   const [isResizingSymbolPanel, setIsResizingSymbolPanel] = React.useState(false);
 
-  const startResizingSymbolPanel = React.useCallback(() => {
+  const ghostRef = React.useRef<HTMLDivElement>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const offsetRef = React.useRef(0);
+
+  const startResizingSymbolPanel = React.useCallback((e: React.MouseEvent) => {
+      e.preventDefault();
       setIsResizingSymbolPanel(true);
+
+      if (containerRef.current) {
+          const rect = containerRef.current.getBoundingClientRect();
+          offsetRef.current = rect.left + 40; // Container left + SymbolSidebar width
+      }
+
+      if (ghostRef.current) {
+          ghostRef.current.style.display = 'block';
+          ghostRef.current.style.left = `${e.clientX}px`;
+      }
   }, []);
 
   const stopResizingSymbolPanel = React.useCallback(() => {
+      if (isResizingSymbolPanel && ghostRef.current) {
+          const currentLeft = parseInt(ghostRef.current.style.left || '0', 10);
+          if (currentLeft > 0) {
+              // Calculate width relative to the start of the symbol panel
+              const newWidth = currentLeft - offsetRef.current;
+              if (newWidth > 150 && newWidth < 600) {
+                  setSymbolPanelWidth(newWidth);
+              }
+          }
+          ghostRef.current.style.display = 'none';
+      }
       setIsResizingSymbolPanel(false);
-  }, []);
+  }, [isResizingSymbolPanel]);
 
   const resizeSymbolPanel = React.useCallback(
       (mouseMoveEvent: MouseEvent) => {
-          if (isResizingSymbolPanel) {
-              const newWidth = mouseMoveEvent.clientX - 40; // Subtract Sidebar width (approx 40px)
-              if (newWidth > 150 && newWidth < 600) {
-                  setSymbolPanelWidth(newWidth);
+          if (isResizingSymbolPanel && ghostRef.current) {
+              // Just update the ghost handle position directly
+              const x = mouseMoveEvent.clientX;
+              // Constrain the ghost handle movement if desired, or let it move freely and clamp on mouseup
+              // Clamping here for visual feedback
+              const minX = 40 + 150;
+              const maxX = 40 + 600;
+
+              if (x >= minX && x <= maxX) {
+                 ghostRef.current.style.left = `${x}px`;
               }
           }
       },
@@ -72,13 +105,38 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   );
 
   React.useEffect(() => {
-      window.addEventListener("mousemove", resizeSymbolPanel);
-      window.addEventListener("mouseup", stopResizingSymbolPanel);
+      if (isResizingSymbolPanel) {
+        window.addEventListener("mousemove", resizeSymbolPanel);
+        window.addEventListener("mouseup", stopResizingSymbolPanel);
+        document.body.style.cursor = 'col-resize';
+      } else {
+        document.body.style.cursor = 'default';
+      }
       return () => {
           window.removeEventListener("mousemove", resizeSymbolPanel);
           window.removeEventListener("mouseup", stopResizingSymbolPanel);
       };
-  }, [resizeSymbolPanel, stopResizingSymbolPanel]);
+  }, [isResizingSymbolPanel, resizeSymbolPanel, stopResizingSymbolPanel]);
+
+  // Debounce the content change to improve performance
+  const debouncedChange = React.useMemo(
+    () => debounce((id: string, val: string) => {
+        onContentChange(id, val);
+    }, 300),
+    [onContentChange]
+  );
+
+  React.useEffect(() => {
+    return () => {
+      debouncedChange.cancel();
+    };
+  }, [debouncedChange]);
+
+  const handleEditorChange = (value: string | undefined) => {
+      if (activeFileId && value !== undefined) {
+          debouncedChange(activeFileId, value);
+      }
+  };
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     setEditorInstance(editor);
@@ -111,6 +169,27 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 
   return (
     <Stack gap={0} h="100%" w="100%" style={{ overflow: "hidden" }}>
+      {/* Ghost Handle for Resizing */}
+      <Box
+        ref={ghostRef}
+        style={{
+          position: 'fixed',
+          top: 0,
+          bottom: 0,
+          width: 4,
+          backgroundColor: 'var(--mantine-color-blue-6)',
+          zIndex: 10000,
+          display: 'none',
+          pointerEvents: 'none',
+          cursor: 'col-resize'
+        }}
+      />
+
+      {/* Overlay to catch events during resizing */}
+      {isResizingSymbolPanel && (
+         <Box style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, cursor: 'col-resize', userSelect: 'none' }} />
+      )}
+
       {/* Tabs Bar */}
       <ScrollArea type="hover" scrollbarSize={6} bg="dark.8" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)", whiteSpace: 'nowrap', flexShrink: 0 }}>
         <Group gap={1} pt={4} px={4} wrap="nowrap">
@@ -163,7 +242,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
       {/* Main Content */}
       <Box style={{ flex: 1, position: "relative", minWidth: 0, height: "100%", overflow: "hidden" }}>
           {activeFile?.type === 'editor' ? (
-             <Box style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
+             <Box ref={containerRef} style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
                  {isTexFile && (
                      <>
                         <SymbolSidebar activeCategory={activeSymbolCategory} onSelectCategory={setActiveSymbolCategory} />
@@ -199,7 +278,24 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
                      </>
                  )}
                  <Box style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
-                    <Editor path={activeFile.id} height="100%" defaultLanguage="my-latex" defaultValue={activeFile.content} value={activeFile.content} onMount={handleEditorMount} onChange={(value) => onContentChange(activeFile.id, value || '')} options={{ minimap: { enabled: true, scale: 0.75 }, fontSize: 14, fontFamily: "Consolas, monospace", scrollBeyondLastLine: false, automaticLayout: true, theme: "data-tex-dark", wordWrap: "on" }} />
+                    <Editor
+                        path={activeFile.id}
+                        height="100%"
+                        defaultLanguage="my-latex"
+                        defaultValue={activeFile.content}
+                        // Removed value prop to make it uncontrolled
+                        onMount={handleEditorMount}
+                        onChange={handleEditorChange}
+                        options={{
+                            minimap: { enabled: true, scale: 2 },
+                            fontSize: 14,
+                            fontFamily: "Consolas, monospace",
+                            scrollBeyondLastLine: false,
+                            automaticLayout: true,
+                            theme: "data-tex-dark",
+                            wordWrap: "on"
+                        }}
+                    />
                  </Box>
              </Box>
           ) : activeFile?.type === 'table' ? (
