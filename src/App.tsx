@@ -50,6 +50,7 @@ export default function App() {
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isResizingRightPanel, setIsResizingRightPanel] = useState(false);
   const rafRef = useRef<number | null>(null);
+  const ghostRef = useRef<HTMLDivElement>(null);
 
   // --- Editor State ---
   // Start with Start Page tab
@@ -435,8 +436,23 @@ export default function App() {
   };
 
   // --- Resize Logic ---
-  const startResizeSidebar = useCallback((e: React.MouseEvent) => { e.preventDefault(); setIsResizingSidebar(true); }, []);
-  const startResizeRightPanel = useCallback((e: React.MouseEvent) => { e.preventDefault(); setIsResizingRightPanel(true); }, []);
+  const startResizeSidebar = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingSidebar(true);
+    if (ghostRef.current) {
+        ghostRef.current.style.display = 'block';
+        ghostRef.current.style.left = `${e.clientX}px`;
+    }
+  }, []);
+
+  const startResizeRightPanel = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingRightPanel(true);
+    if (ghostRef.current) {
+        ghostRef.current.style.display = 'block';
+        ghostRef.current.style.left = `${e.clientX}px`;
+    }
+  }, []);
   
   // Sync state with CSS variables on mount and when state changes (programmatically)
   useEffect(() => {
@@ -452,29 +468,47 @@ export default function App() {
        if (rafRef.current) return;
        rafRef.current = requestAnimationFrame(() => {
           if (isResizingSidebar) {
-             const w = Math.max(150, Math.min(600, e.clientX - 50));
-             document.documentElement.style.setProperty('--sidebar-width', `${w}px`);
+             // Constraint X based on min/max sidebar width
+             // Width = clientX - 50
+             // Min Width 150 -> Min X = 200
+             // Max Width 600 -> Max X = 650
+             const x = Math.max(200, Math.min(650, e.clientX));
+             if (ghostRef.current) ghostRef.current.style.left = `${x}px`;
           }
           if (isResizingRightPanel) {
-             const newWidth = window.innerWidth - e.clientX;
-             const w = Math.max(300, Math.min(1200, newWidth));
-             document.documentElement.style.setProperty('--right-panel-width', `${w}px`);
+             // Right Panel Width = window.innerWidth - clientX
+             // Min Width 300 -> Max X = window.innerWidth - 300
+             // Max Width 1200 -> Min X = window.innerWidth - 1200
+             const minX = window.innerWidth - 1200;
+             const maxX = window.innerWidth - 300;
+             const x = Math.max(minX, Math.min(maxX, e.clientX));
+             if (ghostRef.current) ghostRef.current.style.left = `${x}px`;
           }
           rafRef.current = null;
        });
     };
 
     const up = () => {
-        // Sync final values back to React state
         if (isResizingSidebar) {
-            const wStr = document.documentElement.style.getPropertyValue('--sidebar-width');
-            const w = parseInt(wStr) || 300;
-            setSidebarWidth(w);
+            if (ghostRef.current) {
+                const x = parseInt(ghostRef.current.style.left || '0', 10);
+                if (x > 0) {
+                    const w = Math.max(150, Math.min(600, x - 50));
+                    setSidebarWidth(w);
+                }
+                ghostRef.current.style.display = 'none';
+            }
         }
         if (isResizingRightPanel) {
-            const wStr = document.documentElement.style.getPropertyValue('--right-panel-width');
-            const w = parseInt(wStr) || 600;
-            setRightPanelWidth(w);
+            if (ghostRef.current) {
+                const x = parseInt(ghostRef.current.style.left || '0', 10);
+                if (x > 0) {
+                    const newWidth = window.innerWidth - x;
+                    const w = Math.max(300, Math.min(1200, newWidth));
+                    setRightPanelWidth(w);
+                }
+                ghostRef.current.style.display = 'none';
+            }
         }
 
         setIsResizingSidebar(false);
@@ -505,6 +539,21 @@ export default function App() {
             {(isResizingSidebar || isResizingRightPanel) && (
                 <Box style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, cursor: 'col-resize', userSelect: 'none' }} />
             )}
+
+            <Box
+              ref={ghostRef}
+              style={{
+                position: 'fixed',
+                top: 0,
+                bottom: 0,
+                width: 4,
+                backgroundColor: 'var(--mantine-color-blue-6)',
+                zIndex: 10000,
+                display: 'none',
+                pointerEvents: 'none',
+                cursor: 'col-resize'
+              }}
+            />
 
             {compileError && (
                 <Box style={{position: 'absolute', top: 10, right: 10, zIndex: 1000, maxWidth: 400}}>
