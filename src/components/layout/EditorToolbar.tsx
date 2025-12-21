@@ -13,7 +13,7 @@ interface EditorToolbarProps {
   editor: any; // Monaco editor instance
 }
 
-export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
+export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
   if (!editor) return null;
 
   // --- Helper Functions ---
@@ -275,4 +275,4 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
         </Group>
     </div>
   );
-};
+});

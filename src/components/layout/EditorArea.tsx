@@ -35,7 +35,7 @@ interface EditorAreaProps {
   onOpenRecent?: (path: string) => void;
 }
 
-export const EditorArea: React.FC<EditorAreaProps> = ({ 
+export const EditorArea = React.memo<EditorAreaProps>(({
   files, activeFileId, onFileSelect, onFileClose, onContentChange, onMount, 
   onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile,
   onCreateEmpty, onOpenWizard, onCreateFromTemplate, recentProjects, onOpenRecent
@@ -148,4 +148,4 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
       </Box>
     </Stack>
   );
-};
+});

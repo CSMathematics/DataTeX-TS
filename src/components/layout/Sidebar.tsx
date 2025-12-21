@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Stack, ActionIcon, Tooltip, Text, Group, ScrollArea, Box, Collapse, UnstyledButton, Divider, TextInput, Button, Menu, NavLink } from '@mantine/core';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -209,7 +209,7 @@ const FileTreeItem = ({
   );
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ 
+export const Sidebar = React.memo<SidebarProps>(({
   width, isOpen, onResizeStart, activeSection, onToggleSection, onNavigate,
   projectData, onOpenFolder, onOpenFileNode, onCreateItem, onRenameItem, onDeleteItem,
   dbConnected, dbTables, onConnectDB, onOpenTable, onInsertSymbol,
@@ -261,7 +261,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }, []);
   };
 
-  const displayNodes = searchQuery ? filterNodes(projectData, searchQuery) : projectData;
+  const displayNodes = useMemo(() => {
+    // Optimization: Only filter/calculate if we are viewing files
+    if (activeSection !== 'files') return [];
+    return searchQuery ? filterNodes(projectData, searchQuery) : projectData;
+  }, [projectData, searchQuery, activeSection]);
 
   useEffect(() => {
       if (searchQuery) setExpandAllSignal(prev => prev + 1);
@@ -455,4 +459,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
     </Group>
   );
-};
+});
