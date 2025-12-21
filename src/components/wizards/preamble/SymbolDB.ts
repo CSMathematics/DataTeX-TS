@@ -9,6 +9,7 @@ export type SymbolCategory =
   'misc' |
   'cyrillic' |
   'misc_text' |
+  'fontawesome' |
   'special';
 
 export interface LatexSymbol {
@@ -131,5 +132,6 @@ export const SYMBOLS_DB: Record<SymbolCategory, LatexSymbol[]> = {
   ],
   special: [
       { cmd: '\\%', char: '%' }, { cmd: '\\#', char: '#' }, { cmd: '\\&', char: '&' }, { cmd: '\\_', char: '_' }
-  ]
+  ],
+  fontawesome: []
 };

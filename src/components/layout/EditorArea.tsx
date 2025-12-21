@@ -1,10 +1,10 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { Stack, ScrollArea, Group, Box, Text, ActionIcon, Tooltip } from "@mantine/core";
 import Editor, { OnMount } from "@monaco-editor/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faFileCode, faBookOpen, faCog, faImage, faFile,
-  faTimes, faPlay, faColumns, faCode, faCube, faStop, faHome, faChevronRight,
+  faTimes, faPlay, faColumns, faCode, faStop, faHome, faChevronRight,
   faFilePdf
 } from "@fortawesome/free-solid-svg-icons";
 import { TableDataView } from "../database/TableDataView";
@@ -25,7 +25,6 @@ interface EditorAreaProps {
   onCompile?: () => void;
   isCompiling?: boolean;
   onStopCompile?: () => void;
-  onOpenGallery: () => void;
   
   // Start Page Props
   onCreateEmpty: () => void;
@@ -38,58 +37,17 @@ interface EditorAreaProps {
 
 export const EditorArea: React.FC<EditorAreaProps> = ({ 
   files, activeFileId, onFileSelect, onFileClose, onContentChange, onMount, 
-  onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile, onOpenGallery,
+  onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile,
   onCreateEmpty, onOpenWizard, onCreateFromTemplate, recentProjects, onOpenRecent
 }) => {
   
   const activeFile = files.find(f => f.id === activeFileId);
   const [editorInstance, setEditorInstance] = React.useState<any>(null);
-  const [symbolPanelWidth, setSymbolPanelWidth] = React.useState(250);
-  const [isResizingSymbolPanel, setIsResizingSymbolPanel] = React.useState(false);
-
-  const startResizingSymbolPanel = React.useCallback(() => {
-      setIsResizingSymbolPanel(true);
-  }, []);
-
-  const stopResizingSymbolPanel = React.useCallback(() => {
-      setIsResizingSymbolPanel(false);
-  }, []);
-
-  const resizeSymbolPanel = React.useCallback(
-      (mouseMoveEvent: MouseEvent) => {
-          if (isResizingSymbolPanel) {
-              const newWidth = mouseMoveEvent.clientX - 40; // Subtract Sidebar width (approx 40px)
-              if (newWidth > 150 && newWidth < 600) {
-                  setSymbolPanelWidth(newWidth);
-              }
-          }
-      },
-      [isResizingSymbolPanel]
-  );
-
-  React.useEffect(() => {
-      window.addEventListener("mousemove", resizeSymbolPanel);
-      window.addEventListener("mouseup", stopResizingSymbolPanel);
-      return () => {
-          window.removeEventListener("mousemove", resizeSymbolPanel);
-          window.removeEventListener("mouseup", stopResizingSymbolPanel);
-      };
-  }, [resizeSymbolPanel, stopResizingSymbolPanel]);
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     setEditorInstance(editor);
     if (onMount) onMount(editor, monaco);
   };
-
-  const handleInsertSymbol = useCallback((text: string) => {
-    if (editorInstance) {
-        const selection = editorInstance.getSelection();
-        if (!selection) return;
-        const op = { range: selection, text: text, forceMoveMarkers: true };
-        editorInstance.executeEdits("symbol-panel", [op]);
-        editorInstance.focus();
-    }
-  }, [editorInstance]);
 
   const getFileIcon = (name: string, type: string) => {
     if (type === 'start-page') return <FontAwesomeIcon icon={faHome} style={{ width: 14, height: 14, color: "#fab005" }} />;
@@ -146,7 +104,6 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
                 <Group gap="xs">
                   {isCompiling && <Tooltip label="Stop"><ActionIcon size="sm" variant="subtle" color="red" onClick={onStopCompile}><FontAwesomeIcon icon={faStop} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
                   <Tooltip label="Compile"><ActionIcon size="sm" variant="subtle" color="green" onClick={onCompile} loading={isCompiling} disabled={!isTexFile || isCompiling}>{!isCompiling && <FontAwesomeIcon icon={faPlay} style={{ width: 14, height: 14 }} />}</ActionIcon></Tooltip>
-                  {activeFile?.type === 'editor' && isTexFile && <Tooltip label="Package Gallery"><ActionIcon size="sm" variant="subtle" color="#ca3ff5ff" onClick={onOpenGallery}><FontAwesomeIcon icon={faCube} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
                   {activeFile?.type === 'editor' && isTexFile && <Tooltip label="PDF"><ActionIcon size="sm" variant="subtle" color="blue" onClick={onTogglePdf}><FontAwesomeIcon icon={faColumns} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
                 </Group>
             </Group>

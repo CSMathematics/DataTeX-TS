@@ -5,7 +5,7 @@ import { SYMBOLS_DB, SymbolCategory } from '../wizards/preamble/SymbolDB';
 interface SymbolPanelProps {
     category: SymbolCategory;
     onInsert: (code: string) => void;
-    width?: number;
+    width?: number | string;
 }
 
 export const SymbolPanel = React.memo<SymbolPanelProps>(({ category, onInsert, width = 250 }) => {

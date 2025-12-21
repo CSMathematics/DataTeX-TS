@@ -351,7 +351,7 @@ export default function App() {
   };
 
   // 2. Editor Change (Only Dirty Flag)
-  const handleEditorChange = (id: string, val: string) => {
+  const handleEditorChange = (id: string, _val: string) => {
     // OPTIMIZATION: Do NOT update the full content in state on every keystroke.
     // Only update the 'isDirty' flag if it wasn't dirty before.
     setTabs(prev => {
@@ -608,6 +608,7 @@ export default function App() {
                     onCreateItem={handleCreateItem}
                     onRenameItem={handleRenameItem}
                     onDeleteItem={handleDeleteItem}
+                    onInsertSymbol={handleInsertSnippet}
                 />
                 
                 {/* 2. CENTER: EDITOR AREA */}
@@ -619,7 +620,6 @@ export default function App() {
                         showPdf={showPdf} onTogglePdf={() => setShowPdf(!showPdf)}
                         isTexFile={isTexFile} onCompile={handleCompile} isCompiling={isCompiling}
                         onStopCompile={handleStopCompile} 
-                        onOpenGallery={() => setActiveView("gallery")}
                         onCreateEmpty={() => createTabWithContent('', 'Untitled.tex')}
                         onOpenWizard={handleOpenPreambleWizard}
                         onCreateFromTemplate={handleCreateFromTemplate}

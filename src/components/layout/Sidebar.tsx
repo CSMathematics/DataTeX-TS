@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Stack, ActionIcon, Tooltip, Text, Group, ScrollArea, Box, Collapse, UnstyledButton, Divider, TextInput, Button, Menu } from '@mantine/core';
+import { Stack, ActionIcon, Tooltip, Text, Group, ScrollArea, Box, Collapse, UnstyledButton, Divider, TextInput, Button, Menu, NavLink } from '@mantine/core';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCopy, faSearch, faCodeBranch, faCog, faDatabase,
@@ -7,11 +7,17 @@ import {
   faPenNib, faWandMagicSparkles,
   faFileCirclePlus, faFolderPlus, faFolderOpen, faSort, faMinusSquare,
   faFileCode, faBookOpen, faImage, faTrash, faPen,
-  faFolder, faFile, faFilePdf
+  faFolder, faFile, faFilePdf, faSquareRootAlt, faCube,
+  faPalette, faCalculator, faLayerGroup, faCode, faBoxOpen
 } from "@fortawesome/free-solid-svg-icons";
 
+import { SymbolSidebar } from './SymbolSidebar';
+import { SymbolPanel } from './SymbolPanel';
+import { SymbolCategory } from '../wizards/preamble/SymbolDB';
+import { PACKAGES_DB, Category } from '../wizards/preamble/packages';
+
 // --- Types ---
-export type SidebarSection = "files" | "search" | "git" | "database" | "settings";
+export type SidebarSection = "files" | "search" | "git" | "database" | "settings" | "symbols" | "gallery";
 export type ViewType = "editor" | "wizard-preamble" | "wizard-table" | "wizard-tikz" | "gallery";
 
 export interface FileSystemNode {
@@ -57,6 +63,8 @@ interface SidebarProps {
   dbTables: string[];
   onConnectDB: () => void;
   onOpenTable: (name: string) => void;
+
+  onInsertSymbol?: (code: string) => void;
 }
 
 // --- Icons Helper ---
@@ -202,7 +210,7 @@ const FileTreeItem = ({
 export const Sidebar: React.FC<SidebarProps> = ({ 
   width, isOpen, onResizeStart, activeSection, onToggleSection, onNavigate,
   projectData, onOpenFolder, onOpenFileNode, onCreateItem, onRenameItem, onDeleteItem,
-  dbConnected, dbTables, onConnectDB, onOpenTable
+  dbConnected, dbTables, onConnectDB, onOpenTable, onInsertSymbol
 }) => {
   
   const [expandAllSignal, setExpandAllSignal] = useState(0);
@@ -210,6 +218,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [selectedNode, setSelectedNode] = useState<FileSystemNode | null>(null);
   const [creatingItem, setCreatingItem] = useState<{ type: 'file' | 'folder', parentId: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Symbols State
+  const [activeSymbolCategory, setActiveSymbolCategory] = useState<SymbolCategory | null>('greek');
 
   const handleNodeClick = (node: FileSystemNode) => setSelectedNode(node);
 
@@ -253,6 +264,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       if (searchQuery) setExpandAllSignal(prev => prev + 1);
   }, [searchQuery]);
 
+  // Gallery Categories Helpers
+  const packageCategories: Record<string, React.ReactNode> = {
+    'colors': <FontAwesomeIcon icon={faPalette} style={{ width: 16, height: 16 }} />,
+    'math': <FontAwesomeIcon icon={faCalculator} style={{ width: 16, height: 16 }} />,
+    'graphics': <FontAwesomeIcon icon={faImage} style={{ width: 16, height: 16 }} />,
+    'tables': <FontAwesomeIcon icon={faTable} style={{ width: 16, height: 16 }} />,
+    'code': <FontAwesomeIcon icon={faCode} style={{ width: 16, height: 16 }} />,
+    'layout': <FontAwesomeIcon icon={faLayerGroup} style={{ width: 16, height: 16 }} />,
+    'misc': <FontAwesomeIcon icon={faBoxOpen} style={{ width: 16, height: 16 }} />
+  };
+
   return (
     <Group gap={0} h="100%" align="stretch" style={{ flexShrink: 0, zIndex: 10 }}>
       {/* Activity Bar */}
@@ -260,6 +282,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <Stack gap={4} align="center">
           <Tooltip label="Explorer" position="right">
               <ActionIcon size="lg" variant={getVariant("files")} color={getColor("files")} onClick={() => onToggleSection("files")}><FontAwesomeIcon icon={faCopy} style={{ width: 20, height: 20 }} /></ActionIcon>
+          </Tooltip>
+          <Tooltip label="AMS Symbols" position="right">
+              <ActionIcon size="lg" variant={getVariant("symbols")} color={getColor("symbols")} onClick={() => onToggleSection("symbols")}><FontAwesomeIcon icon={faSquareRootAlt} style={{ width: 20, height: 20 }} /></ActionIcon>
+          </Tooltip>
+          <Tooltip label="Package Gallery" position="right">
+              <ActionIcon size="lg" variant={getVariant("gallery")} color={getColor("gallery")} onClick={() => onToggleSection("gallery")}><FontAwesomeIcon icon={faCube} style={{ width: 20, height: 20 }} /></ActionIcon>
           </Tooltip>
           <Tooltip label="Search" position="right">
               <ActionIcon size="lg" variant={getVariant("search")} color={getColor("search")} onClick={() => onToggleSection("search")}><FontAwesomeIcon icon={faSearch} style={{ width: 20, height: 20 }} /></ActionIcon>
@@ -282,10 +310,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {isOpen && (
           <>
             <Box w={width} h="100%" bg="dark.7" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <Group h={35} px="sm" justify="space-between" bg="dark.8" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)", flexShrink: 0 }}>
-                <Text size="xs" fw={700} tt="uppercase" c="dimmed">{activeSection}</Text>
-                </Group>
+                {activeSection !== "symbols" && (
+                    <Group h={35} px="sm" justify="space-between" bg="dark.8" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)", flexShrink: 0 }}>
+                        <Text size="xs" fw={700} tt="uppercase" c="dimmed">{activeSection}</Text>
+                    </Group>
+                )}
                 
+                {activeSection === "symbols" ? (
+                    <Group h="100%" gap={0} align="stretch" style={{ overflow: 'hidden' }}>
+                        <SymbolSidebar
+                            activeCategory={activeSymbolCategory}
+                            onSelectCategory={setActiveSymbolCategory}
+                        />
+                        {activeSymbolCategory ? (
+                             <Box style={{ flex: 1, height: '100%', overflow: 'hidden' }}>
+                                 <SymbolPanel
+                                    category={activeSymbolCategory}
+                                    onInsert={(code) => onInsertSymbol && onInsertSymbol(code)}
+                                    width="100%"
+                                 />
+                             </Box>
+                        ) : (
+                            <Box p="md" style={{ flex: 1 }}><Text c="dimmed" size="sm" ta="center">Select a category</Text></Box>
+                        )}
+                    </Group>
+                ) : (
                 <ScrollArea style={{ flex: 1 }} onClick={() => setSelectedNode(null)}> 
                 {activeSection === "files" && (
                     <Stack gap={0}>
@@ -360,7 +409,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         )}
                     </Stack>
                 )}
+                {activeSection === "gallery" && (
+                    <Stack gap={4} p="xs">
+                        {(Object.keys(packageCategories) as Category[]).map(cat => {
+                            const pkgs = PACKAGES_DB.filter(p => p.category === cat);
+                            if (pkgs.length === 0) return null;
+                            return (
+                                <Box key={cat} mb="sm">
+                                    <Group gap="xs" px="xs" mb={4}>
+                                        {packageCategories[cat]}
+                                        <Text size="xs" fw={700} tt="uppercase" c="dimmed">{cat}</Text>
+                                    </Group>
+                                    {pkgs.map(pkg => (
+                                        <NavLink
+                                            key={pkg.id}
+                                            label={pkg.name}
+                                            description={<Text size="xs" truncate>{pkg.description}</Text>}
+                                            onClick={() => onNavigate('gallery')}
+                                            variant="light"
+                                            style={{ borderRadius: 4 }}
+                                        />
+                                    ))}
+                                </Box>
+                            );
+                        })}
+                    </Stack>
+                )}
                 </ScrollArea>
+                )}
             </Box>
 
             <Box

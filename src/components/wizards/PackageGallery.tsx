@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Text, Group, Button, TextInput,
   ScrollArea, Stack, ThemeIcon, Box, NavLink,
-  Code, ActionIcon, Tooltip, Select, Switch, Textarea, SegmentedControl, Tabs, SimpleGrid, Paper
+  Code, ActionIcon, Tooltip, Select, Switch, Textarea, SegmentedControl,
 } from '@mantine/core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
@@ -15,7 +15,7 @@ import { ViewType } from '../layout/Sidebar';
 
 // IMPORT SHARED DATA
 import { LANGUAGES_DB, MINTED_STYLES, CustomColorDef, CustomListDef } from './preamble/LanguageDb';
-import { SYMBOLS_DB, SymbolCategory } from './preamble/SymbolDB';
+import { PACKAGES_DB, Category, LatexPackage } from './preamble/packages';
 
 import { TikzWizard } from './TikzWizard';
 import { TableWizard } from './TableWizard';
@@ -27,46 +27,6 @@ interface PackageGalleryProps {
   onClose: () => void;
   onOpenWizard: (view: ViewType) => void;
 }
-
-// --- Data Models ---
-type Category = 'math' | 'graphics' | 'colors' | 'tables' | 'code' | 'layout' | 'misc';
-
-interface LatexPackage {
-  id: string;
-  name: string;
-  category: Category;
-  description: string;
-  command?: string;
-  hasWizard?: boolean;
-}
-
-const PACKAGES_DB: LatexPackage[] = [
-  // COLORS
-  { id: 'xcolor', name: 'XColor', category: 'colors', description: 'Driver-independent color extensions.', hasWizard: true },
-
-  // LAYOUT (Updated with Enumitem)
-  { id: 'geometry', name: 'Geometry', category: 'layout', description: 'Page dimensions and margins.', hasWizard: true },
-  { id: 'fancyhdr', name: 'Fancyhdr', category: 'layout', description: 'Custom headers and footers.', command: '\\usepackage{fancyhdr}' },
-  { id: 'enumitem', name: 'Enumitem', category: 'layout', description: 'Custom lists, spacing and labels.', hasWizard: true },
-
-  // MATH
-  { id: 'amsmath', name: 'AMS Math', category: 'math', description: 'Equations, matrices, and alignment.', command: '\\usepackage{amsmath}' },
-  { id: 'amssymb', name: 'AMS Symbols', category: 'math', description: 'Extended symbol collection.', command: '\\usepackage{amssymb}' },
-  { id: 'siunitx', name: 'SI Unitx', category: 'math', description: 'SI units and number formatting.', command: '\\usepackage{siunitx}' },
-  
-  // GRAPHICS
-  { id: 'tikz', name: 'TikZ', category: 'graphics', description: 'Create graphics programmatically.', hasWizard: true },
-  { id: 'pgfplots', name: 'PGFPlots', category: 'graphics', description: 'Create plots and charts.', hasWizard: true },
-  { id: 'graphicx', name: 'Graphicx', category: 'graphics', description: 'Include external images.', command: '\\usepackage{graphicx}' },
-  
-  // TABLES
-  { id: 'booktabs', name: 'Booktabs', category: 'tables', description: 'Professional table layout.', hasWizard: true },
-  { id: 'multirow', name: 'Multirow', category: 'tables', description: 'Cells spanning multiple rows.', hasWizard: true },
-  
-  // CODE (Unified Wizard)
-  { id: 'listings', name: 'Listings', category: 'code', description: 'Source code printing (Native LaTeX).', command: '\\usepackage{listings}' },
-  { id: 'minted', name: 'Minted', category: 'code', description: 'Highlighted source code (Requires Pygments).', command: '\\usepackage{minted}' }, 
-];
 
 // --- Sub-Configurators ---
 
@@ -100,79 +60,7 @@ const AmsMathConfig = ({ onChange }: { onChange: (code: string) => void }) => {
   );
 };
 
-// 2. AMS SYMBOLS Configurator
-const AmsSymbolConfig = ({ onInsert }: { onInsert: (code: string) => void }) => {
-    const [search, setSearch] = useState('');
-
-    const categories: { key: SymbolCategory, label: string }[] = [
-        { key: 'greek', label: 'Greek' },
-        { key: 'operators', label: 'Operators' },
-        { key: 'relations', label: 'Relations' },
-        { key: 'arrows', label: 'Arrows' },
-        { key: 'delimiters', label: 'Delimiters' },
-        { key: 'misc', label: 'Misc' },
-        { key: 'cyrillic', label: 'Cyrillic' },
-        { key: 'misc_text', label: 'Misc Text' },
-        { key: 'fontawesome', label: 'FontAwesome' },
-        { key: 'special', label: 'Special' },
-    ];
-
-    return (
-        <Stack h="100%" gap="xs">
-            <TextInput 
-                placeholder="Search symbol command..." 
-                value={search} onChange={(e) => setSearch(e.currentTarget.value)} 
-                leftSection={<FontAwesomeIcon icon={faSearch} style={{ width: 14 }} />}
-            />
-            {/* Tabs container with constrained height to force scrolling in panel */}
-            <Tabs defaultValue="greek" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                <Tabs.List style={{ flexWrap: 'nowrap', overflowX: 'auto', overflowY: 'hidden' }}>
-                    {categories.map(cat => <Tabs.Tab key={cat.key} value={cat.key} style={{ whiteSpace: 'nowrap' }}>{cat.label}</Tabs.Tab>)}
-                </Tabs.List>
-
-                {categories.map(cat => (
-                    <Tabs.Panel key={cat.key} value={cat.key} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                        <ScrollArea h="100%" pt="md" type="auto" offsetScrollbars>
-                            <SimpleGrid cols={6} spacing="xs" pr="sm">
-                                {SYMBOLS_DB[cat.key]
-                                    .filter(s => s.cmd.toLowerCase().includes(search.toLowerCase()))
-                                    .map((s) => (
-                                    <Tooltip key={s.cmd} label={<Code>{s.cmd}</Code>} withArrow transitionProps={{ duration: 200 }}>
-                                        <Paper 
-                                            withBorder 
-                                            p={0}
-                                            component="button"
-                                            onClick={() => onInsert(s.cmd)}
-                                            style={{ 
-                                                display: 'flex', 
-                                                alignItems: 'center', 
-                                                justifyContent: 'center',
-                                                height: 40,
-                                                width: '100%',
-                                                cursor: 'pointer',
-                                                backgroundColor: 'var(--mantine-color-dark-6)',
-                                                fontSize: '1.2rem',
-                                                border: '1px solid transparent',
-                                                color: 'inherit'
-                                            }}
-                                        >
-                                            {s.char}
-                                        </Paper>
-                                    </Tooltip>
-                                ))}
-                            </SimpleGrid>
-                            {SYMBOLS_DB[cat.key].filter(s => s.cmd.includes(search)).length === 0 && (
-                                <Text c="dimmed" ta="center" mt="xl">No symbols found.</Text>
-                            )}
-                        </ScrollArea>
-                    </Tabs.Panel>
-                ))}
-            </Tabs>
-        </Stack>
-    );
-};
-
-// 3. UNIFIED CODE WIZARD
+// 2. UNIFIED CODE WIZARD
 const CodeWizard = ({ engine, onChange }: { engine: 'listings' | 'minted', onChange: (code: string) => void }) => {
   const [lang, setLang] = useState('python'); 
   const [caption, setCaption] = useState('');
@@ -349,7 +237,6 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
   };
 
   const isEmbeddedWizard = ['tikz', 'pgfplots', 'booktabs', 'multirow', 'xcolor', 'enumitem'].includes(selectedPkgId);
-  const isSymbolPalette = selectedPkgId === 'amssymb';
 
   return (
     // MAIN LAYOUT - Replaced Group with Flex Box for better scroll control
@@ -526,14 +413,13 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
                 </Box>
             ) : (
                 <ScrollArea style={{ flex: 1, minHeight: 0 }} p="md" type="auto" offsetScrollbars>
-                    {selectedPkgId === 'amssymb' && <AmsSymbolConfig onInsert={onInsert} />}
                     {selectedPkgId === 'amsmath' && <AmsMathConfig onChange={setGeneratedCode} />}
                     {(selectedPkgId === 'listings' || selectedPkgId === 'minted') && (
                         <CodeWizard engine={selectedPkgId as 'listings' | 'minted'} onChange={setGeneratedCode} />
                     )}
                     {selectedPkgId === 'graphicx' && <GraphicxConfig onChange={setGeneratedCode} />}
                     {selectedPkgId === 'tabularx' && <Text c="dimmed">Tabularx settings would appear here.</Text>}
-                    {activePackage?.hasWizard && !['amsmath', 'listings', 'minted', 'graphicx'].includes(selectedPkgId) && selectedPkgId !== 'amssymb' && (
+                    {activePackage?.hasWizard && !['amsmath', 'listings', 'minted', 'graphicx'].includes(selectedPkgId) && (
                         <Stack align="center" mt="xl">
                             <Text>This package has a dedicated Full Wizard.</Text>
                             <Button onClick={() => activePackage && handleConfigure(activePackage)}>Launch Wizard</Button>
@@ -542,7 +428,7 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ onInsert, onOpen
                 </ScrollArea>
             )}
 
-            {(!isEmbeddedWizard && !isSymbolPalette) || ['xcolor', 'enumitem'].includes(selectedPkgId) ? (
+            {!isEmbeddedWizard || ['xcolor', 'enumitem'].includes(selectedPkgId) ? (
                 <Stack gap={0} p="md" bg="dark.9" style={{ borderTop: '1px solid var(--mantine-color-dark-6)', flexShrink: 0 }}>
                     <Group justify="space-between" mb="xs">
                         <Text size="xs" fw={700} c="dimmed">GENERATED CODE</Text>
