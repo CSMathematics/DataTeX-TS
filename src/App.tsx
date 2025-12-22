@@ -452,7 +452,37 @@ export default function App() {
         const { writeTextFile } = await import('@tauri-apps/plugin-fs');
         await writeTextFile(activeTab.id, contentToSave);
         
-        await invoke('compile_tex', { filePath: activeTab.id });
+        // --- Dynamic Engine Configuration ---
+        let engine = 'pdflatex';
+        let args = ['-interaction=nonstopmode', '-synctex=1'];
+        let outputDir = '';
+
+        const savedConfig = localStorage.getItem('tex-engine-config');
+        if (savedConfig) {
+            try {
+                const config = JSON.parse(savedConfig);
+                // Determine engine path based on default selection
+                // Note: We expect the binary name/path to be in the config specific fields
+                // but for now we'll use the selection logic.
+                const engineKey = config.defaultEngine || 'pdflatex';
+                if (engineKey === 'xelatex') engine = config.xelatexPath || 'xelatex';
+                else if (engineKey === 'lualatex') engine = config.lualatexPath || 'lualatex';
+                else engine = config.pdflatexPath || 'pdflatex';
+
+                // Construct Args
+                args = ['-interaction=nonstopmode'];
+                if (config.synctex) args.push('-synctex=1');
+                if (config.shellEscape) args.push('-shell-escape');
+                if (config.outputDirectory) {
+                     outputDir = config.outputDirectory;
+                     args.push(`-output-directory=${config.outputDirectory}`);
+                }
+            } catch (e) {
+                console.warn("Failed to load tex config, using defaults", e);
+            }
+        }
+
+        await invoke('compile_tex', { filePath: activeTab.id, engine, args, outputDir });
         setPdfRefreshTrigger(prev => prev + 1);
     } catch (error: any) {
         console.error("Compilation Failed:", error);
