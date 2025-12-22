@@ -11,6 +11,7 @@ import { TableDataView } from "../database/TableDataView";
 import { AppTab } from "./Sidebar"; 
 import { StartPage } from "./StartPage";
 import { EditorToolbar } from "./EditorToolbar";
+import { EditorSettings } from '../../hooks/useSettings';
 
 interface EditorAreaProps {
   files: AppTab[];
@@ -33,12 +34,14 @@ interface EditorAreaProps {
 
   recentProjects?: string[];
   onOpenRecent?: (path: string) => void;
+  editorSettings?: EditorSettings;
 }
 
 export const EditorArea = React.memo<EditorAreaProps>(({
   files, activeFileId, onFileSelect, onFileClose, onContentChange, onMount, 
   onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile,
-  onCreateEmpty, onOpenWizard, onCreateFromTemplate, recentProjects, onOpenRecent
+  onCreateEmpty, onOpenWizard, onCreateFromTemplate, recentProjects, onOpenRecent,
+  editorSettings
 }) => {
   
   const activeFile = files.find(f => f.id === activeFileId);
@@ -48,6 +51,20 @@ export const EditorArea = React.memo<EditorAreaProps>(({
     setEditorInstance(editor);
     if (onMount) onMount(editor, monaco);
   };
+
+  // Update editor options when settings change
+  React.useEffect(() => {
+    if (editorInstance && editorSettings) {
+        editorInstance.updateOptions({
+            fontSize: editorSettings.fontSize,
+            fontFamily: editorSettings.fontFamily,
+            wordWrap: editorSettings.wordWrap,
+            minimap: { enabled: editorSettings.minimap, scale: 2 },
+            lineNumbers: editorSettings.lineNumbers,
+        });
+        // Theme is set globally in App.tsx via monaco.editor.setTheme
+    }
+  }, [editorInstance, editorSettings]);
 
   const getFileIcon = (name: string, type: string) => {
     if (type === 'start-page') return <FontAwesomeIcon icon={faHome} style={{ width: 14, height: 14, color: "#fab005" }} />;
@@ -125,7 +142,16 @@ export const EditorArea = React.memo<EditorAreaProps>(({
                         defaultValue={activeFile.content}
                         onMount={handleEditorMount}
                         onChange={(value) => onContentChange(activeFile.id, value || '')}
-                        options={{ minimap: { enabled: true, scale: 2 }, fontSize: 14, fontFamily: "Consolas, monospace", scrollBeyondLastLine: false, automaticLayout: true, theme: "data-tex-dark", wordWrap: "on" }}
+                        options={{
+                            minimap: { enabled: editorSettings?.minimap ?? true, scale: 2 },
+                            fontSize: editorSettings?.fontSize ?? 14,
+                            fontFamily: editorSettings?.fontFamily ?? "Consolas, monospace",
+                            scrollBeyondLastLine: false,
+                            automaticLayout: true,
+                            theme: editorSettings?.theme ?? "data-tex-dark",
+                            wordWrap: editorSettings?.wordWrap ?? "on",
+                            lineNumbers: editorSettings?.lineNumbers ?? "on"
+                        }}
                     />
                  </Box>
              </Box>

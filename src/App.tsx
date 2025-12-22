@@ -38,8 +38,13 @@ import { SettingsPanel } from "./components/settings/SettingsPanel";
 
 import { latexLanguage, latexConfiguration } from "./languages/latex";
 import { dataTexDarkTheme } from "./themes/monaco-theme";
+import { dataTexLightTheme } from "./themes/monaco-light";
+import { dataTexHCTheme } from "./themes/monaco-hc";
+import { useSettings } from "./hooks/useSettings";
 
 export default function App() {
+  const { settings, updateEditorSetting, updateGeneralSetting, setUiTheme } = useSettings();
+
   // --- Layout State ---
   const [activeActivity, setActiveActivity] = useState<SidebarSection>("files");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
@@ -381,9 +386,12 @@ export default function App() {
       monaco.languages.register({ id: "my-latex" });
       monaco.languages.setMonarchTokensProvider("my-latex", latexLanguage);
       monaco.languages.setLanguageConfiguration("my-latex", latexConfiguration);
+
       monaco.editor.defineTheme("data-tex-dark", dataTexDarkTheme);
+      monaco.editor.defineTheme("data-tex-light", dataTexLightTheme);
+      monaco.editor.defineTheme("data-tex-hc", dataTexHCTheme);
     }
-    monaco.editor.setTheme("data-tex-dark");
+    monaco.editor.setTheme(settings.editor.theme);
   };
 
   // --- PDF Logic ---
@@ -557,7 +565,7 @@ export default function App() {
 
   // --- RENDER ---
   return (
-    <MantineProvider theme={mantineTheme} defaultColorScheme="dark">
+    <MantineProvider theme={mantineTheme} defaultColorScheme={settings.uiTheme} forceColorScheme={settings.uiTheme === 'auto' ? undefined : settings.uiTheme}>
       <AppShell header={{ height: 35 }} footer={{ height: 24 }} padding={0}>
         
         {/* HEADER */}
@@ -619,7 +627,12 @@ export default function App() {
                 {/* 2. CENTER: EDITOR AREA or SETTINGS */}
                 <Box style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
                     {activeView === 'settings' ? (
-                        <SettingsPanel />
+                        <SettingsPanel
+                            settings={settings}
+                            onUpdateEditor={updateEditorSetting}
+                            onUpdateGeneral={updateGeneralSetting}
+                            onUpdateUi={setUiTheme}
+                        />
                     ) : (
                         <EditorArea
                             files={tabs} activeFileId={activeTabId}
@@ -633,6 +646,7 @@ export default function App() {
                             onCreateFromTemplate={handleCreateFromTemplate}
                             recentProjects={recentProjects}
                             onOpenRecent={handleOpenRecent}
+                            editorSettings={settings.editor}
                         />
                     )}
                 </Box>

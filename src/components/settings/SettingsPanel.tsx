@@ -1,28 +1,42 @@
-import React, { useState } from 'react';
-import { Box, Group, NavLink, Title, Text, ScrollArea } from '@mantine/core';
+import React from 'react';
+import { Box, Group, NavLink, Title, ScrollArea } from '@mantine/core';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCog, faTerminal, faPalette, faCode } from "@fortawesome/free-solid-svg-icons";
 import { TexEngineSettings } from './TexEngineSettings';
+import { EditorSettings } from './EditorSettings';
+import { ThemeSettings } from './ThemeSettings';
+import { GeneralSettings } from './GeneralSettings';
+import { AppSettings, EditorSettings as IEditorSettings, GeneralSettings as IGeneralSettings } from '../../hooks/useSettings';
 
 type SettingsCategory = 'general' | 'tex' | 'editor' | 'theme';
 
 interface SettingsPanelProps {
     initialCategory?: SettingsCategory;
+    settings: AppSettings;
+    onUpdateEditor: <K extends keyof IEditorSettings>(key: K, value: IEditorSettings[K]) => void;
+    onUpdateGeneral: <K extends keyof IGeneralSettings>(key: K, value: IGeneralSettings[K]) => void;
+    onUpdateUi: (theme: 'dark' | 'light' | 'auto') => void;
 }
 
-export const SettingsPanel: React.FC<SettingsPanelProps> = ({ initialCategory = 'tex' }) => {
-    const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialCategory);
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({
+    initialCategory = 'tex',
+    settings,
+    onUpdateEditor,
+    onUpdateGeneral,
+    onUpdateUi
+}) => {
+    const [activeCategory, setActiveCategory] = React.useState<SettingsCategory>(initialCategory);
 
     const renderContent = () => {
         switch (activeCategory) {
             case 'tex':
                 return <TexEngineSettings />;
             case 'general':
-                return <Text>General settings (coming soon)</Text>;
+                return <GeneralSettings settings={settings.general} onUpdate={onUpdateGeneral} />;
             case 'editor':
-                return <Text>Editor settings (coming soon)</Text>;
+                return <EditorSettings settings={settings.editor} onUpdate={onUpdateEditor} />;
             case 'theme':
-                return <Text>Theme settings (coming soon)</Text>;
+                return <ThemeSettings settings={settings} onUpdateEditor={onUpdateEditor} onUpdateUi={onUpdateUi} />;
             default:
                 return <TexEngineSettings />;
         }
@@ -65,7 +79,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ initialCategory = 
 
             {/* Content Area */}
             <Box style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <ScrollArea p="xl">
+                <ScrollArea p="xl" style={{ height: '100%' }}>
                    {renderContent()}
                 </ScrollArea>
             </Box>
