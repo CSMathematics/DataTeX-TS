@@ -9,14 +9,15 @@ import {
   Notification,
   ActionIcon,
   Text,
-  Stack
+  Stack,
+  CSSVariablesResolver
 } from "@mantine/core";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTimes } from "@fortawesome/free-solid-svg-icons";
 import { invoke } from "@tauri-apps/api/core"; 
 
 // --- Custom Theme ---
-import { mantineTheme } from "./themes/mantine-theme";
+import { THEMES, getTheme } from "./themes/ui-themes";
 
 // --- Layout Components ---
 import { HeaderContent } from "./components/layout/Header";
@@ -42,8 +43,24 @@ import { dataTexLightTheme } from "./themes/monaco-light";
 import { dataTexHCTheme } from "./themes/monaco-hc";
 import { useSettings } from "./hooks/useSettings";
 
+// --- CSS Variables Resolver ---
+const resolver: CSSVariablesResolver = (theme) => ({
+  variables: {
+    '--app-bg': theme.other?.appBg || 'var(--mantine-color-body)',
+    '--app-sidebar-bg': theme.other?.sidebarBg || 'var(--mantine-color-default)',
+    '--app-header-bg': theme.other?.headerBg || 'var(--mantine-color-default)',
+    '--app-status-bar-bg': theme.other?.statusBarBg || 'var(--mantine-primary-color-filled)',
+    '--app-panel-bg': theme.other?.panelBg || 'var(--mantine-color-default)',
+  },
+  light: {},
+  dark: {},
+});
+
 export default function App() {
   const { settings, updateEditorSetting, updateGeneralSetting, setUiTheme } = useSettings();
+
+  const activeTheme = getTheme(settings.uiTheme);
+  console.log("DEBUG: Active Theme ID:", settings.uiTheme, "Primary:", activeTheme.theme.primaryColor);
 
   // --- Layout State ---
   const [activeActivity, setActiveActivity] = useState<SidebarSection>("files");
@@ -668,16 +685,20 @@ export default function App() {
 
   // --- RENDER ---
   return (
-    <MantineProvider theme={mantineTheme} defaultColorScheme={settings.uiTheme} forceColorScheme={settings.uiTheme === 'auto' ? undefined : settings.uiTheme}>
+    <MantineProvider
+        theme={activeTheme.theme}
+        forceColorScheme={activeTheme.type}
+        cssVariablesResolver={resolver}
+    >
       <AppShell header={{ height: 35 }} footer={{ height: 24 }} padding={0}>
         
         {/* HEADER */}
-        <AppShell.Header withBorder={false} bg="dark.9" style={{ zIndex: 200 }}>
+        <AppShell.Header withBorder={false} style={{ zIndex: 200, backgroundColor: 'var(--app-header-bg)' }}>
             <HeaderContent onNewFile={handleRequestNewFile} onOpenFile={handleOpenFolder} />
         </AppShell.Header>
 
         {/* MAIN LAYOUT */}
-        <AppShell.Main bg="dark.9" style={{ display: "flex", flexDirection: "column", height: "100vh", paddingTop: 35, paddingBottom: 24, overflow: "hidden", boxSizing: 'border-box' }}>
+        <AppShell.Main style={{ display: "flex", flexDirection: "column", height: "100vh", paddingTop: 35, paddingBottom: 24, overflow: "hidden", boxSizing: 'border-box', backgroundColor: 'var(--app-bg)' }}>
             
             {(isResizingSidebar || isResizingRightPanel) && (
                 <Box style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, cursor: 'col-resize', userSelect: 'none' }} />
@@ -690,7 +711,7 @@ export default function App() {
                 top: 0,
                 bottom: 0,
                 width: 4,
-                backgroundColor: 'var(--mantine-color-blue-6)',
+                backgroundColor: 'var(--mantine-primary-color-6)',
                 zIndex: 10000,
                 display: 'none',
                 pointerEvents: 'none',
@@ -789,8 +810,8 @@ export default function App() {
                                     )}
                                 </>
                             ) : (
-                                <Box h="100%" bg="dark.6" style={{ display: "flex", flexDirection: "column" }}>
-                                    <Group justify="space-between" px="xs" py={4} bg="dark.7" style={{ borderBottom: "1px solid var(--mantine-color-dark-5)", flexShrink: 0 }}>
+                                <Box h="100%" style={{ display: "flex", flexDirection: "column", backgroundColor: 'var(--app-panel-bg)' }}>
+                                    <Group justify="space-between" px="xs" py={4} style={{ borderBottom: "1px solid var(--mantine-color-default-border)", flexShrink: 0, backgroundColor: 'var(--app-header-bg)' }}>
                                         <Text size="xs" fw={700} c="dimmed">PDF PREVIEW</Text>
                                         <Group gap={4}>
                                             {isCompiling && <Loader size="xs" />}

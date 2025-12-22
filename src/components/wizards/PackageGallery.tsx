@@ -219,9 +219,9 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ selectedPkgId, o
 
   return (
     // MAIN LAYOUT
-    <Box h="100%" style={{ display: 'flex', flexDirection: 'column', backgroundColor: 'var(--mantine-color-dark-8)', overflow: 'hidden' }}>
+    <Box h="100%" style={{ display: 'flex', flexDirection: 'column', backgroundColor: 'var(--app-panel-bg)', overflow: 'hidden' }}>
 
-            <Box p="md" style={{ borderBottom: '1px solid var(--mantine-color-dark-6)', flexShrink: 0 }}>
+            <Box p="md" style={{ borderBottom: '1px solid var(--mantine-color-default-border)', flexShrink: 0 }}>
                 <Group justify="space-between">
                     <Group>
                         <ThemeIcon size="lg" variant="light" color="blue">
@@ -319,7 +319,7 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ selectedPkgId, o
             )}
 
             {!isEmbeddedWizard || ['xcolor', 'enumitem'].includes(selectedPkgId) ? (
-                <Stack gap={0} p="md" bg="dark.9" style={{ borderTop: '1px solid var(--mantine-color-dark-6)', flexShrink: 0 }}>
+                <Stack gap={0} p="md" style={{ backgroundColor: 'var(--app-header-bg)', borderTop: '1px solid var(--mantine-color-default-border)', flexShrink: 0 }}>
                     <Group justify="space-between" mb="xs">
                         <Text size="xs" fw={700} c="dimmed">GENERATED CODE</Text>
                         <Group gap="xs">
@@ -337,7 +337,7 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ selectedPkgId, o
                             </ActionIcon>
                         </Group>
                     </Group>
-                    <ScrollArea h={80} mb="md" type="auto" style={{ border: '1px solid var(--mantine-color-dark-6)', borderRadius: 4 }} bg="dark.8">
+                    <ScrollArea h={80} mb="md" type="auto" style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 4, backgroundColor: 'var(--mantine-color-default)' }}>
                         <Code block style={{ background: 'transparent', fontSize: 11 }}>
                             {generatedCode}
                         </Code>

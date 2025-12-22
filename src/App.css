@@ -1,15 +1,15 @@
-/* Εξαναγκασμός Dark Mode χρωμάτων */
+/* Force Theme Colors */
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
-  /* Ορισμός μεταβλητών */
-  --bg-color: #1a1b1e;
-  --text-color: #c1c2c5;
+  /* Global variables populated by Mantine */
+  --bg-color: var(--mantine-color-body);
+  --text-color: var(--mantine-color-text);
 }
 
-/* Εφαρμογή σε body και root για σιγουριά */
+/* Apply to body and root */
 body,
 #root {
   margin: 0;
@@ -17,59 +17,58 @@ body,
   width: 100vw;
   height: 100vh;
 
-  /* Χρήση των χρωμάτων */
   background-color: var(--bg-color);
   color: var(--text-color);
 
-  /* Overflow handling για το AppShell */
   overflow: hidden;
 }
 
-/* Γενικά inputs/selects που δεν είναι Mantine components */
+/* Global inputs/selects override */
 input,
 button,
 textarea,
 select {
   font-family: inherit;
   font-size: inherit;
-  background-color: #25262b;
+  /* Use Mantine default color or remove entirely if possible.
+     Using default border/bg helps with consistency outside Mantine components */
+  background-color: var(--mantine-color-default);
   color: var(--text-color);
-  border: 1px solid #373a40;
+  border: 1px solid var(--mantine-color-default-border);
 }
 
 /* Links */
 a {
   font-weight: 500;
-  color: #646cff;
+  color: var(--mantine-primary-color-filled);
   text-decoration: inherit;
 }
 a:hover {
-  color: #535bf2;
+  color: var(--mantine-primary-color-light);
 }
 
-/* Scrollbars */
+/* Scrollbars - Theme Aware */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #1a1b1e;
+  background: var(--mantine-color-body);
 }
 ::-webkit-scrollbar-thumb {
-  background: #373a40;
+  background: var(--mantine-color-default-hover);
   border-radius: 5px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #5c5f66;
+  background: var(--mantine-color-dimmed);
 }
 
 /* --- TIKZ WIZARD EDITOR FIX --- */
-/* Αυτή η κλάση εξαναγκάζει το textarea να πιάνει όλο τον κάθετο χώρο */
 .tikz-code-editor {
   display: flex;
   flex-direction: column;
   flex: 1;
-  min-height: 0; /* Σημαντικό για να λειτουργεί το flex μέσα σε grid/flex parents */
+  min-height: 0;
 }
 
 .tikz-code-editor .mantine-Textarea-wrapper {
@@ -80,8 +79,8 @@ a:hover {
 }
 
 .tikz-code-editor textarea {
-  height: 100% !important; /* Override inline styles */
+  height: 100% !important;
   flex: 1;
-  resize: none; /* Απενεργοποίηση χειροκίνητου resize */
+  resize: none;
   box-sizing: border-box;
 }

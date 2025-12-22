@@ -102,7 +102,7 @@ const NewItemInput = ({ type, onCommit, onCancel, defaultValue = '' }: { type: '
             <TextInput 
                 ref={inputRef} size="xs" variant="unstyled" value={name}
                 onChange={(e) => setName(e.currentTarget.value)} onKeyDown={handleKeyDown} onBlur={onCancel} 
-                styles={{ input: { height: 18, minHeight: 18, padding: 0, color: 'white', border: '1px solid #339af0' } }}
+                styles={{ input: { height: 18, minHeight: 18, padding: 0, color: 'var(--mantine-color-text)', border: '1px solid var(--mantine-primary-color-filled)' } }}
                 placeholder={type === 'file' ? 'filename.tex' : 'folder_name'}
             />
         </Group>
@@ -161,10 +161,10 @@ const FileTreeItem = ({
                 onContextMenu={handleContextMenu}
                 style={{
                     width: '100%', padding: '4px 8px', paddingLeft: level * 12 + 8, fontSize: 13,
-                    color: selectedId === node.id ? 'white' : '#C1C2C5',
-                    backgroundColor: selectedId === node.id ? '#1971c240' : 'transparent',
+                    color: selectedId === node.id ? 'var(--mantine-primary-color-text)' : 'var(--mantine-color-text)',
+                    backgroundColor: selectedId === node.id ? 'var(--mantine-primary-color-light)' : 'transparent',
                     display: 'flex', alignItems: 'center',
-                    ':hover': { backgroundColor: '#2C2E33' }
+                    ':hover': { backgroundColor: 'var(--mantine-color-default-hover)' }
                 }}
             >
                 <Group gap={6} wrap="nowrap" style={{ flex: 1, overflow: 'hidden' }}>
@@ -303,7 +303,7 @@ export const Sidebar = React.memo<SidebarProps>(({
   return (
     <Group gap={0} h="100%" align="stretch" style={{ flexShrink: 0, zIndex: 10 }}>
       {/* Activity Bar */}
-      <Stack w={48} h="100%" bg="dark.8" gap={0} justify="space-between" py="md" style={{ borderRight: "1px solid var(--mantine-color-dark-6)", zIndex: 20 }}>
+      <Stack w={48} h="100%" gap={0} justify="space-between" py="md" style={{ backgroundColor: "var(--app-sidebar-bg)", borderRight: "1px solid var(--mantine-color-default-border)", zIndex: 20 }}>
         <Stack gap={4} align="center">
           <Tooltip label="Explorer" position="right">
               <ActionIcon size="lg" variant={getVariant("files")} color={getColor("files")} onClick={() => onToggleSection("files")}><FontAwesomeIcon icon={faCopy} style={{ width: 20, height: 20 }} /></ActionIcon>
@@ -334,9 +334,9 @@ export const Sidebar = React.memo<SidebarProps>(({
       {/* Sidebar Content Panel */}
       {isOpen && (
           <>
-            <Box w={width} h="100%" bg="dark.7" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <Box w={width} h="100%" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: 'var(--app-panel-bg)' }}>
                 {activeSection !== "symbols" && (
-                    <Group h={35} px="sm" justify="space-between" bg="dark.8" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)", flexShrink: 0 }}>
+                    <Group h={35} px="sm" justify="space-between" style={{ backgroundColor: "var(--app-header-bg)", borderBottom: "1px solid var(--mantine-color-default-border)", flexShrink: 0 }}>
                         <Text size="xs" fw={700} tt="uppercase" c="dimmed">{activeSection}</Text>
                     </Group>
                 )}
@@ -371,11 +371,11 @@ export const Sidebar = React.memo<SidebarProps>(({
                                 <Tooltip label="TikZ/Plots"><ActionIcon variant="light" size="sm" color="orange" onClick={() => onNavigate("wizard-tikz")}><FontAwesomeIcon icon={faPenNib} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
                             </Group>
                         </Box>
-                        <Divider my={4} color="dark.6" />
+                        <Divider my={4} color="default-border" />
                         
                         <Box>
                             <Stack gap={4} px="xs" mb="xs">
-                                <Group justify="space-between" py={4} bg="dark.7">
+                                <Group justify="space-between" py={4} style={{ backgroundColor: "var(--app-header-bg)" }}>
                                     <Text size="xs" fw={700} c="dimmed">PROJECT</Text>
                                     <Group gap={2}>
                                         <Tooltip label="New File"><ActionIcon variant="subtle" size="xs" color="gray" onClick={(e) => { e.stopPropagation(); handleStartCreation('file'); }}><FontAwesomeIcon icon={faFileCirclePlus} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
@@ -425,7 +425,7 @@ export const Sidebar = React.memo<SidebarProps>(({
                             <Stack gap={2}>
                                 <Text size="xs" c="dimmed" fw={700}>TABLES</Text>
                                 {dbTables.map(t => (
-                                    <UnstyledButton key={t} onClick={() => onOpenTable(t)} style={{ padding: '4px 8px', fontSize: 13, borderRadius: 4, color: '#C1C2C5', display: 'flex', alignItems: 'center', gap: 8, ':hover': { backgroundColor: '#2C2E33' } }}>
+                                    <UnstyledButton key={t} onClick={() => onOpenTable(t)} style={{ padding: '4px 8px', fontSize: 13, borderRadius: 4, color: 'var(--mantine-color-text)', display: 'flex', alignItems: 'center', gap: 8, ':hover': { backgroundColor: 'var(--mantine-color-default-hover)' } }}>
                                         <FontAwesomeIcon icon={faTable} style={{ width: 14, height: 14, color: "#69db7c" }} /> {t}
                                     </UnstyledButton>
                                 ))}
@@ -470,7 +470,7 @@ export const Sidebar = React.memo<SidebarProps>(({
             <Box
                 onMouseDown={onResizeStart}
                 w={4} h="100%" bg="transparent"
-                style={{ cursor: "col-resize", ":hover": { backgroundColor: "var(--mantine-color-blue-6)" } }}
+                style={{ cursor: "col-resize", ":hover": { backgroundColor: "var(--mantine-primary-color-6)" } }}
             />
           </>
       )}

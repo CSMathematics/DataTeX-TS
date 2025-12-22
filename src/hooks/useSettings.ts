@@ -17,7 +17,7 @@ export interface GeneralSettings {
 export interface AppSettings {
     editor: EditorSettings;
     general: GeneralSettings;
-    uiTheme: 'dark' | 'light' | 'auto';
+    uiTheme: string; // Theme ID (e.g. 'dark-blue', 'light-gray')
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -33,7 +33,7 @@ const DEFAULT_SETTINGS: AppSettings = {
         language: 'en',
         autoSave: false,
     },
-    uiTheme: 'dark',
+    uiTheme: 'dark-blue',
 };
 
 export function useSettings() {
@@ -43,10 +43,18 @@ export function useSettings() {
             try {
                 // Merge saved settings with defaults to handle new fields
                 const parsed = JSON.parse(saved);
+
+                // Migration Logic
+                let uiTheme = parsed.uiTheme;
+                if (uiTheme === 'dark') uiTheme = 'dark-blue';
+                if (uiTheme === 'light') uiTheme = 'light-blue';
+                if (uiTheme === 'auto') uiTheme = 'dark-blue'; // Default 'auto' to dark-blue for now
+                if (!uiTheme) uiTheme = DEFAULT_SETTINGS.uiTheme;
+
                 return {
                     editor: { ...DEFAULT_SETTINGS.editor, ...parsed.editor },
                     general: { ...DEFAULT_SETTINGS.general, ...parsed.general },
-                    uiTheme: parsed.uiTheme || DEFAULT_SETTINGS.uiTheme,
+                    uiTheme: uiTheme,
                 };
             } catch (e) {
                 console.error("Failed to parse settings", e);
@@ -74,7 +82,7 @@ export function useSettings() {
         }));
     };
 
-    const setUiTheme = (theme: 'dark' | 'light' | 'auto') => {
+    const setUiTheme = (theme: string) => {
         setSettings(prev => ({ ...prev, uiTheme: theme }));
     };
 

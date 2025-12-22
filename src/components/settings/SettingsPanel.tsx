@@ -15,7 +15,7 @@ interface SettingsPanelProps {
     settings: AppSettings;
     onUpdateEditor: <K extends keyof IEditorSettings>(key: K, value: IEditorSettings[K]) => void;
     onUpdateGeneral: <K extends keyof IGeneralSettings>(key: K, value: IGeneralSettings[K]) => void;
-    onUpdateUi: (theme: 'dark' | 'light' | 'auto') => void;
+    onUpdateUi: (theme: string) => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -45,7 +45,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
     return (
         <Group h="100%" gap={0} align="stretch" style={{ overflow: 'hidden' }}>
             {/* Settings Sidebar */}
-            <Box w={250} bg="dark.8" style={{ borderRight: '1px solid var(--mantine-color-dark-6)' }}>
+            <Box w={250} style={{ backgroundColor: 'var(--app-sidebar-bg)', borderRight: '1px solid var(--mantine-color-default-border)' }}>
                 <Box p="md">
                     <Title order={4} mb="xs">Settings</Title>
                 </Box>

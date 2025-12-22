@@ -28,11 +28,11 @@ export const HeaderContent: React.FC<HeaderProps> = ({
   onOpenFile,
   onSaveFile 
 }) => (
-  <Group h="100%" px="md" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)" }} data-tauri-drag-region>
+  <Group h="100%" px="md" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }} data-tauri-drag-region>
     <Group data-tauri-drag-region>
       <Group gap={6} mr="lg" style={{ userSelect: 'none' }}>
         <FontAwesomeIcon icon={faDatabase} style={{ width: 18, height: 18, color: "#339af0" }} />
-        <Text fw={700} size="sm" c="gray.3">DataTex <Text span size="xs" c="dimmed">v2.0</Text></Text>
+        <Text fw={700} size="sm" c="dimmed">DataTex <Text span size="xs" c="dimmed">v2.0</Text></Text>
       </Group>
       <Group gap={0} visibleFrom="sm">
         {["File", "Edit", "View", "Go", "Help"].map((label) => (
@@ -78,9 +78,9 @@ export const HeaderContent: React.FC<HeaderProps> = ({
             input: { 
                 height: 24, 
                 minHeight: 24, 
-                backgroundColor: "var(--mantine-color-dark-6)", 
+                backgroundColor: "var(--mantine-color-default)",
                 borderColor: "transparent", 
-                color: "#fff", 
+                color: "var(--mantine-color-text)",
                 textAlign: 'center' 
             } 
         }} 

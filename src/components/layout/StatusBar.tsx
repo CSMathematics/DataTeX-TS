@@ -2,7 +2,7 @@ import React from 'react';
 import { Group, Text } from '@mantine/core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTerminal, faDatabase } from '@fortawesome/free-solid-svg-icons';
-import { AppTab } from './Sidebar'; // Import τύπου από το Sidebar ή από ένα κοινό types file
+import { AppTab } from './Sidebar';
 
 interface StatusBarProps {
   activeFile?: AppTab;
@@ -15,9 +15,7 @@ export const StatusBar: React.FC<StatusBarProps> = React.memo(({ activeFile, dbC
       h={24} 
       px="xs" 
       justify="space-between" 
-      bg="#235fceff" 
-      c="white" 
-      style={{ fontSize: "12px", userSelect: "none" }}
+      style={{ fontSize: "12px", userSelect: "none", backgroundColor: "var(--app-status-bar-bg)", color: "white" }}
     >
       <Group gap="lg">
         <Group gap={4}>
