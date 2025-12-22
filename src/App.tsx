@@ -34,6 +34,7 @@ import { PreambleWizard } from "./components/wizards/PreambleWizard";
 import { TableWizard } from "./components/wizards/TableWizard";
 import { TikzWizard } from "./components/wizards/TikzWizard";
 import { PackageGallery } from "./components/wizards/PackageGallery";
+import { SettingsPanel } from "./components/settings/SettingsPanel";
 
 import { latexLanguage, latexConfiguration } from "./languages/latex";
 import { dataTexDarkTheme } from "./themes/monaco-theme";
@@ -615,21 +616,25 @@ export default function App() {
                     onSelectPackage={setActivePackageId}
                 />
                 
-                {/* 2. CENTER: EDITOR AREA */}
+                {/* 2. CENTER: EDITOR AREA or SETTINGS */}
                 <Box style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
-                    <EditorArea 
-                        files={tabs} activeFileId={activeTabId} 
-                        onFileSelect={handleTabChange} onFileClose={handleCloseTab} 
-                        onContentChange={handleEditorChange} onMount={handleEditorDidMount} 
-                        showPdf={showPdf} onTogglePdf={() => setShowPdf(!showPdf)}
-                        isTexFile={isTexFile} onCompile={handleCompile} isCompiling={isCompiling}
-                        onStopCompile={handleStopCompile} 
-                        onCreateEmpty={() => createTabWithContent('', 'Untitled.tex')}
-                        onOpenWizard={handleOpenPreambleWizard}
-                        onCreateFromTemplate={handleCreateFromTemplate}
-                        recentProjects={recentProjects}
-                        onOpenRecent={handleOpenRecent}
-                    />
+                    {activeView === 'settings' ? (
+                        <SettingsPanel />
+                    ) : (
+                        <EditorArea
+                            files={tabs} activeFileId={activeTabId}
+                            onFileSelect={handleTabChange} onFileClose={handleCloseTab}
+                            onContentChange={handleEditorChange} onMount={handleEditorDidMount}
+                            showPdf={showPdf} onTogglePdf={() => setShowPdf(!showPdf)}
+                            isTexFile={isTexFile} onCompile={handleCompile} isCompiling={isCompiling}
+                            onStopCompile={handleStopCompile}
+                            onCreateEmpty={() => createTabWithContent('', 'Untitled.tex')}
+                            onOpenWizard={handleOpenPreambleWizard}
+                            onCreateFromTemplate={handleCreateFromTemplate}
+                            recentProjects={recentProjects}
+                            onOpenRecent={handleOpenRecent}
+                        />
+                    )}
                 </Box>
 
                 {/* 3. RIGHT PANEL */}

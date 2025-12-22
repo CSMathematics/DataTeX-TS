@@ -18,7 +18,7 @@ import { PACKAGES_DB, Category } from '../wizards/preamble/packages';
 
 // --- Types ---
 export type SidebarSection = "files" | "search" | "git" | "database" | "settings" | "symbols" | "gallery";
-export type ViewType = "editor" | "wizard-preamble" | "wizard-table" | "wizard-tikz" | "gallery";
+export type ViewType = "editor" | "wizard-preamble" | "wizard-table" | "wizard-tikz" | "gallery" | "settings";
 
 export interface FileSystemNode {
   id: string;
@@ -444,6 +444,26 @@ export const Sidebar = React.memo<SidebarProps>(({
                                 </Box>
                             );
                         })}
+                    </Stack>
+                )}
+                {activeSection === "settings" && (
+                    <Stack gap={4} p="xs">
+                         <NavLink
+                            label="Open Settings"
+                            leftSection={<FontAwesomeIcon icon={faCog} style={{ width: 16 }} />}
+                            onClick={() => onNavigate('settings')}
+                            variant="light"
+                            style={{ borderRadius: 4 }}
+                        />
+                        <Divider my="xs" label="Categories" labelPosition="center" />
+                        {/* We could duplicate the settings categories here for quick access */}
+                        <NavLink
+                            label="TeX Engines"
+                            leftSection={<FontAwesomeIcon icon={faCog} style={{ width: 16 }} />}
+                            onClick={() => onNavigate('settings')}
+                            variant="subtle"
+                            style={{ borderRadius: 4 }}
+                        />
                     </Stack>
                 )}
                 </ScrollArea>
