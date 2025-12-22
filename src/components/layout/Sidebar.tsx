@@ -8,7 +8,7 @@ import {
   faFileCirclePlus, faFolderPlus, faFolderOpen, faSort, faMinusSquare,
   faFileCode, faBookOpen, faImage, faTrash, faPen,
   faFolder, faFile, faFilePdf, faSquareRootAlt, faCube,
-  faPalette, faCalculator, faLayerGroup, faCode, faBoxOpen
+  faPalette, faCalculator, faLayerGroup, faCode, faBoxOpen, faPlus
 } from "@fortawesome/free-solid-svg-icons";
 
 import { SymbolSidebar } from './SymbolSidebar';
@@ -49,6 +49,8 @@ interface SidebarProps {
   // File System Props
   projectData: FileSystemNode[];
   onOpenFolder: () => void;
+  onAddFolder?: () => void;
+  onRemoveFolder?: (path: string) => void;
   onOpenFileNode: (node: FileSystemNode) => void;
   loadingFiles: boolean;
   openTabs: AppTab[];
@@ -110,7 +112,7 @@ const NewItemInput = ({ type, onCommit, onCancel, defaultValue = '' }: { type: '
 const FileTreeItem = ({
     node, level, onSelect, selectedId, onNodeClick,
     expandSignal, collapseSignal, creatingState, onCommitCreation, onCancelCreation,
-    onRename, onDelete, onCreateRequest
+    onRename, onDelete, onCreateRequest, onRemoveFolder
 }: any) => {
   const [expanded, setExpanded] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -182,6 +184,12 @@ const FileTreeItem = ({
                     <Menu.Divider />
                 </>
             )}
+            {level === 0 && onRemoveFolder && (
+                 <>
+                    <Menu.Item leftSection={<FontAwesomeIcon icon={faMinusSquare} style={{ width: 14, height: 14 }} />} onClick={() => onRemoveFolder(node.path)}>Remove from Workspace</Menu.Item>
+                    <Menu.Divider />
+                 </>
+            )}
             <Menu.Item leftSection={<FontAwesomeIcon icon={faPen} style={{ width: 14, height: 14 }} />} onClick={() => setIsRenaming(true)}>Rename</Menu.Item>
             <Menu.Item leftSection={<FontAwesomeIcon icon={faCopy} style={{ width: 14, height: 14 }} />} onClick={() => navigator.clipboard.writeText(node.path)}>Copy Path</Menu.Item>
             <Menu.Divider />
@@ -197,6 +205,7 @@ const FileTreeItem = ({
             expandSignal={expandSignal} collapseSignal={collapseSignal}
             creatingState={creatingState} onCommitCreation={onCommitCreation} onCancelCreation={onCancelCreation}
             onRename={onRename} onDelete={onDelete} onCreateRequest={onCreateRequest}
+            onRemoveFolder={onRemoveFolder}
           />
         ))}
         {isCreatingHere && creatingState && (
@@ -211,7 +220,7 @@ const FileTreeItem = ({
 
 export const Sidebar = React.memo<SidebarProps>(({
   width, isOpen, onResizeStart, activeSection, onToggleSection, onNavigate,
-  projectData, onOpenFolder, onOpenFileNode, onCreateItem, onRenameItem, onDeleteItem,
+  projectData, onOpenFolder, onAddFolder, onRemoveFolder, onOpenFileNode, onCreateItem, onRenameItem, onDeleteItem,
   dbConnected, dbTables, onConnectDB, onOpenTable, onInsertSymbol,
   activePackageId, onSelectPackage
 }) => {
@@ -229,12 +238,21 @@ export const Sidebar = React.memo<SidebarProps>(({
 
   const handleStartCreation = (type: 'file' | 'folder', specificParentId?: string) => {
     if (projectData.length === 0) return; 
-    let parentId = specificParentId || 'root';
-    if (!specificParentId && selectedNode) {
-        if (selectedNode.type === 'folder') parentId = selectedNode.id;
-        else parentId = 'root'; // Or sibling? Sticking to root if file selected for now.
+
+    let parentId = specificParentId;
+    if (!parentId) {
+        if (selectedNode) {
+            if (selectedNode.type === 'folder') {
+                parentId = selectedNode.id;
+            } else {
+                 const separator = selectedNode.path.includes('\\') ? '\\' : '/';
+                 parentId = selectedNode.path.substring(0, selectedNode.path.lastIndexOf(separator));
+            }
+        } else {
+            parentId = projectData[0].id;
+        }
     }
-    setCreatingItem({ type, parentId });
+    if (parentId) setCreatingItem({ type, parentId });
   };
 
   const handleCommitCreation = (name: string, parentPath: string) => {
@@ -363,6 +381,7 @@ export const Sidebar = React.memo<SidebarProps>(({
                                         <Tooltip label="New File"><ActionIcon variant="subtle" size="xs" color="gray" onClick={(e) => { e.stopPropagation(); handleStartCreation('file'); }}><FontAwesomeIcon icon={faFileCirclePlus} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
                                         <Tooltip label="New Folder"><ActionIcon variant="subtle" size="xs" color="gray" onClick={(e) => { e.stopPropagation(); handleStartCreation('folder'); }}><FontAwesomeIcon icon={faFolderPlus} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
                                         <Tooltip label="Open Folder"><ActionIcon variant="subtle" size="xs" color="gray" onClick={onOpenFolder}><FontAwesomeIcon icon={faFolderOpen} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                                        <Tooltip label="Add Folder"><ActionIcon variant="subtle" size="xs" color="gray" onClick={onAddFolder}><FontAwesomeIcon icon={faPlus} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
                                         <Tooltip label="Expand All"><ActionIcon variant="subtle" size="xs" color="gray" onClick={() => setExpandAllSignal(s => s + 1)}><FontAwesomeIcon icon={faSort} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
                                         <Tooltip label="Collapse All"><ActionIcon variant="subtle" size="xs" color="gray" onClick={() => setCollapseAllSignal(s => s + 1)}><FontAwesomeIcon icon={faMinusSquare} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
                                     </Group>
@@ -388,11 +407,9 @@ export const Sidebar = React.memo<SidebarProps>(({
                                             expandSignal={expandAllSignal} collapseSignal={collapseAllSignal} creatingState={creatingItem}
                                             onCommitCreation={handleCommitCreation} onCancelCreation={() => setCreatingItem(null)}
                                             onRename={onRenameItem} onDelete={onDeleteItem} onCreateRequest={handleStartCreation}
+                                            onRemoveFolder={onRemoveFolder}
                                         />
                                     ))}
-                                    {creatingItem && creatingItem.parentId === 'root' && (
-                                        <NewItemInput type={creatingItem.type} onCommit={(name) => handleCommitCreation(name, 'root')} onCancel={() => setCreatingItem(null)} />
-                                    )}
                                 </Box>
                             )}
                         </Box>

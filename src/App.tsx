@@ -73,6 +73,7 @@ export default function App() {
 
   // --- File System & DB State ---
   const [projectData, setProjectData] = useState<FileSystemNode[]>([]);
+  const [projectRoots, setProjectRoots] = useState<string[]>([]);
   const [rootPath, setRootPath] = useState<string | null>(null);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
@@ -132,10 +133,11 @@ export default function App() {
   };
 
   // --- HELPER: Load Project Files ---
-  const loadProjectFiles = async (path: string) => {
+  const loadFolderNode = async (rootPath: string): Promise<FileSystemNode> => {
       // @ts-ignore
       const { readDir } = await import('@tauri-apps/plugin-fs');
       const ignoredExtensions = ['aux', 'log', 'out', 'toc', 'synctex.gz', 'fdb_latexmk', 'fls', 'bbl', 'blg', 'xdv', 'lof', 'lot', 'nav', 'snm', 'vrb'];
+
       const processDir = async (dirPath: string): Promise<FileSystemNode[]> => {
           const entries = await readDir(dirPath);
           const nodes: FileSystemNode[] = [];
@@ -158,8 +160,40 @@ export default function App() {
           }
           return nodes.sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'folder' ? -1 : 1));
       };
-      const nodes = await processDir(path);
-      setProjectData(nodes);
+
+      const children = await processDir(rootPath);
+      const separator = rootPath.includes('\\') ? '\\' : '/';
+      const cleanPath = rootPath.endsWith(separator) ? rootPath.slice(0, -1) : rootPath;
+      const folderName = cleanPath.split(separator).pop() || rootPath;
+
+      return {
+          id: rootPath,
+          name: folderName.toUpperCase(),
+          type: 'folder',
+          path: rootPath,
+          children: children
+      };
+  };
+
+  const reloadProjectFiles = async (roots: string[]) => {
+      if (roots.length === 0) {
+          setProjectData([]);
+          return;
+      }
+      setLoadingFiles(true);
+      try {
+          const promises = roots.map(root => loadFolderNode(root));
+          const rootNodes = await Promise.all(promises);
+          setProjectData(rootNodes);
+      } catch (e) {
+          console.error("Failed to load project files", e);
+      } finally {
+          setLoadingFiles(false);
+      }
+  };
+
+  const loadProjectFiles = async (path: string) => {
+      await reloadProjectFiles([path]);
   };
 
   // --- CORE: Create Tab Logic ---
@@ -239,32 +273,59 @@ export default function App() {
 
   const handleOpenFolder = async () => {
     try {
-      setLoadingFiles(true);
       // @ts-ignore
       const { open } = await import('@tauri-apps/plugin-dialog');
       const selectedPath = await open({ directory: true, multiple: false, title: "Select Project Folder" });
       
       if (selectedPath && typeof selectedPath === 'string') {
-        setRootPath(selectedPath); 
-        await loadProjectFiles(selectedPath);
+        setRootPath(selectedPath);
+        const newRoots = [selectedPath];
+        setProjectRoots(newRoots);
+        await reloadProjectFiles(newRoots);
         setActiveActivity("files");
         addToRecent(selectedPath);
       }
     } catch (e) {
       setCompileError("Failed to open folder: " + String(e));
-    } finally { setLoadingFiles(false); }
+    }
+  };
+
+  const handleAddFolder = async () => {
+    try {
+      // @ts-ignore
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selectedPath = await open({ directory: true, multiple: false, title: "Add Folder to Workspace" });
+
+      if (selectedPath && typeof selectedPath === 'string') {
+        if (projectRoots.includes(selectedPath)) return;
+        const newRoots = [...projectRoots, selectedPath];
+        setProjectRoots(newRoots);
+        await reloadProjectFiles(newRoots);
+        setActiveActivity("files");
+      }
+    } catch (e) {
+        setCompileError("Failed to add folder: " + String(e));
+    }
+  };
+
+  const handleRemoveFolder = async (folderPath: string) => {
+      const newRoots = projectRoots.filter(r => r !== folderPath);
+      setProjectRoots(newRoots);
+      if (rootPath === folderPath) setRootPath(newRoots[0] || null);
+      await reloadProjectFiles(newRoots);
   };
 
   const handleOpenRecent = async (path: string) => {
       try {
-          setLoadingFiles(true);
           setRootPath(path);
-          await loadProjectFiles(path);
+          const newRoots = [path];
+          setProjectRoots(newRoots);
+          await reloadProjectFiles(newRoots);
           setActiveActivity("files");
           addToRecent(path);
       } catch (e) {
           setCompileError("Failed to open recent project: " + String(e));
-      } finally { setLoadingFiles(false); }
+      }
   };
   
   const handleCreateItem = async (name: string, type: 'file' | 'folder', parentPath: string) => {
@@ -281,7 +342,7 @@ export default function App() {
               setTabs(prev => [...prev, newTab]);
               handleTabChange(fullPath);
           } else { await mkdir(fullPath); }
-          if (rootPath) await loadProjectFiles(rootPath);
+          await reloadProjectFiles(projectRoots);
       } catch (e) { setCompileError(`Failed to create ${type}: ${String(e)}`); }
   };
 
@@ -302,7 +363,7 @@ export default function App() {
              if (activeTabId === node.path) setActiveTabId(newPath); // No need to sync here usually
           }
 
-          if (rootPath) await loadProjectFiles(rootPath);
+          await reloadProjectFiles(projectRoots);
       } catch (e) {
           setCompileError(`Failed to rename: ${String(e)}`);
       }
@@ -325,7 +386,7 @@ export default function App() {
               if (isOpen) handleCloseTab(node.path, { stopPropagation: () => {} } as React.MouseEvent);
           }
 
-          if (rootPath) await loadProjectFiles(rootPath);
+          await reloadProjectFiles(projectRoots);
       } catch (e) {
           setCompileError(`Failed to delete: ${String(e)}`);
       }
@@ -657,6 +718,7 @@ export default function App() {
                     onNavigate={setActiveView}
                     openTabs={tabs} activeTabId={activeTabId} onTabSelect={handleTabChange}
                     projectData={projectData} onOpenFolder={handleOpenFolder} onOpenFileNode={handleOpenFileNode}
+                    onAddFolder={handleAddFolder} onRemoveFolder={handleRemoveFolder}
                     loadingFiles={loadingFiles} dbConnected={dbConnected} dbTables={dbTables} onConnectDB={handleConnectDB} onOpenTable={handleOpenTable}
                     onCreateItem={handleCreateItem}
                     onRenameItem={handleRenameItem}
