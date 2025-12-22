@@ -111,11 +111,23 @@ export default function App() {
   };
 
   const handleToggleSidebar = (section: SidebarSection) => {
-    if (activeActivity === section) {
-      setIsSidebarOpen(!isSidebarOpen); 
+    if (section === 'settings') {
+      setActiveActivity('settings');
+      setActiveView('settings');
+      setIsSidebarOpen(false); // Hide the intermediate sidebar
     } else {
-      setActiveActivity(section);
-      setIsSidebarOpen(true); 
+      // If we are coming FROM settings, ensure we switch back to editor view
+      // unless we are just toggling the current section
+      if (activeView === 'settings') {
+          setActiveView('editor');
+      }
+
+      if (activeActivity === section) {
+        setIsSidebarOpen(!isSidebarOpen);
+      } else {
+        setActiveActivity(section);
+        setIsSidebarOpen(true);
+      }
     }
   };
 

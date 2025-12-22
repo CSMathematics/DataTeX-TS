@@ -446,26 +446,6 @@ export const Sidebar = React.memo<SidebarProps>(({
                         })}
                     </Stack>
                 )}
-                {activeSection === "settings" && (
-                    <Stack gap={4} p="xs">
-                         <NavLink
-                            label="Open Settings"
-                            leftSection={<FontAwesomeIcon icon={faCog} style={{ width: 16 }} />}
-                            onClick={() => onNavigate('settings')}
-                            variant="light"
-                            style={{ borderRadius: 4 }}
-                        />
-                        <Divider my="xs" label="Categories" labelPosition="center" />
-                        {/* We could duplicate the settings categories here for quick access */}
-                        <NavLink
-                            label="TeX Engines"
-                            leftSection={<FontAwesomeIcon icon={faCog} style={{ width: 16 }} />}
-                            onClick={() => onNavigate('settings')}
-                            variant="subtle"
-                            style={{ borderRadius: 4 }}
-                        />
-                    </Stack>
-                )}
                 </ScrollArea>
                 )}
             </Box>
