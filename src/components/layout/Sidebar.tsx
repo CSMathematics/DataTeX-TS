@@ -9,8 +9,11 @@ import {
   faFileCode, faBookOpen, faImage, faTrash, faPen,
   faFolder, faFile, faFilePdf, faSquareRootAlt, faCube,
   faPalette, faCalculator, faLayerGroup, faCode, faBoxOpen, faPlus,
-  faExpand, faCompress 
+  faExpand, faCompress, faList, faAnchor
 } from "@fortawesome/free-solid-svg-icons";
+
+// DnD Kit Imports
+import { useDraggable, useDroppable } from '@dnd-kit/core';
 
 import { SymbolSidebar } from './SymbolSidebar';
 import { SymbolPanel } from './SymbolPanel';
@@ -18,7 +21,7 @@ import { SymbolCategory } from '../wizards/preamble/SymbolDB';
 import { PACKAGES_DB, Category } from '../wizards/preamble/packages';
 
 // --- Types ---
-export type SidebarSection = "files" | "search" | "git" | "database" | "settings" | "symbols" | "gallery";
+export type SidebarSection = "files" | "search" | "git" | "database" | "settings" | "symbols" | "gallery" | "outline";
 export type ViewType = "editor" | "wizard-preamble" | "wizard-table" | "wizard-tikz" | "gallery" | "settings";
 
 export interface FileSystemNode {
@@ -61,6 +64,7 @@ interface SidebarProps {
   onCreateItem?: (name: string, type: 'file' | 'folder', parentPath: string) => void;
   onRenameItem?: (node: FileSystemNode, newName: string) => void;
   onDeleteItem?: (node: FileSystemNode) => void;
+  onMoveItem?: (sourcePath: string, targetPath: string) => void;
 
   dbConnected: boolean;
   dbTables: string[];
@@ -70,6 +74,9 @@ interface SidebarProps {
   onInsertSymbol?: (code: string) => void;
   activePackageId?: string;
   onSelectPackage?: (id: string) => void;
+
+  outlineSource?: string;
+  onScrollToLine?: (line: number) => void;
 }
 
 // --- Icons Helper ---
@@ -112,6 +119,7 @@ const NewItemInput = ({ type, onCommit, onCancel, defaultValue = '' }: { type: '
     );
 };
 
+// --- DnD Draggable Item ---
 const FileTreeItem = ({
     node, level, onSelect, selectedId, onNodeClick,
     expandSignal, collapseSignal, creatingState, onCommitCreation, onCancelCreation,
@@ -122,7 +130,18 @@ const FileTreeItem = ({
   const [isRenaming, setIsRenaming] = useState(false);
   const [menuOpened, setMenuOpened] = useState(false);
 
-  const hasChildren = node.type === 'folder' && node.children && node.children.length > 0;
+  // DnD Hooks
+  const { attributes, listeners, setNodeRef: setDragNodeRef, isDragging } = useDraggable({
+    id: node.id,
+    data: { node }
+  });
+
+  const { setNodeRef: setDropNodeRef, isOver } = useDroppable({
+    id: node.id,
+    data: { node },
+    disabled: node.type !== 'folder'
+  });
+
   const isCreatingHere = creatingState?.parentId === node.id && node.type === 'folder';
 
   useEffect(() => { if (isCreatingHere) setExpanded(true); }, [isCreatingHere]);
@@ -168,12 +187,17 @@ const FileTreeItem = ({
   const fontWeight = isRoot ? 700 : 400;
   const borderBottom = isRoot ? '1px solid var(--mantine-color-default-border)' : 'none';
 
+  // Highlight drop target
+  const dropStyle = isOver ? { backgroundColor: 'var(--mantine-color-blue-1)', border: '1px dashed var(--mantine-primary-color-filled)' } : {};
+
   return (
-    <>
+    <Box ref={setDropNodeRef} style={dropStyle}>
       <Menu shadow="md" width={200} opened={menuOpened} onChange={setMenuOpened} trigger="click">
         <Menu.Target>
-            <Box style={{ width: '100%' }}>
+            <Box style={{ width: '100%', opacity: isDragging ? 0.5 : 1 }}>
                 <UnstyledButton
+                    ref={setDragNodeRef}
+                    {...listeners} {...attributes}
                     onClick={handleClick}        // Left click logic
                     onContextMenu={handleContextMenu} // Right click logic
                     style={{
@@ -261,15 +285,92 @@ const FileTreeItem = ({
             </Box>
         )}
       </Collapse>
-    </>
+    </Box>
   );
+};
+
+// --- Outline View Component ---
+interface OutlineNode {
+    id: string;
+    title: string;
+    level: number;
+    lineNumber: number;
+    children: OutlineNode[];
+}
+
+const OutlineView = ({ content, onNavigate }: { content: string, onNavigate: (line: number) => void }) => {
+    const outline = useMemo(() => {
+        const lines = content.split('\n');
+        const regex = /\\(chapter|section|subsection|subsubsection|label)\*?(?:\[.*?\])?\{(.+?)\}/;
+        const nodes: OutlineNode[] = [];
+
+        lines.forEach((line, index) => {
+            const match = line.match(regex);
+            if (match) {
+                const type = match[1];
+                const title = match[2];
+                let level = 0;
+
+                if (type === 'chapter') level = 1;
+                else if (type === 'section') level = 2;
+                else if (type === 'subsection') level = 3;
+                else if (type === 'subsubsection') level = 4;
+                else if (type === 'label') level = 5; // Treat labels as deeper or special
+
+                const newNode: OutlineNode = {
+                    id: `${index}-${title}`,
+                    title: type === 'label' ? `Label: ${title}` : title,
+                    level,
+                    lineNumber: index + 1,
+                    children: []
+                };
+
+                // Simple flat list for now, or build tree
+                // Let's stick to a flat list with indentation for simplicity and robustness
+                nodes.push(newNode);
+            }
+        });
+        return nodes;
+    }, [content]);
+
+    if (outline.length === 0) {
+        return <Box p="md"><Text size="sm" c="dimmed">No structure found.</Text></Box>;
+    }
+
+    return (
+        <Stack gap={0} p="xs">
+            {outline.map((node) => (
+                <UnstyledButton
+                    key={node.id}
+                    onClick={() => onNavigate(node.lineNumber)}
+                    style={{
+                        padding: '4px 8px',
+                        paddingLeft: (node.level - 1) * 12 + 8,
+                        fontSize: 13,
+                        color: 'var(--mantine-color-text)',
+                        borderRadius: 4,
+                        ':hover': { backgroundColor: 'var(--mantine-color-default-hover)' }
+                    }}
+                >
+                    <Group gap={6}>
+                        {node.title.startsWith('Label:') ?
+                             <FontAwesomeIcon icon={faAnchor} style={{ width: 10, height: 10, color: "gray" }} /> :
+                             <Text size="xs" fw={700} c="dimmed">H{node.level}</Text>
+                        }
+                        <Text size="xs" truncate>{node.title.replace('Label: ', '')}</Text>
+                    </Group>
+                </UnstyledButton>
+            ))}
+        </Stack>
+    );
 };
 
 export const Sidebar = React.memo<SidebarProps>(({
   width, isOpen, onResizeStart, activeSection, onToggleSection, onNavigate,
   projectData, onOpenFolder, onAddFolder, onRemoveFolder, onOpenFileNode, onCreateItem, onRenameItem, onDeleteItem,
   dbConnected, dbTables, onConnectDB, onOpenTable, onInsertSymbol,
-  activePackageId, onSelectPackage
+  activePackageId, onSelectPackage,
+  outlineSource, onScrollToLine
 }) => {
   
   // --- Global Expand/Collapse State ---
@@ -356,6 +457,9 @@ export const Sidebar = React.memo<SidebarProps>(({
           <Tooltip label="Explorer" position="right">
               <ActionIcon size="lg" variant={getVariant("files")} color={getColor("files")} onClick={() => onToggleSection("files")}><FontAwesomeIcon icon={faCopy} style={{ width: 20, height: 20 }} /></ActionIcon>
           </Tooltip>
+          <Tooltip label="Structure" position="right">
+              <ActionIcon size="lg" variant={getVariant("outline")} color={getColor("outline")} onClick={() => onToggleSection("outline")}><FontAwesomeIcon icon={faList} style={{ width: 20, height: 20 }} /></ActionIcon>
+          </Tooltip>
           <Tooltip label="AMS Symbols" position="right">
               <ActionIcon size="lg" variant={getVariant("symbols")} color={getColor("symbols")} onClick={() => onToggleSection("symbols")}><FontAwesomeIcon icon={faSquareRootAlt} style={{ width: 20, height: 20 }} /></ActionIcon>
           </Tooltip>
@@ -417,69 +521,74 @@ export const Sidebar = React.memo<SidebarProps>(({
             ) : (
             <ScrollArea style={{ flex: 1 }} onClick={() => setSelectedNode(null)}> 
                 {activeSection === "files" && (
-                    <Stack gap={0}>
-                        <Box p="xs">
-                            <Text size="xs" fw={700} c="dimmed" mb={4}>QUICK TOOLS</Text>
-                            <Group gap={4}>
-                                <Tooltip label="Preamble Wizard"><ActionIcon variant="light" size="sm" color="violet" onClick={() => onNavigate("wizard-preamble")}><FontAwesomeIcon icon={faWandMagicSparkles} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
-                                <Tooltip label="Table Wizard"><ActionIcon variant="light" size="sm" color="green" onClick={() => onNavigate("wizard-table")}><FontAwesomeIcon icon={faTable} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
-                                <Tooltip label="TikZ/Plots"><ActionIcon variant="light" size="sm" color="orange" onClick={() => onNavigate("wizard-tikz")}><FontAwesomeIcon icon={faPenNib} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
-                            </Group>
-                        </Box>
-                        <Divider my={4} color="default-border" />
-                        
-                        <Box>
-                            <Stack gap={4} px={0} mb="xs">
-                                <Group justify="space-between" px="xs" py={4} style={{ backgroundColor: "var(--app-header-bg)" }}>
-                                    <Text size="xs" fw={700} c="dimmed">EXPLORER</Text>
-                                    <Group gap={2}>
-                                        <Tooltip label="New File"><ActionIcon variant="subtle" size="xs" color="gray" onClick={(e) => { e.stopPropagation(); handleStartCreation('file'); }}><FontAwesomeIcon icon={faFileCirclePlus} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
-                                        <Tooltip label="New Folder"><ActionIcon variant="subtle" size="xs" color="gray" onClick={(e) => { e.stopPropagation(); handleStartCreation('folder'); }}><FontAwesomeIcon icon={faFolderPlus} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
-                                        <Tooltip label="Add Project Folder"><ActionIcon variant="subtle" size="xs" color="gray" onClick={onAddFolder}><FontAwesomeIcon icon={faPlus} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
-                                        
-                                        {/* TOGGLE EXPAND/COLLAPSE */}
-                                        <Tooltip label={isToggleExpanded ? "Collapse All" : "Expand All"}>
-                                            <ActionIcon variant="subtle" size="xs" color="gray" onClick={handleToggleExpand}>
-                                                <FontAwesomeIcon icon={isToggleExpanded ? faCompress : faExpand} style={{ width: 14, height: 14 }} />
-                                            </ActionIcon>
-                                        </Tooltip>
-                                    </Group>
+                        <Stack gap={0}>
+                            <Box p="xs">
+                                <Text size="xs" fw={700} c="dimmed" mb={4}>QUICK TOOLS</Text>
+                                <Group gap={4}>
+                                    <Tooltip label="Preamble Wizard"><ActionIcon variant="light" size="sm" color="violet" onClick={() => onNavigate("wizard-preamble")}><FontAwesomeIcon icon={faWandMagicSparkles} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                                    <Tooltip label="Table Wizard"><ActionIcon variant="light" size="sm" color="green" onClick={() => onNavigate("wizard-table")}><FontAwesomeIcon icon={faTable} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                                    <Tooltip label="TikZ/Plots"><ActionIcon variant="light" size="sm" color="orange" onClick={() => onNavigate("wizard-tikz")}><FontAwesomeIcon icon={faPenNib} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
                                 </Group>
-                                <Box px="xs">
-                                    <TextInput
-                                        placeholder="Filter files..." size="xs"
-                                        value={searchQuery} onChange={(e) => setSearchQuery(e.currentTarget.value)}
-                                        rightSection={searchQuery && <ActionIcon size="xs" variant="transparent" onClick={() => setSearchQuery('')}><FontAwesomeIcon icon={faMinusSquare} style={{ width: 10, height: 10 }} /></ActionIcon>}
-                                    />
-                                </Box>
-                            </Stack>
+                            </Box>
+                            <Divider my={4} color="default-border" />
 
-                            {projectData.length === 0 ? (
-                                <Box p="md" ta="center">
-                                    <Text size="xs" c="dimmed" mb="xs">No folder opened</Text>
-                                    <Group justify="center">
-                                        <Button size="xs" variant="default" onClick={onOpenFolder}>Open Folder</Button>
+                            <Box>
+                                <Stack gap={4} px={0} mb="xs">
+                                    <Group justify="space-between" px="xs" py={4} style={{ backgroundColor: "var(--app-header-bg)" }}>
+                                        <Text size="xs" fw={700} c="dimmed">EXPLORER</Text>
+                                        <Group gap={2}>
+                                            <Tooltip label="New File"><ActionIcon variant="subtle" size="xs" color="gray" onClick={(e) => { e.stopPropagation(); handleStartCreation('file'); }}><FontAwesomeIcon icon={faFileCirclePlus} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                                            <Tooltip label="New Folder"><ActionIcon variant="subtle" size="xs" color="gray" onClick={(e) => { e.stopPropagation(); handleStartCreation('folder'); }}><FontAwesomeIcon icon={faFolderPlus} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                                            <Tooltip label="Add Project Folder"><ActionIcon variant="subtle" size="xs" color="gray" onClick={onAddFolder}><FontAwesomeIcon icon={faPlus} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+
+                                            {/* TOGGLE EXPAND/COLLAPSE */}
+                                            <Tooltip label={isToggleExpanded ? "Collapse All" : "Expand All"}>
+                                                <ActionIcon variant="subtle" size="xs" color="gray" onClick={handleToggleExpand}>
+                                                    <FontAwesomeIcon icon={isToggleExpanded ? faCompress : faExpand} style={{ width: 14, height: 14 }} />
+                                                </ActionIcon>
+                                            </Tooltip>
+                                        </Group>
                                     </Group>
-                                </Box>
-                            ) : (
-                                <Box>
-                                    {displayNodes.map(node => (
-                                        <FileTreeItem 
-                                            key={node.id} 
-                                            node={node} 
-                                            level={0}
-                                            onSelect={onOpenFileNode} selectedId={selectedNode?.id || null} onNodeClick={handleNodeClick}
-                                            expandSignal={expandAllSignal} collapseSignal={collapseAllSignal} creatingState={creatingItem}
-                                            onCommitCreation={handleCommitCreation} onCancelCreation={() => setCreatingItem(null)}
-                                            onRename={onRenameItem} onDelete={onDeleteItem} onCreateRequest={handleStartCreation}
-                                            onRemoveFolder={onRemoveFolder}
+                                    <Box px="xs">
+                                        <TextInput
+                                            placeholder="Filter files..." size="xs"
+                                            value={searchQuery} onChange={(e) => setSearchQuery(e.currentTarget.value)}
+                                            rightSection={searchQuery && <ActionIcon size="xs" variant="transparent" onClick={() => setSearchQuery('')}><FontAwesomeIcon icon={faMinusSquare} style={{ width: 10, height: 10 }} /></ActionIcon>}
                                         />
-                                    ))}
-                                </Box>
-                            )}
-                        </Box>
-                    </Stack>
+                                    </Box>
+                                </Stack>
+
+                                {projectData.length === 0 ? (
+                                    <Box p="md" ta="center">
+                                        <Text size="xs" c="dimmed" mb="xs">No folder opened</Text>
+                                        <Group justify="center">
+                                            <Button size="xs" variant="default" onClick={onOpenFolder}>Open Folder</Button>
+                                        </Group>
+                                    </Box>
+                                ) : (
+                                    <Box>
+                                        {displayNodes.map(node => (
+                                            <FileTreeItem
+                                                key={node.id}
+                                                node={node}
+                                                level={0}
+                                                onSelect={onOpenFileNode} selectedId={selectedNode?.id || null} onNodeClick={handleNodeClick}
+                                                expandSignal={expandAllSignal} collapseSignal={collapseAllSignal} creatingState={creatingItem}
+                                                onCommitCreation={handleCommitCreation} onCancelCreation={() => setCreatingItem(null)}
+                                                onRename={onRenameItem} onDelete={onDeleteItem} onCreateRequest={handleStartCreation}
+                                                onRemoveFolder={onRemoveFolder}
+                                            />
+                                        ))}
+                                    </Box>
+                                )}
+                            </Box>
+                        </Stack>
                 )}
+
+                {activeSection === "outline" && (
+                    <OutlineView content={outlineSource || ''} onNavigate={onScrollToLine || (() => {})} />
+                )}
+
                 {/* Database & Gallery sections */}
                 {activeSection === "database" && (
                      <Stack p="xs" gap="xs">

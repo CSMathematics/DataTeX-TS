@@ -15,9 +15,11 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTimes } from "@fortawesome/free-solid-svg-icons";
 import { invoke } from "@tauri-apps/api/core"; 
+import { debounce } from "lodash";
+import { DndContext, DragEndEvent } from '@dnd-kit/core';
 
 // --- Custom Theme ---
-import { THEMES, getTheme } from "./themes/ui-themes";
+import { getTheme } from "./themes/ui-themes";
 
 // --- Layout Components ---
 import { HeaderContent } from "./components/layout/Header";
@@ -83,6 +85,7 @@ export default function App() {
   ]);
   const [activeTabId, setActiveTabId] = useState<string>('start-page');
   const editorRef = useRef<any>(null);
+  const [outlineSource, setOutlineSource] = useState<string>("");
 
   // --- Compilation State ---
   const [isCompiling, setIsCompiling] = useState(false);
@@ -409,6 +412,36 @@ export default function App() {
       }
   };
 
+  const handleMoveItem = async (sourcePath: string, targetPath: string) => {
+      try {
+          // @ts-ignore
+          const { rename } = await import('@tauri-apps/plugin-fs');
+
+          const sourceName = sourcePath.split(/[/\\]/).pop();
+          if (!sourceName) return;
+
+          const separator = targetPath.includes('\\') ? '\\' : '/';
+          // Ensure target path is a directory (it should be coming from a folder drop)
+          const newPath = `${targetPath}${separator}${sourceName}`;
+
+          if (sourcePath === newPath) return;
+
+          await rename(sourcePath, newPath);
+
+          // Update tabs if open
+          const isOpen = tabs.find(t => t.id === sourcePath);
+          if (isOpen) {
+             setTabs(prev => prev.map(t => t.id === sourcePath ? { ...t, id: newPath } : t));
+             if (activeTabId === sourcePath) setActiveTabId(newPath);
+          }
+
+          await reloadProjectFiles(projectRoots);
+
+      } catch (e) {
+          setCompileError(`Failed to move item: ${String(e)}`);
+      }
+  };
+
   const handleOpenFileNode = async (node: FileSystemNode) => {
     if (node.type === 'folder') return;
     if (tabs.find(t => t.id === node.path)) { handleTabChange(node.path); return; }
@@ -423,8 +456,8 @@ export default function App() {
     handleTabChange(node.path);
   };
 
-  const handleCloseTab = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleCloseTab = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     const newTabs = tabs.filter(t => t.id !== id);
     setTabs(newTabs);
     if (activeTabId === id) {
@@ -444,11 +477,25 @@ export default function App() {
              setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, content: currentContent } : t));
           } catch(e) { /* ignore if editor not ready */ }
       }
+
+      const newTab = tabs.find(t => t.id === newId);
+      if (newTab && newTab.content) {
+          setOutlineSource(newTab.content);
+      }
+
       setActiveTabId(newId);
   };
 
+  // Debounce helper for outline updates
+  const debouncedOutlineUpdate = useCallback(
+      debounce((content: string) => {
+          setOutlineSource(content);
+      }, 1000),
+      []
+  );
+
   // 2. Editor Change (Only Dirty Flag)
-  const handleEditorChange = (id: string, _val: string) => {
+  const handleEditorChange = (id: string, val: string) => {
     // OPTIMIZATION: Do NOT update the full content in state on every keystroke.
     // Only update the 'isDirty' flag if it wasn't dirty before.
     setTabs(prev => {
@@ -458,6 +505,19 @@ export default function App() {
         }
         return prev; // Prevents re-render if already dirty
     });
+
+    // Update outline source if active
+    if (activeActivity === 'outline') {
+        debouncedOutlineUpdate(val);
+    }
+  };
+
+  const handleRevealLine = (line: number) => {
+      if (editorRef.current) {
+          editorRef.current.revealLine(line);
+          editorRef.current.setPosition({ column: 1, lineNumber: line });
+          editorRef.current.focus();
+      }
   };
 
   const handleInsertSnippet = (code: string) => {
@@ -683,6 +743,30 @@ export default function App() {
     return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
   }, [isResizingSidebar, isResizingRightPanel]);
 
+  // --- DND Logic ---
+  const handleDragEnd = (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (over && active.id !== over.id) {
+
+          // Case 1: Drop on Editor (Open File)
+          if (over.id === 'editor-zone') {
+               const activeNode = active.data.current?.node as FileSystemNode;
+               if (activeNode && activeNode.type === 'file') {
+                   handleOpenFileNode(activeNode);
+               }
+               return;
+          }
+
+          // Case 2: Drop on Folder (Move File)
+          const activeNode = active.data.current?.node as FileSystemNode;
+          const overNode = over.data.current?.node as FileSystemNode;
+
+          if (activeNode && overNode && overNode.type === 'folder') {
+              handleMoveItem(activeNode.path, overNode.path);
+          }
+      }
+  };
+
   // --- RENDER ---
   return (
     <MantineProvider
@@ -690,6 +774,7 @@ export default function App() {
         forceColorScheme={activeTheme.type}
         cssVariablesResolver={resolver}
     >
+      <DndContext onDragEnd={handleDragEnd}>
       <AppShell header={{ height: 35 }} footer={{ height: 24 }} padding={0}>
         
         {/* HEADER */}
@@ -744,9 +829,12 @@ export default function App() {
                     onCreateItem={handleCreateItem}
                     onRenameItem={handleRenameItem}
                     onDeleteItem={handleDeleteItem}
+                    onMoveItem={handleMoveItem}
                     onInsertSymbol={handleInsertSnippet}
                     activePackageId={activePackageId}
                     onSelectPackage={setActivePackageId}
+                    outlineSource={outlineSource}
+                    onScrollToLine={handleRevealLine}
                 />
                 
                 {/* 2. CENTER: EDITOR AREA or SETTINGS */}
@@ -861,6 +949,7 @@ export default function App() {
         </AppShell.Footer>
 
       </AppShell>
+      </DndContext>
     </MantineProvider>
   );
 }

@@ -1,11 +1,12 @@
 import React from 'react';
-import { Stack, ScrollArea, Group, Box, Text, ActionIcon, Tooltip } from "@mantine/core";
+import { Stack, ScrollArea, Group, Box, Text, ActionIcon, Tooltip, Menu } from "@mantine/core";
 import Editor, { OnMount } from "@monaco-editor/react";
+import { useDroppable } from '@dnd-kit/core';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faFileCode, faBookOpen, faCog, faImage, faFile,
   faTimes, faPlay, faColumns, faCode, faStop, faHome, faChevronRight,
-  faFilePdf
+  faFilePdf, faArrowRight, faCopy
 } from "@fortawesome/free-solid-svg-icons";
 import { TableDataView } from "../database/TableDataView";
 import { AppTab } from "./Sidebar"; 
@@ -17,7 +18,7 @@ interface EditorAreaProps {
   files: AppTab[];
   activeFileId: string;
   onFileSelect: (id: string) => void;
-  onFileClose: (id: string, e: React.MouseEvent) => void;
+  onFileClose: (id: string, e?: React.MouseEvent) => void;
   onContentChange: (id: string, content: string) => void;
   onMount: OnMount;
   showPdf: boolean;
@@ -36,6 +37,82 @@ interface EditorAreaProps {
   onOpenRecent?: (path: string) => void;
   editorSettings?: EditorSettings;
 }
+
+const getFileIcon = (name: string, type: string) => {
+    if (type === 'start-page') return <FontAwesomeIcon icon={faHome} style={{ width: 14, height: 14, color: "#fab005" }} />;
+    const ext = name.split('.').pop()?.toLowerCase();
+    switch(ext) {
+        case 'tex': return <FontAwesomeIcon icon={faFileCode} style={{ width: 14, height: 14, color: "#4dabf7" }} />;
+        case 'bib': return <FontAwesomeIcon icon={faBookOpen} style={{ width: 14, height: 14, color: "#fab005" }} />;
+        case 'sty': return <FontAwesomeIcon icon={faCog} style={{ width: 14, height: 14, color: "#be4bdb" }} />;
+        case 'pdf': return <FontAwesomeIcon icon={faFilePdf} style={{ width: 14, height: 14, color: "#fa5252" }} />;
+        case 'png':
+        case 'jpg': return <FontAwesomeIcon icon={faImage} style={{ width: 14, height: 14, color: "#40c057" }} />;
+        default: return <FontAwesomeIcon icon={faFile} style={{ width: 14, height: 14, color: "#868e96" }} />;
+    }
+};
+
+const TabItem = ({
+    file, activeFileId, onSelect, onClose, onCloseOthers, onCloseRight, onCopyPath
+}: {
+    file: AppTab,
+    activeFileId: string,
+    onSelect: (id: string) => void,
+    onClose: (id: string, e?: React.MouseEvent) => void,
+    onCloseOthers: (id: string) => void,
+    onCloseRight: (id: string) => void,
+    onCopyPath: (id: string) => void
+}) => {
+    const [menuOpened, setMenuOpened] = React.useState(false);
+
+    const handleContextMenu = (e: React.MouseEvent) => {
+        e.preventDefault();
+        onSelect(file.id); // Select on right click too
+        setMenuOpened(true);
+    };
+
+    return (
+        <Menu shadow="md" width={200} opened={menuOpened} onChange={setMenuOpened}>
+            <Menu.Target>
+                <Box
+                    onContextMenu={handleContextMenu}
+                    onClick={() => onSelect(file.id)}
+                    py={6} px={12}
+                    bg={file.id === activeFileId ? "dark.7" : "transparent"}
+                    style={{
+                        borderTop: file.id === activeFileId ? "2px solid #339af0" : "2px solid transparent",
+                        borderRight: "1px solid var(--mantine-color-dark-6)",
+                        borderTopRightRadius: 4, borderTopLeftRadius: 4,
+                        cursor: "pointer", minWidth: 120,
+                    }}
+                >
+                    {/* Hidden Menu Target Overlay for positioning */}
+                    <Box style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
+
+                    <Group gap={8} wrap="nowrap">
+                        {getFileIcon(file.title, file.type)}
+                        <Text size="xs" c={file.id === activeFileId ? "white" : "dimmed"}>{file.title}</Text>
+                        <ActionIcon size="xs" variant="transparent" color="gray" className="close-tab" onClick={(e) => onClose(file.id, e)} style={{ opacity: file.id === activeFileId ? 1 : 0.5 }}>
+                            <FontAwesomeIcon icon={faTimes} style={{ width: 12, height: 12 }} />
+                        </ActionIcon>
+                    </Group>
+                </Box>
+            </Menu.Target>
+            <Menu.Dropdown>
+                <Menu.Item leftSection={<FontAwesomeIcon icon={faTimes} style={{ width: 14, height: 14 }} />} onClick={() => onCloseOthers(file.id)}>
+                    Close Others
+                </Menu.Item>
+                <Menu.Item leftSection={<FontAwesomeIcon icon={faArrowRight} style={{ width: 14, height: 14 }} />} onClick={() => onCloseRight(file.id)}>
+                    Close to the Right
+                </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item leftSection={<FontAwesomeIcon icon={faCopy} style={{ width: 14, height: 14 }} />} onClick={() => onCopyPath(file.id)}>
+                    Copy Path
+                </Menu.Item>
+            </Menu.Dropdown>
+        </Menu>
+    );
+};
 
 export const EditorArea = React.memo<EditorAreaProps>(({
   files, activeFileId, onFileSelect, onFileClose, onContentChange, onMount, 
@@ -66,19 +143,33 @@ export const EditorArea = React.memo<EditorAreaProps>(({
     }
   }, [editorInstance, editorSettings]);
 
-  const getFileIcon = (name: string, type: string) => {
-    if (type === 'start-page') return <FontAwesomeIcon icon={faHome} style={{ width: 14, height: 14, color: "#fab005" }} />;
-    const ext = name.split('.').pop()?.toLowerCase();
-    switch(ext) {
-        case 'tex': return <FontAwesomeIcon icon={faFileCode} style={{ width: 14, height: 14, color: "#4dabf7" }} />;
-        case 'bib': return <FontAwesomeIcon icon={faBookOpen} style={{ width: 14, height: 14, color: "#fab005" }} />;
-        case 'sty': return <FontAwesomeIcon icon={faCog} style={{ width: 14, height: 14, color: "#be4bdb" }} />;
-        case 'pdf': return <FontAwesomeIcon icon={faFilePdf} style={{ width: 14, height: 14, color: "#fa5252" }} />;
-        case 'png':
-        case 'jpg': return <FontAwesomeIcon icon={faImage} style={{ width: 14, height: 14, color: "#40c057" }} />;
-        default: return <FontAwesomeIcon icon={faFile} style={{ width: 14, height: 14, color: "#868e96" }} />;
-    }
+  const handleCloseOthers = (currentId: string) => {
+      files.forEach(f => {
+          if (f.id !== currentId && f.type !== 'start-page') {
+              onFileClose(f.id);
+          }
+      });
   };
+
+  const handleCloseRight = (currentId: string) => {
+      const index = files.findIndex(f => f.id === currentId);
+      if (index !== -1) {
+          for (let i = index + 1; i < files.length; i++) {
+              if (files[i].type !== 'start-page') {
+                  onFileClose(files[i].id);
+              }
+          }
+      }
+  };
+
+  const handleCopyPath = (path: string) => {
+      navigator.clipboard.writeText(path);
+  };
+
+  // DnD Drop Zone for Editor
+  const { setNodeRef, isOver } = useDroppable({
+    id: 'editor-zone',
+  });
 
   return (
     <Stack gap={0} h="100%" w="100%" style={{ overflow: "hidden" }}>
@@ -86,26 +177,16 @@ export const EditorArea = React.memo<EditorAreaProps>(({
       <ScrollArea type="hover" scrollbarSize={6} bg="dark.8" style={{ borderBottom: "1px solid var(--mantine-color-dark-6)", whiteSpace: 'nowrap', flexShrink: 0 }}>
         <Group gap={1} pt={4} px={4} wrap="nowrap">
           {files.map(file => (
-            <Box
-              key={file.id}
-              py={6} px={12}
-              bg={file.id === activeFileId ? "dark.7" : "transparent"}
-              style={{
-                borderTop: file.id === activeFileId ? "2px solid #339af0" : "2px solid transparent",
-                borderRight: "1px solid var(--mantine-color-dark-6)",
-                borderTopRightRadius: 4, borderTopLeftRadius: 4,
-                cursor: "pointer", minWidth: 120,
-              }}
-              onClick={() => onFileSelect(file.id)}
-            >
-              <Group gap={8} wrap="nowrap">
-                {getFileIcon(file.title, file.type)}
-                <Text size="xs" c={file.id === activeFileId ? "white" : "dimmed"}>{file.title}</Text>
-                <ActionIcon size="xs" variant="transparent" color="gray" className="close-tab" onClick={(e) => onFileClose(file.id, e)} style={{ opacity: file.id === activeFileId ? 1 : 0.5 }}>
-                  <FontAwesomeIcon icon={faTimes} style={{ width: 12, height: 12 }} />
-                </ActionIcon>
-              </Group>
-            </Box>
+              <TabItem
+                key={file.id}
+                file={file}
+                activeFileId={activeFileId}
+                onSelect={onFileSelect}
+                onClose={onFileClose}
+                onCloseOthers={handleCloseOthers}
+                onCloseRight={handleCloseRight}
+                onCopyPath={handleCopyPath}
+              />
           ))}
         </Group>
       </ScrollArea>
@@ -131,7 +212,7 @@ export const EditorArea = React.memo<EditorAreaProps>(({
       )}
 
       {/* Main Content */}
-      <Box style={{ flex: 1, position: "relative", minWidth: 0, height: "100%", overflow: "hidden" }}>
+      <Box ref={setNodeRef} style={{ flex: 1, position: "relative", minWidth: 0, height: "100%", overflow: "hidden", border: isOver ? '2px dashed var(--mantine-primary-color-filled)' : 'none' }}>
           {activeFile?.type === 'editor' ? (
              <Box style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
                  <Box style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
