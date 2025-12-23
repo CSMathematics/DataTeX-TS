@@ -19,6 +19,7 @@ interface EditorAreaProps {
   activeFileId: string;
   onFileSelect: (id: string) => void;
   onFileClose: (id: string, e?: React.MouseEvent) => void;
+  onCloseFiles?: (ids: string[]) => void;
   onContentChange: (id: string, content: string) => void;
   onMount: OnMount;
   showPdf: boolean;
@@ -115,7 +116,7 @@ const TabItem = ({
 };
 
 export const EditorArea = React.memo<EditorAreaProps>(({
-  files, activeFileId, onFileSelect, onFileClose, onContentChange, onMount, 
+  files, activeFileId, onFileSelect, onFileClose, onCloseFiles, onContentChange, onMount,
   onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile,
   onCreateEmpty, onOpenWizard, onCreateFromTemplate, recentProjects, onOpenRecent,
   editorSettings
@@ -144,20 +145,30 @@ export const EditorArea = React.memo<EditorAreaProps>(({
   }, [editorInstance, editorSettings]);
 
   const handleCloseOthers = (currentId: string) => {
-      files.forEach(f => {
-          if (f.id !== currentId && f.type !== 'start-page') {
-              onFileClose(f.id);
-          }
-      });
+      const idsToClose = files
+          .filter(f => f.id !== currentId && f.type !== 'start-page')
+          .map(f => f.id);
+
+      if (onCloseFiles && idsToClose.length > 0) {
+          onCloseFiles(idsToClose);
+      } else {
+          // Fallback if onCloseFiles is not provided, though race condition exists
+          idsToClose.forEach(id => onFileClose(id));
+      }
   };
 
   const handleCloseRight = (currentId: string) => {
       const index = files.findIndex(f => f.id === currentId);
       if (index !== -1) {
-          for (let i = index + 1; i < files.length; i++) {
-              if (files[i].type !== 'start-page') {
-                  onFileClose(files[i].id);
-              }
+          const idsToClose = files
+              .slice(index + 1)
+              .filter(f => f.type !== 'start-page')
+              .map(f => f.id);
+
+          if (onCloseFiles && idsToClose.length > 0) {
+              onCloseFiles(idsToClose);
+          } else {
+              idsToClose.forEach(id => onFileClose(id));
           }
       }
   };

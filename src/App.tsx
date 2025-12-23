@@ -16,7 +16,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTimes } from "@fortawesome/free-solid-svg-icons";
 import { invoke } from "@tauri-apps/api/core"; 
 import { debounce } from "lodash";
-import { DndContext, DragEndEvent } from '@dnd-kit/core';
+import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 
 // --- Custom Theme ---
 import { getTheme } from "./themes/ui-themes";
@@ -466,6 +466,16 @@ export default function App() {
     }
   };
 
+  const handleCloseTabs = (ids: string[]) => {
+      const newTabs = tabs.filter(t => !ids.includes(t.id));
+      setTabs(newTabs);
+
+      if (ids.includes(activeTabId)) {
+          if (newTabs.length > 0) setActiveTabId(newTabs[newTabs.length - 1].id);
+          else handleRequestNewFile();
+      }
+  };
+
   // --- PERFORMANCE FIX: Decoupled State Updates ---
   
   // 1. Sync Content on Tab Switch
@@ -744,6 +754,14 @@ export default function App() {
   }, [isResizingSidebar, isResizingRightPanel]);
 
   // --- DND Logic ---
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+        activationConstraint: {
+            distance: 10,
+        },
+    })
+  );
+
   const handleDragEnd = (event: DragEndEvent) => {
       const { active, over } = event;
       if (over && active.id !== over.id) {
@@ -774,7 +792,7 @@ export default function App() {
         forceColorScheme={activeTheme.type}
         cssVariablesResolver={resolver}
     >
-      <DndContext onDragEnd={handleDragEnd}>
+      <DndContext onDragEnd={handleDragEnd} sensors={sensors}>
       <AppShell header={{ height: 35 }} footer={{ height: 24 }} padding={0}>
         
         {/* HEADER */}
@@ -850,6 +868,7 @@ export default function App() {
                         <EditorArea
                             files={tabs} activeFileId={activeTabId}
                             onFileSelect={handleTabChange} onFileClose={handleCloseTab}
+                            onCloseFiles={handleCloseTabs}
                             onContentChange={handleEditorChange} onMount={handleEditorDidMount}
                             showPdf={showPdf} onTogglePdf={() => setShowPdf(!showPdf)}
                             isTexFile={isTexFile} onCompile={handleCompile} isCompiling={isCompiling}
