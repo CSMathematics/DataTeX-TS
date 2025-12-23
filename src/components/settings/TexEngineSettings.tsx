@@ -9,6 +9,7 @@ export interface TexEngineConfig {
     outputDirectory: string;
     shellEscape: boolean;
     synctex: boolean;
+    bibtex: boolean;
 }
 
 const DEFAULT_CONFIG: TexEngineConfig = {
@@ -18,7 +19,8 @@ const DEFAULT_CONFIG: TexEngineConfig = {
     lualatexPath: 'lualatex',
     outputDirectory: 'build',
     shellEscape: false,
-    synctex: true
+    synctex: true,
+    bibtex: false
 };
 
 export const TexEngineSettings = () => {
@@ -103,6 +105,13 @@ export const TexEngineSettings = () => {
                 description="Allows synchronization between source and PDF."
                 checked={config.synctex}
                 onChange={(e) => handleChange('synctex', e.currentTarget.checked)}
+            />
+
+            <Checkbox
+                label="Enable BibTeX"
+                description="Run bibtex after compilation to generate bibliography."
+                checked={config.bibtex}
+                onChange={(e) => handleChange('bibtex', e.currentTarget.checked)}
             />
 
             <Box mt="md">

@@ -1,5 +1,6 @@
-import React from 'react';
-import { Stack, Title, Text, Select, NumberInput, Switch, TextInput } from '@mantine/core';
+import React, { useEffect, useState } from 'react';
+import { Stack, Title, Text, Select, NumberInput, Switch } from '@mantine/core';
+import { invoke } from '@tauri-apps/api/core';
 import { EditorSettings as IEditorSettings } from '../../hooks/useSettings';
 
 interface EditorSettingsProps {
@@ -8,6 +9,16 @@ interface EditorSettingsProps {
 }
 
 export const EditorSettings: React.FC<EditorSettingsProps> = ({ settings, onUpdate }) => {
+    const [systemFonts, setSystemFonts] = useState<string[]>([]);
+
+    useEffect(() => {
+        invoke<string[]>('get_system_fonts')
+            .then(fonts => {
+                setSystemFonts(fonts);
+            })
+            .catch(err => console.error("Failed to load fonts", err));
+    }, []);
+
     return (
         <Stack gap="md" maw={600}>
             <Title order={4}>Editor Settings</Title>
@@ -22,11 +33,15 @@ export const EditorSettings: React.FC<EditorSettingsProps> = ({ settings, onUpda
                 max={32}
             />
 
-            <TextInput
+            <Select
                 label="Font Family"
                 description="The font family used in the editor."
+                data={systemFonts}
                 value={settings.fontFamily}
-                onChange={(e) => onUpdate('fontFamily', e.currentTarget.value)}
+                onChange={(val) => onUpdate('fontFamily', val || 'Consolas')}
+                searchable
+                nothingFoundMessage="No fonts found"
+                checkIconPosition="right"
             />
 
             <Select
