@@ -1,4 +1,4 @@
-import { languages } from 'monaco-editor'
+import { languages, editor } from 'monaco-editor'
 
 export const latexConfiguration: languages.LanguageConfiguration = {
   comments: {
@@ -186,4 +186,167 @@ export const latexLanguage: languages.IMonarchLanguage = {
       [/./, 'string.math']
     ]
   }
+}
+
+export function setupLatexProviders(monaco: any) {
+  monaco.languages.registerCompletionItemProvider('my-latex', {
+    provideCompletionItems: (model: editor.ITextModel, position: any) => {
+      const word = model.getWordUntilPosition(position);
+      const range = {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: word.startColumn,
+        endColumn: word.endColumn
+      };
+
+      const suggestions = [
+        // Environments
+        {
+          label: 'itemize',
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: [
+            '\\begin{itemize}',
+            '\t\\item $0',
+            '\\end{itemize}'
+          ].join('\n'),
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          documentation: 'Bulleted list environment',
+          range
+        },
+        {
+          label: 'enumerate',
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: [
+            '\\begin{enumerate}',
+            '\t\\item $0',
+            '\\end{enumerate}'
+          ].join('\n'),
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          documentation: 'Numbered list environment',
+          range
+        },
+        {
+          label: 'description',
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: [
+            '\\begin{description}',
+            '\t\\item[$1] $0',
+            '\\end{description}'
+          ].join('\n'),
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          documentation: 'Description list environment',
+          range
+        },
+        {
+          label: 'equation',
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: [
+            '\\begin{equation}',
+            '\t$0',
+            '\\end{equation}'
+          ].join('\n'),
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          documentation: 'Equation environment',
+          range
+        },
+        {
+          label: 'align',
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: [
+            '\\begin{align}',
+            '\t$0',
+            '\\end{align}'
+          ].join('\n'),
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          documentation: 'Align environment',
+          range
+        },
+        {
+          label: 'gather',
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: [
+            '\\begin{gather}',
+            '\t$0',
+            '\\end{gather}'
+          ].join('\n'),
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          documentation: 'Gather environment',
+          range
+        },
+        {
+          label: 'figure',
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: [
+            '\\begin{figure}[h]',
+            '\t\\centering',
+            '\t\\includegraphics[width=0.8\\textwidth]{$1}',
+            '\t\\caption{$2}',
+            '\t\\label{fig:$3}',
+            '\\end{figure}'
+          ].join('\n'),
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          documentation: 'Figure environment',
+          range
+        },
+        {
+          label: 'table',
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: [
+            '\\begin{table}[h]',
+            '\t\\centering',
+            '\t\\begin{tabular}{|c|c|}',
+            '\t\t\\hline',
+            '\t\t$1 & $2 \\\\',
+            '\t\t\\hline',
+            '\t\\end{tabular}',
+            '\t\\caption{$3}',
+            '\t\\label{tab:$4}',
+            '\\end{table}'
+          ].join('\n'),
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          documentation: 'Table environment',
+          range
+        },
+        {
+          label: 'center',
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: [
+            '\\begin{center}',
+            '\t$0',
+            '\\end{center}'
+          ].join('\n'),
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          documentation: 'Center environment',
+          range
+        },
+        {
+          label: 'cases',
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: [
+            '\\begin{cases}',
+            '\t$1 & \\text{if } $2 \\\\',
+            '\t$3 & \\text{otherwise}',
+            '\\end{cases}'
+          ].join('\n'),
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+          documentation: 'Cases environment',
+          range
+        },
+        {
+            label: 'begin',
+            kind: monaco.languages.CompletionItemKind.Snippet,
+            insertText: [
+                '\\begin{$1}',
+                '\t$0',
+                '\\end{$1}'
+            ].join('\n'),
+            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            documentation: 'Generic environment',
+            range
+        }
+      ];
+
+      return { suggestions: suggestions };
+    }
+  });
 }

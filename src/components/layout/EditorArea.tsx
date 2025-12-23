@@ -13,6 +13,8 @@ import { AppTab } from "./Sidebar";
 import { StartPage } from "./StartPage";
 import { EditorToolbar } from "./EditorToolbar";
 import { EditorSettings } from '../../hooks/useSettings';
+import { LogPanel } from "../ui/LogPanel";
+import { LogEntry } from "../../utils/logParser";
 
 interface EditorAreaProps {
   files: AppTab[];
@@ -37,6 +39,12 @@ interface EditorAreaProps {
   recentProjects?: string[];
   onOpenRecent?: (path: string) => void;
   editorSettings?: EditorSettings;
+
+  // Log Panel Props
+  logEntries?: LogEntry[];
+  showLogPanel?: boolean;
+  onCloseLogPanel?: () => void;
+  onJumpToLine?: (line: number) => void;
 }
 
 const getFileIcon = (name: string, type: string) => {
@@ -119,7 +127,8 @@ export const EditorArea = React.memo<EditorAreaProps>(({
   files, activeFileId, onFileSelect, onFileClose, onCloseFiles, onContentChange, onMount,
   onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile,
   onCreateEmpty, onOpenWizard, onCreateFromTemplate, recentProjects, onOpenRecent,
-  editorSettings
+  editorSettings,
+  logEntries, showLogPanel, onCloseLogPanel, onJumpToLine
 }) => {
   
   const activeFile = files.find(f => f.id === activeFileId);
@@ -223,30 +232,41 @@ export const EditorArea = React.memo<EditorAreaProps>(({
       )}
 
       {/* Main Content */}
-      <Box ref={setNodeRef} style={{ flex: 1, position: "relative", minWidth: 0, height: "100%", overflow: "hidden", border: isOver ? '2px dashed var(--mantine-primary-color-filled)' : 'none' }}>
+      <Box ref={setNodeRef} style={{ flex: 1, position: "relative", minWidth: 0, height: "100%", overflow: "hidden", border: isOver ? '2px dashed var(--mantine-primary-color-filled)' : 'none', display: 'flex', flexDirection: 'column' }}>
           {activeFile?.type === 'editor' ? (
-             <Box style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
-                 <Box style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
-                    <Editor
-                        path={activeFile.id}
-                        height="100%"
-                        defaultLanguage="my-latex"
-                        defaultValue={activeFile.content}
-                        onMount={handleEditorMount}
-                        onChange={(value) => onContentChange(activeFile.id, value || '')}
-                        options={{
-                            minimap: { enabled: editorSettings?.minimap ?? true, scale: 2 },
-                            fontSize: editorSettings?.fontSize ?? 14,
-                            fontFamily: editorSettings?.fontFamily ?? "Consolas, monospace",
-                            scrollBeyondLastLine: false,
-                            automaticLayout: true,
-                            theme: editorSettings?.theme ?? "data-tex-dark",
-                            wordWrap: editorSettings?.wordWrap ?? "on",
-                            lineNumbers: editorSettings?.lineNumbers ?? "on"
-                        }}
-                    />
-                 </Box>
-             </Box>
+             <>
+                <Box style={{ flex: 1, minHeight: 0, width: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
+                    <Box style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}>
+                        <Editor
+                            path={activeFile.id}
+                            height="100%"
+                            defaultLanguage="my-latex"
+                            defaultValue={activeFile.content}
+                            onMount={handleEditorMount}
+                            onChange={(value) => onContentChange(activeFile.id, value || '')}
+                            options={{
+                                minimap: { enabled: editorSettings?.minimap ?? true, scale: 2 },
+                                fontSize: editorSettings?.fontSize ?? 14,
+                                fontFamily: editorSettings?.fontFamily ?? "Consolas, monospace",
+                                scrollBeyondLastLine: false,
+                                automaticLayout: true,
+                                theme: editorSettings?.theme ?? "data-tex-dark",
+                                wordWrap: editorSettings?.wordWrap ?? "on",
+                                lineNumbers: editorSettings?.lineNumbers ?? "on"
+                            }}
+                        />
+                    </Box>
+                </Box>
+                {showLogPanel && (
+                    <Box h={200} style={{ flexShrink: 0, borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+                        <LogPanel
+                            entries={logEntries || []}
+                            onClose={onCloseLogPanel || (() => {})}
+                            onJump={onJumpToLine || (() => {})}
+                        />
+                    </Box>
+                )}
+             </>
           ) : activeFile?.type === 'table' ? (
              <TableDataView tableName={activeFile.tableName || ''} />
           ) : activeFile?.type === 'start-page' ? (
