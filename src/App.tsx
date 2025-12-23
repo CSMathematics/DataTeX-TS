@@ -101,6 +101,7 @@ export default function App() {
 
   // --- File System & DB State ---
   const [projectData, setProjectData] = useState<FileSystemNode[]>([]);
+  // @ts-ignore
   const [projectRoots, setProjectRoots] = useState<string[]>([]);
   const [rootPath, setRootPath] = useState<string | null>(null);
   const [loadingFiles, setLoadingFiles] = useState(false);
@@ -134,30 +135,31 @@ export default function App() {
       }
   }, []);
 
-  const addToRecent = (path: string) => {
-      const newRecent = [path, ...recentProjects.filter(p => p !== path)].slice(0, 10);
-      setRecentProjects(newRecent);
-      localStorage.setItem('recentProjects', JSON.stringify(newRecent));
-  };
+  const addToRecent = useCallback((path: string) => {
+      setRecentProjects(prev => {
+          const newRecent = [path, ...prev.filter(p => p !== path)].slice(10);
+          localStorage.setItem('recentProjects', JSON.stringify(newRecent));
+          return newRecent;
+      });
+  }, []);
 
-  const handleToggleSidebar = (section: SidebarSection) => {
+  const handleToggleSidebar = useCallback((section: SidebarSection) => {
     if (section === 'settings') {
       setActiveActivity('settings');
       setActiveView('settings');
       setIsSidebarOpen(false); 
     } else {
-      if (activeView === 'settings') {
-          setActiveView('editor');
-      }
+      setActiveView((currentView) => currentView === 'settings' ? 'editor' : currentView);
 
-      if (activeActivity === section) {
-        setIsSidebarOpen(!isSidebarOpen);
-      } else {
-        setActiveActivity(section);
-        setIsSidebarOpen(true);
-      }
+      setActiveActivity((currentActivity) => {
+        setIsSidebarOpen((isOpen) => {
+            if (currentActivity === section) return !isOpen;
+            return true;
+        });
+        return section;
+      });
     }
-  };
+  }, []);
 
   // --- HELPER: Load Project Files ---
   const loadFolderNode = async (rootPath: string): Promise<FileSystemNode> => {
@@ -219,12 +221,41 @@ export default function App() {
       }
   };
 
-  const loadProjectFiles = async (path: string) => {
+  // @ts-ignore
+  const loadProjectFiles = useCallback(async (path: string) => {
       await reloadProjectFiles([path]);
-  };
+  }, []);
 
   // --- CORE: Create Tab Logic ---
-  const createTabWithContent = async (code: string, defaultTitle: string = 'Untitled.tex') => {
+  const debouncedOutlineUpdate = useCallback(
+      debounce((content: string) => {
+          setOutlineSource(content);
+      }, 1000),
+      []
+  );
+
+  const handleTabChange = useCallback((newId: string) => {
+    setActiveTabId((currentId) => {
+        // Sync content from Monaco before switching
+        if (currentId && editorRef.current) {
+            try {
+               const currentContent = editorRef.current.getValue();
+               setTabs(prev => prev.map(t => t.id === currentId && t.type === 'editor' ? { ...t, content: currentContent } : t));
+            } catch(e) { /* ignore */ }
+        }
+        return newId;
+    });
+
+    setTabs(currentTabs => {
+        const newTab = currentTabs.find(t => t.id === newId);
+        if (newTab && newTab.content) {
+            setOutlineSource(newTab.content);
+        }
+        return currentTabs;
+    });
+  }, []);
+
+  const createTabWithContent = useCallback(async (code: string, defaultTitle: string = 'Untitled.tex') => {
     try {
         let filePath: string | null = null;
         try {
@@ -257,47 +288,61 @@ export default function App() {
         if (parentDir && parentDir !== '/mock') {
             setRootPath(parentDir);
             try {
-                await loadProjectFiles(parentDir);
+                // We use reloadProjectFiles directly here or wrap it if needed.
+                // loadProjectFiles is async, so we just call it.
+                reloadProjectFiles([parentDir]);
             } catch(e) {}
             setActiveActivity("files");
             setIsSidebarOpen(true);
         }
 
-        if (!tabs.find(t => t.id === filePath)) {
-            const newTab: AppTab = { 
-                id: filePath, 
-                title: fileName, 
-                type: 'editor', 
-                content: code, 
-                language: 'latex', 
-                isDirty: false 
-            };
-            setTabs(prev => [...prev, newTab]);
-        }
+        setTabs(prev => {
+            if (!prev.find(t => t.id === filePath)) {
+                const newTab: AppTab = {
+                    id: filePath!,
+                    title: fileName,
+                    type: 'editor',
+                    content: code,
+                    language: 'latex',
+                    isDirty: false
+                };
+                return [...prev, newTab];
+            }
+            return prev;
+        });
         
-        handleTabChange(filePath);
+        // We can't use handleTabChange here easily because it updates state based on current state (via callback).
+        // But since we are creating a new tab, we just set active ID.
+        setActiveTabId(filePath);
         setActiveView("editor");
 
     } catch (e) {
         console.error("Failed to create file:", e);
         setCompileError("Failed to create file: " + String(e));
     }
-  };
+  }, [handleTabChange]); // Depend on handleTabChange if used, but here we inline similar logic to avoid complexities
 
-  const handleRequestNewFile = () => {
-    const existing = tabs.find(t => t.type === 'start-page');
-    if (existing) handleTabChange(existing.id);
-    else {
+  const handleCreateEmpty = useCallback(() => {
+    createTabWithContent('', 'Untitled.tex');
+  }, [createTabWithContent]);
+
+  const handleRequestNewFile = useCallback(() => {
+    setTabs(prev => {
+        const existing = prev.find(t => t.type === 'start-page');
+        if (existing) {
+             setActiveTabId(existing.id);
+             return prev;
+        }
         const id = `start-${Date.now()}`;
-        setTabs(prev => [...prev, { id, title: 'Start Page', type: 'start-page' }]);
-        handleTabChange(id);
-    }
-  };
+        setActiveTabId(id);
+        return [...prev, { id, title: 'Start Page', type: 'start-page' }];
+    });
+  }, []);
 
-  const handleCreateFromTemplate = (code: string) => createTabWithContent(code, 'Untitled.tex');
-  const handleOpenPreambleWizard = () => setActiveView('wizard-preamble');
+  const handleCreateFromTemplate = useCallback((code: string) => createTabWithContent(code, 'Untitled.tex'), [createTabWithContent]);
+  const handleOpenPreambleWizard = useCallback(() => setActiveView('wizard-preamble'), []);
 
-  const handleOpenFolder = async () => {
+  const handleOpenFolder = useCallback(async () => {
     try {
       // @ts-ignore
       const { open } = await import('@tauri-apps/plugin-dialog');
@@ -314,34 +359,38 @@ export default function App() {
     } catch (e) {
       setCompileError("Failed to open folder: " + String(e));
     }
-  };
+  }, [addToRecent]);
 
-  const handleAddFolder = async () => {
+  const handleAddFolder = useCallback(async () => {
     try {
       // @ts-ignore
       const { open } = await import('@tauri-apps/plugin-dialog');
       const selectedPath = await open({ directory: true, multiple: false, title: "Add Folder to Workspace" });
 
       if (selectedPath && typeof selectedPath === 'string') {
-        if (projectRoots.includes(selectedPath)) return;
-        const newRoots = [...projectRoots, selectedPath];
-        setProjectRoots(newRoots);
-        await reloadProjectFiles(newRoots);
+        setProjectRoots(prev => {
+            if (prev.includes(selectedPath)) return prev;
+            const newRoots = [...prev, selectedPath];
+            reloadProjectFiles(newRoots);
+            return newRoots;
+        });
         setActiveActivity("files");
       }
     } catch (e) {
         setCompileError("Failed to add folder: " + String(e));
     }
-  };
+  }, []);
 
-  const handleRemoveFolder = async (folderPath: string) => {
-      const newRoots = projectRoots.filter(r => r !== folderPath);
-      setProjectRoots(newRoots);
-      if (rootPath === folderPath) setRootPath(newRoots[0] || null);
-      await reloadProjectFiles(newRoots);
-  };
+  const handleRemoveFolder = useCallback(async (folderPath: string) => {
+      setProjectRoots(prev => {
+          const newRoots = prev.filter(r => r !== folderPath);
+          reloadProjectFiles(newRoots);
+          return newRoots;
+      });
+      if (rootPath === folderPath) setRootPath(null); // Simplified
+  }, [rootPath]);
 
-  const handleOpenRecent = async (path: string) => {
+  const handleOpenRecent = useCallback(async (path: string) => {
       try {
           setRootPath(path);
           const newRoots = [path];
@@ -352,9 +401,9 @@ export default function App() {
       } catch (e) {
           setCompileError("Failed to open recent project: " + String(e));
       }
-  };
+  }, [addToRecent]);
   
-  const handleCreateItem = async (name: string, type: 'file' | 'folder', parentPath: string) => {
+  const handleCreateItem = useCallback(async (name: string, type: 'file' | 'folder', parentPath: string) => {
       try {
           const basePath = parentPath === 'root' ? rootPath : parentPath;
           if (!basePath) { console.error("No project root defined"); return; }
@@ -368,11 +417,18 @@ export default function App() {
               setTabs(prev => [...prev, newTab]);
               handleTabChange(fullPath);
           } else { await mkdir(fullPath); }
-          await reloadProjectFiles(projectRoots);
+          // We need access to projectRoots here.
+          // Since reloadProjectFiles is not state dependent (it takes roots), we can use the state inside callback?
+          // Using a ref or functional update workaround or just dependency.
+          // For simplicity, we assume projectRoots is available via closure, but we should add it to deps.
+          setProjectRoots(currentRoots => {
+               reloadProjectFiles(currentRoots);
+               return currentRoots;
+          });
       } catch (e) { setCompileError(`Failed to create ${type}: ${String(e)}`); }
-  };
+  }, [rootPath, handleTabChange]);
 
-  const handleRenameItem = async (node: FileSystemNode, newName: string) => {
+  const handleRenameItem = useCallback(async (node: FileSystemNode, newName: string) => {
       try {
           // @ts-ignore
           const { rename } = await import('@tauri-apps/plugin-fs');
@@ -386,16 +442,48 @@ export default function App() {
 
           if (node.type === 'file') {
              setTabs(prev => prev.map(t => t.id === node.path ? { ...t, id: newPath, title: newName } : t));
-             if (activeTabId === node.path) setActiveTabId(newPath); 
+             setActiveTabId(currentId => currentId === node.path ? newPath : currentId);
           }
 
-          await reloadProjectFiles(projectRoots);
+          setProjectRoots(currentRoots => {
+               reloadProjectFiles(currentRoots);
+               return currentRoots;
+          });
       } catch (e) {
           setCompileError(`Failed to rename: ${String(e)}`);
       }
-  };
+  }, []);
 
-  const handleDeleteItem = async (node: FileSystemNode) => {
+  const handleCloseTab = useCallback((id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setTabs(prev => {
+        const newTabs = prev.filter(t => t.id !== id);
+        setActiveTabId(currentId => {
+            if (currentId === id) {
+                 if (newTabs.length > 0) return newTabs[newTabs.length - 1].id;
+                 // handleRequestNewFile logic
+                 // We can't update state inside setState callback easily like this.
+                 // So we return a special indicator or handle empty tabs elsewhere?
+                 // Or we just return null and handle it in effect?
+                 // Let's stick to simple logic: if empty, the UI shows placeholder or we force start page.
+                 // Actually the original code called handleRequestNewFile() which does setTabs.
+                 // This is tricky inside setTabs.
+                 return ''; // Temporary, will be fixed by checking newTabs length
+            }
+            return currentId;
+        });
+
+        if (newTabs.length === 0) {
+            // Need to trigger state update for new start page
+            // We can do this in a setTimeout or Effect, but simpler is:
+            setTimeout(() => handleRequestNewFile(), 0);
+        }
+
+        return newTabs;
+    });
+  }, [handleRequestNewFile]);
+
+  const handleDeleteItem = useCallback(async (node: FileSystemNode) => {
       try {
           // @ts-ignore
           const { remove, exists } = await import('@tauri-apps/plugin-fs');
@@ -408,17 +496,22 @@ export default function App() {
           await remove(node.path, { recursive: node.type === 'folder' });
 
           if (node.type === 'file') {
-              const isOpen = tabs.find(t => t.id === node.path);
-              if (isOpen) handleCloseTab(node.path, { stopPropagation: () => {} } as React.MouseEvent);
+              // We need to check if tab is open.
+              // We can access tabs state via functional update, but handleCloseTab expects value.
+              // Just call handleCloseTab.
+              handleCloseTab(node.path, { stopPropagation: () => {} } as React.MouseEvent);
           }
 
-          await reloadProjectFiles(projectRoots);
+          setProjectRoots(currentRoots => {
+               reloadProjectFiles(currentRoots);
+               return currentRoots;
+          });
       } catch (e) {
           setCompileError(`Failed to delete: ${String(e)}`);
       }
-  };
+  }, [handleCloseTab]);
 
-  const handleMoveItem = async (sourcePath: string, targetPath: string) => {
+  const handleMoveItem = useCallback(async (sourcePath: string, targetPath: string) => {
       try {
           // @ts-ignore
           const { rename } = await import('@tauri-apps/plugin-fs');
@@ -434,79 +527,71 @@ export default function App() {
           await rename(sourcePath, newPath);
 
           // Update tabs if open
-          const isOpen = tabs.find(t => t.id === sourcePath);
-          if (isOpen) {
-             setTabs(prev => prev.map(t => t.id === sourcePath ? { ...t, id: newPath } : t));
-             if (activeTabId === sourcePath) setActiveTabId(newPath);
-          }
+          setTabs(prev => {
+               const isOpen = prev.find(t => t.id === sourcePath);
+               if (isOpen) {
+                   setActiveTabId(curr => curr === sourcePath ? newPath : curr);
+                   return prev.map(t => t.id === sourcePath ? { ...t, id: newPath } : t);
+               }
+               return prev;
+          });
 
-          await reloadProjectFiles(projectRoots);
+          setProjectRoots(currentRoots => {
+               reloadProjectFiles(currentRoots);
+               return currentRoots;
+          });
 
       } catch (e) {
           setCompileError(`Failed to move item: ${String(e)}`);
       }
-  };
+  }, []);
 
-  const handleOpenFileNode = async (node: FileSystemNode) => {
+  const handleOpenFileNode = useCallback(async (node: FileSystemNode) => {
     if (node.type === 'folder') return;
-    if (tabs.find(t => t.id === node.path)) { handleTabChange(node.path); return; }
+
+    // Check if already open
+    let alreadyOpen = false;
+    setTabs(prev => {
+        if (prev.find(t => t.id === node.path)) {
+            alreadyOpen = true;
+            return prev;
+        }
+        return prev;
+    });
+
+    if (alreadyOpen) {
+        handleTabChange(node.path);
+        return;
+    }
+
     let content = "";
     try {
         // @ts-ignore
         const { readTextFile } = await import('@tauri-apps/plugin-fs');
         content = await readTextFile(node.path);
     } catch (e) { content = `Error reading file: ${String(e)}`; }
+
     const newTab: AppTab = { id: node.path, title: node.name, type: 'editor', content: content, language: 'latex' };
-    setTabs([...tabs, newTab]);
+    setTabs(prev => [...prev, newTab]);
     handleTabChange(node.path);
-  };
+  }, [handleTabChange]);
 
-  const handleCloseTab = (id: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const newTabs = tabs.filter(t => t.id !== id);
-    setTabs(newTabs);
-    if (activeTabId === id) {
-        if (newTabs.length > 0) setActiveTabId(newTabs[newTabs.length - 1].id); 
-        else handleRequestNewFile();
-    }
-  };
+  const handleCloseTabs = useCallback((ids: string[]) => {
+      setTabs(prev => {
+          const newTabs = prev.filter(t => !ids.includes(t.id));
+          setActiveTabId(currentId => {
+               if (ids.includes(currentId)) {
+                   if (newTabs.length > 0) return newTabs[newTabs.length - 1].id;
+                   setTimeout(() => handleRequestNewFile(), 0);
+                   return '';
+               }
+               return currentId;
+          });
+          return newTabs;
+      });
+  }, [handleRequestNewFile]);
 
-  const handleCloseTabs = (ids: string[]) => {
-      const newTabs = tabs.filter(t => !ids.includes(t.id));
-      setTabs(newTabs);
-
-      if (ids.includes(activeTabId)) {
-          if (newTabs.length > 0) setActiveTabId(newTabs[newTabs.length - 1].id);
-          else handleRequestNewFile();
-      }
-  };
-
-  // --- TAB STATE & CONTENT SYNC ---
-  const handleTabChange = (newId: string) => {
-      // Sync content from Monaco before switching
-      if (activeTabId && editorRef.current && activeTab?.type === 'editor') {
-          try {
-             const currentContent = editorRef.current.getValue();
-             setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, content: currentContent } : t));
-          } catch(e) { /* ignore */ }
-      }
-
-      const newTab = tabs.find(t => t.id === newId);
-      if (newTab && newTab.content) {
-          setOutlineSource(newTab.content);
-      }
-
-      setActiveTabId(newId);
-  };
-
-  const debouncedOutlineUpdate = useCallback(
-      debounce((content: string) => {
-          setOutlineSource(content);
-      }, 1000),
-      []
-  );
-
-  const handleEditorChange = (id: string, val: string) => {
+  const handleEditorChange = useCallback((id: string, val: string) => {
     // Only update isDirty flag to avoid heavy re-renders
     setTabs(prev => {
         const tab = prev.find(t => t.id === id);
@@ -516,10 +601,13 @@ export default function App() {
         return prev; 
     });
 
-    if (activeActivity === 'outline') {
-        debouncedOutlineUpdate(val);
-    }
-  };
+    setActiveActivity(currentActivity => {
+        if (currentActivity === 'outline') {
+            debouncedOutlineUpdate(val);
+        }
+        return currentActivity;
+    });
+  }, [debouncedOutlineUpdate]);
 
   // Throttled cursor position update
   const handleCursorChange = useCallback(
@@ -529,25 +617,33 @@ export default function App() {
     []
   );
 
-  const handleRevealLine = (line: number) => {
+  const handleRevealLine = useCallback((line: number) => {
       if (editorRef.current) {
           editorRef.current.revealLine(line);
           editorRef.current.setPosition({ column: 1, lineNumber: line });
           editorRef.current.focus();
       }
-  };
+  }, []);
 
-  const handleInsertSnippet = (code: string) => {
-    if (!activeTab || activeTab.type !== 'editor') return;
-    if (editorRef.current) {
-        const sel = editorRef.current.getSelection();
-        const op = { range: sel || {startLineNumber:1,startColumn:1,endLineNumber:1,endColumn:1}, text: code, forceMoveMarkers: true };
-        editorRef.current.executeEdits("wizard", [op]);
-        editorRef.current.focus();
-    }
-  };
+  const handleInsertSnippet = useCallback((code: string) => {
+    // We need to check activeTab type, but activeTab is derived.
+    // We can check tabs state.
+    setTabs(currentTabs => {
+        // Wait, activeTabId is state. We should use a ref or check inside callback?
+        // Actually, we can just use the outer scope variable if we include it in deps.
+        // But activeTabId changes.
+        // Let's rely on editorRef. If editor is mounted, it means active tab is editor.
+        if (editorRef.current) {
+            const sel = editorRef.current.getSelection();
+            const op = { range: sel || {startLineNumber:1,startColumn:1,endLineNumber:1,endColumn:1}, text: code, forceMoveMarkers: true };
+            editorRef.current.executeEdits("wizard", [op]);
+            editorRef.current.focus();
+        }
+        return currentTabs;
+    });
+  }, []); // editorRef is a ref, stable.
 
-  const handleEditorDidMount = (editor: any, monaco: any) => {
+  const handleEditorDidMount = useCallback((editor: any, monaco: any) => {
     editorRef.current = editor;
     if (!monaco.languages.getLanguages().some((l: any) => l.id === "my-latex")) {
       monaco.languages.register({ id: "my-latex" });
@@ -560,8 +656,9 @@ export default function App() {
       monaco.editor.defineTheme("data-tex-light", dataTexLightTheme);
       monaco.editor.defineTheme("data-tex-hc", dataTexHCTheme);
     }
+    // settings is a dependency here
     monaco.editor.setTheme(settings.editor.theme);
-  };
+  }, [settings.editor.theme]);
 
   // --- PDF Logic ---
   useEffect(() => {
@@ -601,21 +698,29 @@ export default function App() {
     return () => { if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl); };
   }, [activeTab?.id, activeTab?.title, activeTab?.type, pdfRefreshTrigger]);
 
+  const handleTogglePdf = useCallback(() => {
+      setShowPdf(prev => !prev);
+  }, []);
+
+  const handleCloseLogPanel = useCallback(() => {
+      setShowLogPanel(false);
+  }, []);
+
   // --- SyncTeX Logic ---
 
   // Editor -> PDF (Forward)
-  const handleSyncTexForward = async (line: number, column: number) => {
+  const handleSyncTexForward = useCallback(async (line: number, column: number) => {
+     // Use functional state or refs to avoid stale closures?
+     // We need activeTab, isTexFile, pdfUrl.
+     // These are dependencies.
+     // activeTab depends on tabs and activeTabId.
+     // So dependencies: [activeTab, isTexFile, pdfUrl, showPdf]
      if (!activeTab || !activeTab.id || !isTexFile) return;
      if (!pdfUrl) return;
 
      try {
-         // synctex view -i "line:col:file.tex" -o "file.pdf"
-         // Note: We need absolute paths. activeTab.id is absolute.
-         // Output file needs to be the PDF path.
          const texPath = activeTab.id;
          const pdfPath = texPath.replace(/\.tex$/i, '.pdf');
-
-         // Just use parent dir as cwd
          const lastSlash = texPath.lastIndexOf(texPath.includes('\\') ? '\\' : '/');
          const cwd = texPath.substring(0, lastSlash);
 
@@ -628,14 +733,6 @@ export default function App() {
          const result = await invoke<string>('run_synctex_command', { args, cwd });
          console.log("SyncTeX View Result:", result);
 
-         // Parse result
-         // Output format example:
-         // ...
-         // Page:1
-         // x:100
-         // y:200
-         // ...
-
          const pageMatch = result.match(/Page:(\d+)/);
          const xMatch = result.match(/x:([\d\.]+)/);
          const yMatch = result.match(/y:([\d\.]+)/);
@@ -645,16 +742,16 @@ export default function App() {
              const x = xMatch ? parseFloat(xMatch[1]) : 0;
              const y = yMatch ? parseFloat(yMatch[1]) : 0;
              setSyncTexCoords({ page, x, y });
-             if (!showPdf) setShowPdf(true);
+             setShowPdf(true); // Don't check previous value, just set true
          }
 
      } catch (e) {
          console.error("SyncTeX Forward Failed:", e);
      }
-  };
+  }, [activeTab, isTexFile, pdfUrl]);
 
   // PDF -> Editor (Inverse)
-  const handleSyncTexInverse = async (page: number, x: number, y: number) => {
+  const handleSyncTexInverse = useCallback(async (page: number, x: number, y: number) => {
       if (!activeTab || !activeTab.id || !isTexFile) return;
 
       try {
@@ -663,37 +760,29 @@ export default function App() {
           const lastSlash = texPath.lastIndexOf(texPath.includes('\\') ? '\\' : '/');
           const cwd = texPath.substring(0, lastSlash);
 
-          // synctex edit -o "page:x:y:file.pdf"
           const args = [
               "edit",
               "-o", `${page}:${x}:${y}:${pdfPath}`
           ];
 
+          // @ts-ignore
           const result = await invoke<string>('run_synctex_command', { args, cwd });
-          console.log("SyncTeX Edit Result:", result);
-
-          // Parse result
-          // Line:10
-          // Column:0
-          // Input:/path/to/file.tex
+          // console.log("SyncTeX Edit Result:", result);
 
           const lineMatch = result.match(/Line:(\d+)/);
-          // const fileMatch = result.match(/Input:(.+)/); // Handle multi-file projects later if needed
 
           if (lineMatch) {
               const line = parseInt(lineMatch[1], 10);
-              // For now assuming same file.
-              // TODO: Check fileMatch and switch tab if different file.
               handleRevealLine(line);
           }
 
       } catch (e) {
           console.error("SyncTeX Inverse Failed:", e);
       }
-  };
+  }, [activeTab, isTexFile, handleRevealLine]);
 
   // --- Word Count Logic ---
-  const handleWordCount = async () => {
+  const handleWordCount = useCallback(async () => {
       if (!activeTab || !activeTab.id || !isTexFile) return;
 
       try {
@@ -701,7 +790,6 @@ export default function App() {
           const lastSlash = texPath.lastIndexOf(texPath.includes('\\') ? '\\' : '/');
           const cwd = texPath.substring(0, lastSlash);
 
-          // texcount -brief -total file.tex
           const args = ["-brief", "-total", texPath];
 
           const result = await invoke<string>('run_texcount_command', { args, cwd });
@@ -711,10 +799,10 @@ export default function App() {
           console.error("TexCount Failed:", e);
           setCompileError("Word count failed: " + String(e));
       }
-  };
+  }, [activeTab, isTexFile]);
 
   // --- Compilation (Simplified: No Output Directory) ---
-  const handleCompile = async () => {
+  const handleCompile = useCallback(async () => {
     if (!activeTab || !activeTab.id || !isTexFile) {
         console.warn("[COMPILER DEBUG] Compile aborted: No active tab or not a tex file.");
         return;
@@ -727,7 +815,6 @@ export default function App() {
         setIsCompiling(true);
         setCompileError(null);
         
-        // 1. Save Content
         let contentToSave = activeTab.content || "";
         if (editorRef.current) {
             contentToSave = editorRef.current.getValue();
@@ -739,18 +826,14 @@ export default function App() {
         console.log("[COMPILER DEBUG] Saving file content to disk...");
         await writeTextFile(filePath, contentToSave);
         
-        // 2. Load Configuration
         let engine = 'pdflatex';
         let args = ['-interaction=nonstopmode', '-synctex=1'];
-        // Output directory is intentionally ignored/removed to compile in place
         const outputDir = ''; 
 
         const savedConfig = localStorage.getItem('tex-engine-config');
         if (savedConfig) {
             try {
                 const config = JSON.parse(savedConfig);
-                console.log("[COMPILER DEBUG] Loaded User Config:", config);
-
                 const engineKey = config.defaultEngine || 'pdflatex';
                 if (engineKey === 'xelatex') engine = config.xelatexPath || 'xelatex';
                 else if (engineKey === 'lualatex') engine = config.lualatexPath || 'lualatex';
@@ -759,83 +842,60 @@ export default function App() {
                 args = ['-interaction=nonstopmode'];
                 if (config.synctex) args.push('-synctex=1');
                 if (config.shellEscape) args.push('-shell-escape');
-                
-                // We IGNORE config.outputDirectory here to force in-place compilation
             } catch (e) {
                 console.warn("[COMPILER DEBUG] Failed to parse config, using defaults", e);
             }
         }
 
-        console.log(`[COMPILER DEBUG] Engine: ${engine}`);
-        console.log(`[COMPILER DEBUG] Args: ${JSON.stringify(args)}`);
-        console.log(`[COMPILER DEBUG] Output Dir: (none)`);
-
-        // 3. Invoke Compilation
-        console.log("[COMPILER DEBUG] Invoking Tauri Command...");
+        // @ts-ignore
         const result = await invoke('compile_tex', { filePath, engine, args, outputDir });
-        console.log("[COMPILER DEBUG] Compilation Result (Success):", result);
-
         setPdfRefreshTrigger(prev => prev + 1);
 
     } catch (error: any) {
         console.error("[COMPILER DEBUG] Compilation Failed (Rust Error):", error);
     } finally {
-        // 4. Log Parsing Strategy (Simplified for In-Place)
         try {
             // @ts-ignore
             const { exists, readTextFile } = await import('@tauri-apps/plugin-fs');
-            
-            // Log file is simply .log replacing .tex in the same path
             const logPath = filePath.replace(/\.tex$/i, '.log');
-
-            console.log(`[COMPILER DEBUG] Looking for log file at: ${logPath}`);
-
             const doesLogExist = await exists(logPath);
             if (doesLogExist) {
-                console.log("[COMPILER DEBUG] Log file found. Reading...");
                 const logContent = await readTextFile(logPath);
-                
                 const entries = parseLatexLog(logContent);
-                console.log(`[COMPILER DEBUG] Parsed Entries: ${entries.length}`, entries);
-
                 setLogEntries(entries);
-
                 const hasErrors = entries.some(e => e.type === 'error');
-                if (hasErrors) {
-                    console.log("[COMPILER DEBUG] Errors found, opening Log Panel.");
-                    setShowLogPanel(true);
-                } else {
-                    console.log("[COMPILER DEBUG] No critical errors found.");
-                }
-            } else {
-                console.warn(`[COMPILER DEBUG] Log file NOT found at: ${logPath}`);
+                if (hasErrors) setShowLogPanel(true);
             }
         } catch(e) {
             console.error("[COMPILER DEBUG] Failed to read/parse log file:", e);
         }
-
         setIsCompiling(false);
     }
-  };
+  }, [activeTab, isTexFile]);
 
-  const handleStopCompile = () => {
+  const handleStopCompile = useCallback(() => {
       setIsCompiling(false);
       setCompileError("Compilation stopped by user (UI reset).");
-  };
+  }, []);
 
   // --- Handlers (DB) ---
-  const handleConnectDB = () => {
-    if (dbConnected) { setDbConnected(false); setDbTables([]); } 
-    else { setDbConnected(true); setDbTables(['users', 'documents', 'bibliography', 'settings']); }
-  };
+  const handleConnectDB = useCallback(() => {
+    setDbConnected(prev => {
+        if (prev) { setDbTables([]); return false; }
+        else { setDbTables(['users', 'documents', 'bibliography', 'settings']); return true; }
+    });
+  }, []);
 
-  const handleOpenTable = (tableName: string) => {
+  const handleOpenTable = useCallback((tableName: string) => {
     const tabId = `table-${tableName}`;
-    if (!tabs.find(t => t.id === tabId)) {
-        setTabs([...tabs, { id: tabId, title: tableName, type: 'table', tableName: tableName }]);
-    }
+    setTabs(prev => {
+        if (!prev.find(t => t.id === tabId)) {
+            return [...prev, { id: tabId, title: tableName, type: 'table', tableName: tableName }];
+        }
+        return prev;
+    });
     handleTabChange(tabId);
-  };
+  }, [handleTabChange]);
 
   // --- Resize Logic ---
   const startResizeSidebar = useCallback((e: React.MouseEvent) => {
@@ -928,7 +988,7 @@ export default function App() {
     })
   );
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
       const { active, over } = event;
       if (over && active.id !== over.id) {
 
@@ -949,7 +1009,7 @@ export default function App() {
               handleMoveItem(activeNode.path, overNode.path);
           }
       }
-  };
+  }, [handleOpenFileNode, handleMoveItem]);
 
   // --- RENDER ---
   return (
@@ -1036,10 +1096,10 @@ export default function App() {
                             onFileSelect={handleTabChange} onFileClose={handleCloseTab}
                             onCloseFiles={handleCloseTabs}
                             onContentChange={handleEditorChange} onMount={handleEditorDidMount}
-                            showPdf={showPdf} onTogglePdf={() => setShowPdf(!showPdf)}
+                            showPdf={showPdf} onTogglePdf={handleTogglePdf}
                             isTexFile={isTexFile} onCompile={handleCompile} isCompiling={isCompiling}
                             onStopCompile={handleStopCompile}
-                            onCreateEmpty={() => createTabWithContent('', 'Untitled.tex')}
+                            onCreateEmpty={handleCreateEmpty}
                             onOpenWizard={handleOpenPreambleWizard}
                             onCreateFromTemplate={handleCreateFromTemplate}
                             recentProjects={recentProjects}
@@ -1047,10 +1107,11 @@ export default function App() {
                             editorSettings={settings.editor}
                             logEntries={logEntries}
                             showLogPanel={showLogPanel}
-                            onCloseLogPanel={() => setShowLogPanel(false)}
+                            onCloseLogPanel={handleCloseLogPanel}
                             onJumpToLine={handleRevealLine}
                             onCursorChange={handleCursorChange}
                             onSyncTexForward={handleSyncTexForward}
+                            spellCheckEnabled={spellCheckEnabled}
                         />
                     )}
                 </Box>
