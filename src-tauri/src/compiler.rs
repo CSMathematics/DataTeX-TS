@@ -1,11 +1,21 @@
 use std::process::Command;
 use std::path::Path;
 
+fn is_allowed_engine(engine: &str) -> bool {
+    let allowed_engines = ["pdflatex", "xelatex", "lualatex", "latexmk"];
+    let path = Path::new(engine);
+    let name = path.file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_lowercase())
+        .unwrap_or_default();
+
+    allowed_engines.contains(&name.as_str())
+}
+
 pub fn compile(file_path: &str, engine: &str, args: Vec<String>, output_dir: &str) -> Result<String, String> {
     // Validate engine against a whitelist to prevent arbitrary command execution
-    let allowed_engines = ["pdflatex", "xelatex", "lualatex", "latexmk"];
-    if !allowed_engines.contains(&engine) {
-        return Err(format!("Invalid engine: {}. Allowed engines are: {:?}", engine, allowed_engines));
+    if !is_allowed_engine(engine) {
+        return Err(format!("Invalid engine: {}. Allowed engines are: pdflatex, xelatex, lualatex, latexmk", engine));
     }
 
     let path = Path::new(file_path);
@@ -27,18 +37,7 @@ pub fn compile(file_path: &str, engine: &str, args: Vec<String>, output_dir: &st
     }
 
     // Handle output directory if provided and not empty
-    // Note: Usually the frontend passes this in 'args', but if we want to enforce it here:
     if !output_dir.is_empty() {
-        // We only append it if it's not already in args to avoid duplication
-        // Checking strictly is hard, so we assume the caller handles flags.
-        // But since we accept the argument, let's at least acknowledge it.
-        // For now, to avoid "unused variable" warnings without breaking the signature,
-        // we can just debug print it or check if we should append it.
-        // Let's explicitly append it if it's safe and likely intended.
-        // cmd.arg(format!("-output-directory={}", output_dir));
-
-        // BETTER: Just ignore it if the frontend packs everything into args,
-        // but to silence the warning:
         let _ = output_dir;
     }
 
@@ -54,5 +53,52 @@ pub fn compile(file_path: &str, engine: &str, args: Vec<String>, output_dir: &st
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
         Err(format!("Compilation failed:\n{}\n{}", stdout, stderr))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_allowed_engine_simple() {
+        assert!(is_allowed_engine("pdflatex"));
+        assert!(is_allowed_engine("xelatex"));
+        assert!(is_allowed_engine("lualatex"));
+        assert!(is_allowed_engine("latexmk"));
+    }
+
+    #[test]
+    fn test_is_allowed_engine_with_paths() {
+        // Unix style
+        assert!(is_allowed_engine("/usr/bin/pdflatex"));
+        assert!(is_allowed_engine("/usr/local/texlive/2023/bin/x86_64-linux/xelatex"));
+
+        // Windows style (using forward slashes as Path handles them or just string logic)
+        // Note: On linux environment, backslash might be treated as part of filename if not carefully handled,
+        // but Path usually handles it or we rely on file_stem behavior.
+        // Let's test what works on generic Path impl.
+
+        // If we are on Linux, "C:\tex\pdflatex.exe" might be parsed as one filename "C:\tex\pdflatex.exe"
+        // and file_stem would be "C:\tex\pdflatex". This fails the check.
+        // So we should be careful with cross-platform tests if the test runner is on Linux.
+        // However, the backend logic runs on the user's machine.
+        // For this test suite running in this environment (likely Linux), we test Linux paths.
+
+        assert!(is_allowed_engine("/opt/latexmk"));
+    }
+
+    #[test]
+    fn test_is_allowed_engine_with_extension() {
+        assert!(is_allowed_engine("pdflatex.exe"));
+        assert!(is_allowed_engine("/usr/bin/pdflatex.exe"));
+    }
+
+    #[test]
+    fn test_is_disallowed_engine() {
+        assert!(!is_allowed_engine("cmd.exe"));
+        assert!(!is_allowed_engine("/bin/sh"));
+        assert!(!is_allowed_engine("pdflatex_malicious"));
+        assert!(!is_allowed_engine("mypdflatex"));
     }
 }
