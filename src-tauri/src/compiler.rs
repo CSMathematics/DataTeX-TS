@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::env;
 
 fn is_allowed_engine(engine: &str) -> bool {
-    let allowed_engines = ["pdflatex", "xelatex", "lualatex", "latexmk"];
+    let allowed_engines = ["pdflatex", "xelatex", "lualatex", "latexmk", "synctex", "texcount"];
     let path = Path::new(engine);
     let name = path.file_stem()
         .and_then(|s| s.to_str())
@@ -45,6 +45,42 @@ fn get_augmented_path() -> String {
         }
     }
     new_path
+}
+
+fn run_command_generic(command: &str, args: Vec<String>, cwd: Option<&Path>) -> Result<String, String> {
+    if !is_allowed_engine(command) {
+         return Err(format!("Command not allowed: {}", command));
+    }
+
+    let mut cmd = Command::new(command);
+
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+
+    let new_path_env = get_augmented_path();
+    cmd.env("PATH", &new_path_env);
+
+    for arg in args {
+        cmd.arg(arg);
+    }
+
+    let output = cmd.output().map_err(|e| {
+         format!("Failed to execute '{}': {}", command, e)
+    })?;
+
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        // Some commands like synctex might return non-zero but still have useful output?
+        // Or if it fails we return error.
+        // Synctex view returns 0 on success.
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // Sometimes stdout has the info even on "failure" or specialized exit codes.
+        // But let's assume standard behavior.
+        // Actually texcount returns 0.
+        Err(format!("Command failed: {}\nStderr: {}", String::from_utf8_lossy(&output.stdout), stderr))
+    }
 }
 
 pub fn compile(file_path: &str, engine: &str, args: Vec<String>, output_dir: &str) -> Result<String, String> {
@@ -107,6 +143,17 @@ pub fn compile(file_path: &str, engine: &str, args: Vec<String>, output_dir: &st
     }
 }
 
+pub fn run_synctex(args: Vec<String>, cwd_path: &str) -> Result<String, String> {
+    // Determine CWD
+    let cwd = if cwd_path.is_empty() { None } else { Some(Path::new(cwd_path)) };
+    run_command_generic("synctex", args, cwd)
+}
+
+pub fn run_texcount(args: Vec<String>, cwd_path: &str) -> Result<String, String> {
+    let cwd = if cwd_path.is_empty() { None } else { Some(Path::new(cwd_path)) };
+    run_command_generic("texcount", args, cwd)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -117,6 +164,8 @@ mod tests {
         assert!(is_allowed_engine("xelatex"));
         assert!(is_allowed_engine("lualatex"));
         assert!(is_allowed_engine("latexmk"));
+        assert!(is_allowed_engine("synctex"));
+        assert!(is_allowed_engine("texcount"));
     }
 
     #[test]

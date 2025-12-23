@@ -45,6 +45,11 @@ interface EditorAreaProps {
   showLogPanel?: boolean;
   onCloseLogPanel?: () => void;
   onJumpToLine?: (line: number) => void;
+
+  // New Props
+  onCursorChange?: (line: number, column: number) => void;
+  onSyncTexForward?: (line: number, column: number) => void;
+  spellCheckEnabled?: boolean;
 }
 
 const getFileIcon = (name: string, type: string) => {
@@ -128,7 +133,8 @@ export const EditorArea = React.memo<EditorAreaProps>(({
   onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile,
   onCreateEmpty, onOpenWizard, onCreateFromTemplate, recentProjects, onOpenRecent,
   editorSettings,
-  logEntries, showLogPanel, onCloseLogPanel, onJumpToLine
+  logEntries, showLogPanel, onCloseLogPanel, onJumpToLine,
+  onCursorChange, onSyncTexForward, spellCheckEnabled
 }) => {
   
   const activeFile = files.find(f => f.id === activeFileId);
@@ -136,6 +142,24 @@ export const EditorArea = React.memo<EditorAreaProps>(({
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     setEditorInstance(editor);
+
+    // Listen for cursor changes
+    editor.onDidChangeCursorPosition((e) => {
+        if (onCursorChange) {
+            onCursorChange(e.position.lineNumber, e.position.column);
+        }
+    });
+
+    // Handle SyncTeX Forward Search (Ctrl + Click)
+    editor.onMouseDown((e: any) => {
+        if (e.event.ctrlKey && e.target.position) {
+             const { lineNumber, column } = e.target.position;
+             if (onSyncTexForward) {
+                 onSyncTexForward(lineNumber, column);
+             }
+        }
+    });
+
     if (onMount) onMount(editor, monaco);
   };
 
@@ -152,6 +176,25 @@ export const EditorArea = React.memo<EditorAreaProps>(({
         // Theme is set globally in App.tsx via monaco.editor.setTheme
     }
   }, [editorInstance, editorSettings]);
+
+  // Handle Spell Check (Naive implementation via DOM)
+  React.useEffect(() => {
+      // Monaco renders lines in "view-lines" class.
+      // We can try to set spellcheck on the textarea or the contenteditable div if available.
+      // Monaco uses a hidden textarea for input.
+      if (editorInstance) {
+          const domNode = editorInstance.getDomNode();
+          if (domNode) {
+              // Try to find the input area
+              const textArea = domNode.querySelector('textarea.inputarea');
+              if (textArea) {
+                  textArea.setAttribute('spellcheck', spellCheckEnabled ? 'true' : 'false');
+              }
+              // Also try the main container, though Monaco's custom rendering might ignore it.
+              // However, this signals "intent" and is the standard way to try to enable browser spellcheck in editors.
+          }
+      }
+  }, [editorInstance, spellCheckEnabled]);
 
   const handleCloseOthers = (currentId: string) => {
       const idsToClose = files

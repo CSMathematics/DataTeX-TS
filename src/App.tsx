@@ -10,12 +10,13 @@ import {
   ActionIcon,
   Text,
   Stack,
-  CSSVariablesResolver
+  CSSVariablesResolver,
+  Modal
 } from "@mantine/core";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTimes } from "@fortawesome/free-solid-svg-icons";
 import { invoke } from "@tauri-apps/api/core"; 
-import { debounce } from "lodash";
+import { debounce, throttle } from "lodash";
 import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 
 // --- Custom Theme ---
@@ -85,12 +86,18 @@ export default function App() {
   const [activeTabId, setActiveTabId] = useState<string>('start-page');
   const editorRef = useRef<any>(null);
   const [outlineSource, setOutlineSource] = useState<string>("");
+  const [cursorPosition, setCursorPosition] = useState({ lineNumber: 1, column: 1 });
+  const [spellCheckEnabled, setSpellCheckEnabled] = useState(false);
 
   // --- Compilation State ---
   const [isCompiling, setIsCompiling] = useState(false);
   const [compileError, setCompileError] = useState<string | null>(null);
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [showLogPanel, setShowLogPanel] = useState(false);
+
+  // --- Word Count State ---
+  const [showWordCount, setShowWordCount] = useState(false);
+  const [wordCountResult, setWordCountResult] = useState<string>("");
 
   // --- File System & DB State ---
   const [projectData, setProjectData] = useState<FileSystemNode[]>([]);
@@ -107,6 +114,7 @@ export default function App() {
   const [showPdf, setShowPdf] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfRefreshTrigger, setPdfRefreshTrigger] = useState(0);
+  const [syncTexCoords, setSyncTexCoords] = useState<{page: number, x: number, y: number} | null>(null);
 
   // --- Derived State ---
   const activeTab = tabs.find(t => t.id === activeTabId);
@@ -513,6 +521,14 @@ export default function App() {
     }
   };
 
+  // Throttled cursor position update
+  const handleCursorChange = useCallback(
+    throttle((line: number, column: number) => {
+        setCursorPosition({ lineNumber: line, column });
+    }, 200),
+    []
+  );
+
   const handleRevealLine = (line: number) => {
       if (editorRef.current) {
           editorRef.current.revealLine(line);
@@ -584,6 +600,118 @@ export default function App() {
     loadPdf();
     return () => { if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl); };
   }, [activeTab?.id, activeTab?.title, activeTab?.type, pdfRefreshTrigger]);
+
+  // --- SyncTeX Logic ---
+
+  // Editor -> PDF (Forward)
+  const handleSyncTexForward = async (line: number, column: number) => {
+     if (!activeTab || !activeTab.id || !isTexFile) return;
+     if (!pdfUrl) return;
+
+     try {
+         // synctex view -i "line:col:file.tex" -o "file.pdf"
+         // Note: We need absolute paths. activeTab.id is absolute.
+         // Output file needs to be the PDF path.
+         const texPath = activeTab.id;
+         const pdfPath = texPath.replace(/\.tex$/i, '.pdf');
+
+         // Just use parent dir as cwd
+         const lastSlash = texPath.lastIndexOf(texPath.includes('\\') ? '\\' : '/');
+         const cwd = texPath.substring(0, lastSlash);
+
+         const args = [
+             "view",
+             "-i", `${line}:${column}:${texPath}`,
+             "-o", pdfPath
+         ];
+
+         const result = await invoke<string>('run_synctex_command', { args, cwd });
+         console.log("SyncTeX View Result:", result);
+
+         // Parse result
+         // Output format example:
+         // ...
+         // Page:1
+         // x:100
+         // y:200
+         // ...
+
+         const pageMatch = result.match(/Page:(\d+)/);
+         const xMatch = result.match(/x:([\d\.]+)/);
+         const yMatch = result.match(/y:([\d\.]+)/);
+
+         if (pageMatch) {
+             const page = parseInt(pageMatch[1], 10);
+             const x = xMatch ? parseFloat(xMatch[1]) : 0;
+             const y = yMatch ? parseFloat(yMatch[1]) : 0;
+             setSyncTexCoords({ page, x, y });
+             if (!showPdf) setShowPdf(true);
+         }
+
+     } catch (e) {
+         console.error("SyncTeX Forward Failed:", e);
+     }
+  };
+
+  // PDF -> Editor (Inverse)
+  const handleSyncTexInverse = async (page: number, x: number, y: number) => {
+      if (!activeTab || !activeTab.id || !isTexFile) return;
+
+      try {
+          const texPath = activeTab.id;
+          const pdfPath = texPath.replace(/\.tex$/i, '.pdf');
+          const lastSlash = texPath.lastIndexOf(texPath.includes('\\') ? '\\' : '/');
+          const cwd = texPath.substring(0, lastSlash);
+
+          // synctex edit -o "page:x:y:file.pdf"
+          const args = [
+              "edit",
+              "-o", `${page}:${x}:${y}:${pdfPath}`
+          ];
+
+          const result = await invoke<string>('run_synctex_command', { args, cwd });
+          console.log("SyncTeX Edit Result:", result);
+
+          // Parse result
+          // Line:10
+          // Column:0
+          // Input:/path/to/file.tex
+
+          const lineMatch = result.match(/Line:(\d+)/);
+          // const fileMatch = result.match(/Input:(.+)/); // Handle multi-file projects later if needed
+
+          if (lineMatch) {
+              const line = parseInt(lineMatch[1], 10);
+              // For now assuming same file.
+              // TODO: Check fileMatch and switch tab if different file.
+              handleRevealLine(line);
+          }
+
+      } catch (e) {
+          console.error("SyncTeX Inverse Failed:", e);
+      }
+  };
+
+  // --- Word Count Logic ---
+  const handleWordCount = async () => {
+      if (!activeTab || !activeTab.id || !isTexFile) return;
+
+      try {
+          const texPath = activeTab.id;
+          const lastSlash = texPath.lastIndexOf(texPath.includes('\\') ? '\\' : '/');
+          const cwd = texPath.substring(0, lastSlash);
+
+          // texcount -brief -total file.tex
+          const args = ["-brief", "-total", texPath];
+
+          const result = await invoke<string>('run_texcount_command', { args, cwd });
+          setWordCountResult(result);
+          setShowWordCount(true);
+      } catch (e) {
+          console.error("TexCount Failed:", e);
+          setCompileError("Word count failed: " + String(e));
+      }
+  };
 
   // --- Compilation (Simplified: No Output Directory) ---
   const handleCompile = async () => {
@@ -921,6 +1049,8 @@ export default function App() {
                             showLogPanel={showLogPanel}
                             onCloseLogPanel={() => setShowLogPanel(false)}
                             onJumpToLine={handleRevealLine}
+                            onCursorChange={handleCursorChange}
+                            onSyncTexForward={handleSyncTexForward}
                         />
                     )}
                 </Box>
@@ -987,7 +1117,11 @@ export default function App() {
                             </Group>
                             <Box style={{ flex: 1, position: 'relative', overflow: 'hidden' }} bg="gray.7">
                                 {pdfUrl ? (
-                                    <PdfPreview pdfUrl={pdfUrl} />
+                                    <PdfPreview
+                                        pdfUrl={pdfUrl}
+                                        onSyncTexInverse={handleSyncTexInverse}
+                                        syncTexCoords={syncTexCoords}
+                                    />
                                 ) : (
                                     <Center h="100%">
                                         {isCompiling ? 
@@ -1005,8 +1139,19 @@ export default function App() {
 
         {/* FOOTER */}
         <AppShell.Footer withBorder={false} p={0}>
-            <StatusBar activeFile={tabs.find(f => f.id === activeTabId)} dbConnected={dbConnected} />
+            <StatusBar
+                activeFile={tabs.find(f => f.id === activeTabId)}
+                dbConnected={dbConnected}
+                cursorPosition={cursorPosition}
+                spellCheckEnabled={spellCheckEnabled}
+                onToggleSpellCheck={() => setSpellCheckEnabled(!spellCheckEnabled)}
+                onWordCount={handleWordCount}
+            />
         </AppShell.Footer>
+
+        <Modal opened={showWordCount} onClose={() => setShowWordCount(false)} title="Word Count Result">
+            <Text style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{wordCountResult}</Text>
+        </Modal>
 
       </AppShell>
       </DndContext>
