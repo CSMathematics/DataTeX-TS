@@ -612,7 +612,10 @@ export default function App() {
   // Throttled cursor position update
   const handleCursorChange = useCallback(
     throttle((line: number, column: number) => {
-        setCursorPosition({ lineNumber: line, column });
+        setCursorPosition(prev => {
+            if (prev.lineNumber === line && prev.column === column) return prev;
+            return { lineNumber: line, column };
+        });
     }, 200),
     []
   );

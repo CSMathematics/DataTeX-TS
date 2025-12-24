@@ -75,7 +75,7 @@ const ITEM_ICONS: Record<string, any> = {
   'mathtt': faTerminal,
 };
 
-export const LeftMathToolbar: React.FC<LeftMathToolbarProps> = ({ editor }) => {
+export const LeftMathToolbar = React.memo<LeftMathToolbarProps>(({ editor }) => {
 
   const insertSnippet = (template: string) => {
     if (!editor) return;
@@ -174,4 +174,4 @@ export const LeftMathToolbar: React.FC<LeftMathToolbarProps> = ({ editor }) => {
         {rootItems.map(item => renderItem(item))}
     </Stack>
   );
-};
+});

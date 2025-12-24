@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Stack, ScrollArea, Group, Box, Text, ActionIcon, Tooltip, Menu } from "@mantine/core";
 import Editor, { OnMount } from "@monaco-editor/react";
 import { useDroppable } from '@dnd-kit/core';
@@ -67,7 +67,7 @@ const getFileIcon = (name: string, type: string) => {
     }
 };
 
-const TabItem = ({
+const TabItem = React.memo(({
     file, activeFileId, onSelect, onClose, onCloseOthers, onCloseRight, onCopyPath
 }: {
     file: AppTab,
@@ -127,7 +127,7 @@ const TabItem = ({
             </Menu.Dropdown>
         </Menu>
     );
-};
+});
 
 export const EditorArea = React.memo<EditorAreaProps>(({
   files, activeFileId, onFileSelect, onFileClose, onCloseFiles, onContentChange, onMount,
@@ -197,7 +197,7 @@ export const EditorArea = React.memo<EditorAreaProps>(({
       }
   }, [editorInstance, spellCheckEnabled]);
 
-  const handleCloseOthers = (currentId: string) => {
+  const handleCloseOthers = useCallback((currentId: string) => {
       const idsToClose = files
           .filter(f => f.id !== currentId && f.type !== 'start-page')
           .map(f => f.id);
@@ -208,9 +208,9 @@ export const EditorArea = React.memo<EditorAreaProps>(({
           // Fallback if onCloseFiles is not provided, though race condition exists
           idsToClose.forEach(id => onFileClose(id));
       }
-  };
+  }, [files, onCloseFiles, onFileClose]);
 
-  const handleCloseRight = (currentId: string) => {
+  const handleCloseRight = useCallback((currentId: string) => {
       const index = files.findIndex(f => f.id === currentId);
       if (index !== -1) {
           const idsToClose = files
@@ -224,16 +224,27 @@ export const EditorArea = React.memo<EditorAreaProps>(({
               idsToClose.forEach(id => onFileClose(id));
           }
       }
-  };
+  }, [files, onCloseFiles, onFileClose]);
 
-  const handleCopyPath = (path: string) => {
+  const handleCopyPath = useCallback((path: string) => {
       navigator.clipboard.writeText(path);
-  };
+  }, []);
 
   // DnD Drop Zone for Editor
   const { setNodeRef, isOver } = useDroppable({
     id: 'editor-zone',
   });
+
+  const editorOptions = useMemo(() => ({
+    minimap: { enabled: editorSettings?.minimap ?? true, scale: 2 },
+    fontSize: editorSettings?.fontSize ?? 14,
+    fontFamily: editorSettings?.fontFamily ?? "Consolas, monospace",
+    scrollBeyondLastLine: false,
+    automaticLayout: true,
+    theme: editorSettings?.theme ?? "data-tex-dark",
+    wordWrap: editorSettings?.wordWrap ?? "on",
+    lineNumbers: editorSettings?.lineNumbers ?? "on"
+  }), [editorSettings]);
 
   return (
     <Stack gap={0} h="100%" w="100%" style={{ overflow: "hidden" }}>
@@ -291,16 +302,7 @@ export const EditorArea = React.memo<EditorAreaProps>(({
                             defaultValue={activeFile.content}
                             onMount={handleEditorMount}
                             onChange={(value) => onContentChange(activeFile.id, value || '')}
-                            options={{
-                                minimap: { enabled: editorSettings?.minimap ?? true, scale: 2 },
-                                fontSize: editorSettings?.fontSize ?? 14,
-                                fontFamily: editorSettings?.fontFamily ?? "Consolas, monospace",
-                                scrollBeyondLastLine: false,
-                                automaticLayout: true,
-                                theme: editorSettings?.theme ?? "data-tex-dark",
-                                wordWrap: editorSettings?.wordWrap ?? "on",
-                                lineNumbers: editorSettings?.lineNumbers ?? "on"
-                            }}
+                            options={editorOptions}
                         />
                     </Box>
                 </Box>
