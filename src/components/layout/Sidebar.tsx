@@ -492,7 +492,7 @@ export const Sidebar = React.memo<SidebarProps>(({
                 display: 'flex', 
                 flexDirection: 'column', 
                 overflow: 'hidden', 
-                backgroundColor: 'var(--app-panel-bg)',
+                backgroundColor: 'var(--app-sidebar-bg)',
                 /* TRANSITION STYLES */
                 minWidth: 0, 
                 flexShrink: 0,

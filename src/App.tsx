@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   AppShell,
   Box,
@@ -64,6 +64,11 @@ export default function App() {
   const { settings, updateEditorSetting, updateGeneralSetting, setUiTheme } = useSettings();
 
   const activeTheme = getTheme(settings.uiTheme);
+
+  // --- PERFORMANCE OPTIMIZATION: Memoize settings to prevent EditorArea re-renders ---
+  // This is crucial. Without this, every time App re-renders (e.g., cursor move),
+  // a new object is passed to EditorArea, breaking React.memo.
+  const editorSettingsMemo = useMemo(() => settings.editor, [settings.editor]);
 
   // --- Layout State ---
   const [activeActivity, setActiveActivity] = useState<SidebarSection>("files");
@@ -311,8 +316,6 @@ export default function App() {
             return prev;
         });
         
-        // We can't use handleTabChange here easily because it updates state based on current state (via callback).
-        // But since we are creating a new tab, we just set active ID.
         setActiveTabId(filePath);
         setActiveView("editor");
 
@@ -320,7 +323,7 @@ export default function App() {
         console.error("Failed to create file:", e);
         setCompileError("Failed to create file: " + String(e));
     }
-  }, [handleTabChange]); // Depend on handleTabChange if used, but here we inline similar logic to avoid complexities
+  }, [handleTabChange]);
 
   const handleCreateEmpty = useCallback(() => {
     createTabWithContent('', 'Untitled.tex');
@@ -417,10 +420,7 @@ export default function App() {
               setTabs(prev => [...prev, newTab]);
               handleTabChange(fullPath);
           } else { await mkdir(fullPath); }
-          // We need access to projectRoots here.
-          // Since reloadProjectFiles is not state dependent (it takes roots), we can use the state inside callback?
-          // Using a ref or functional update workaround or just dependency.
-          // For simplicity, we assume projectRoots is available via closure, but we should add it to deps.
+          
           setProjectRoots(currentRoots => {
                reloadProjectFiles(currentRoots);
                return currentRoots;
@@ -461,21 +461,12 @@ export default function App() {
         setActiveTabId(currentId => {
             if (currentId === id) {
                  if (newTabs.length > 0) return newTabs[newTabs.length - 1].id;
-                 // handleRequestNewFile logic
-                 // We can't update state inside setState callback easily like this.
-                 // So we return a special indicator or handle empty tabs elsewhere?
-                 // Or we just return null and handle it in effect?
-                 // Let's stick to simple logic: if empty, the UI shows placeholder or we force start page.
-                 // Actually the original code called handleRequestNewFile() which does setTabs.
-                 // This is tricky inside setTabs.
-                 return ''; // Temporary, will be fixed by checking newTabs length
+                 return '';
             }
             return currentId;
         });
 
         if (newTabs.length === 0) {
-            // Need to trigger state update for new start page
-            // We can do this in a setTimeout or Effect, but simpler is:
             setTimeout(() => handleRequestNewFile(), 0);
         }
 
@@ -496,9 +487,6 @@ export default function App() {
           await remove(node.path, { recursive: node.type === 'folder' });
 
           if (node.type === 'file') {
-              // We need to check if tab is open.
-              // We can access tabs state via functional update, but handleCloseTab expects value.
-              // Just call handleCloseTab.
               handleCloseTab(node.path, { stopPropagation: () => {} } as React.MouseEvent);
           }
 
@@ -629,13 +617,7 @@ export default function App() {
   }, []);
 
   const handleInsertSnippet = useCallback((code: string) => {
-    // We need to check activeTab type, but activeTab is derived.
-    // We can check tabs state.
     setTabs(currentTabs => {
-        // Wait, activeTabId is state. We should use a ref or check inside callback?
-        // Actually, we can just use the outer scope variable if we include it in deps.
-        // But activeTabId changes.
-        // Let's rely on editorRef. If editor is mounted, it means active tab is editor.
         if (editorRef.current) {
             const sel = editorRef.current.getSelection();
             const op = { range: sel || {startLineNumber:1,startColumn:1,endLineNumber:1,endColumn:1}, text: code, forceMoveMarkers: true };
@@ -644,7 +626,7 @@ export default function App() {
         }
         return currentTabs;
     });
-  }, []); // editorRef is a ref, stable.
+  }, []); 
 
   const handleEditorDidMount = useCallback((editor: any, monaco: any) => {
     editorRef.current = editor;
@@ -713,11 +695,6 @@ export default function App() {
 
   // Editor -> PDF (Forward)
   const handleSyncTexForward = useCallback(async (line: number, column: number) => {
-     // Use functional state or refs to avoid stale closures?
-     // We need activeTab, isTexFile, pdfUrl.
-     // These are dependencies.
-     // activeTab depends on tabs and activeTabId.
-     // So dependencies: [activeTab, isTexFile, pdfUrl, showPdf]
      if (!activeTab || !activeTab.id || !isTexFile) return;
      if (!pdfUrl) return;
 
@@ -770,8 +747,7 @@ export default function App() {
 
           // @ts-ignore
           const result = await invoke<string>('run_synctex_command', { args, cwd });
-          // console.log("SyncTeX Edit Result:", result);
-
+          
           const lineMatch = result.match(/Line:(\d+)/);
 
           if (lineMatch) {
@@ -824,7 +800,7 @@ export default function App() {
         }
 
         // @ts-ignore
-        const { writeTextFile, exists, readTextFile } = await import('@tauri-apps/plugin-fs');
+        const { writeTextFile } = await import('@tauri-apps/plugin-fs');
         
         console.log("[COMPILER DEBUG] Saving file content to disk...");
         await writeTextFile(filePath, contentToSave);
@@ -1107,7 +1083,8 @@ export default function App() {
                             onCreateFromTemplate={handleCreateFromTemplate}
                             recentProjects={recentProjects}
                             onOpenRecent={handleOpenRecent}
-                            editorSettings={settings.editor}
+                            // --- PASSING MEMOIZED SETTINGS ---
+                            editorSettings={editorSettingsMemo} 
                             logEntries={logEntries}
                             showLogPanel={showLogPanel}
                             onCloseLogPanel={handleCloseLogPanel}

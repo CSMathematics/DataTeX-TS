@@ -65,7 +65,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
       {
           id: 'formatting',
           render: () => (
-            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+            <Group gap={2} bg="dark.7" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
                 <Tooltip label="Bold (\textbf)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\textbf{', '}')}><FontAwesomeIcon icon={faBold} /></ActionIcon></Tooltip>
                 <Tooltip label="Italic (\textit)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\textit{', '}')}><FontAwesomeIcon icon={faItalic} /></ActionIcon></Tooltip>
                 <Tooltip label="Underline (\underline)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\underline{', '}')}><FontAwesomeIcon icon={faUnderline} /></ActionIcon></Tooltip>
@@ -79,18 +79,19 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
       {
           id: 'headings',
           render: () => (
-            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
-                <Tooltip label="Heading 1 (\section)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\section{', '}')}><Text size="xs" fw={700}>H1</Text></ActionIcon></Tooltip>
-                <Tooltip label="Heading 2 (\subsection)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\subsection{', '}')}><Text size="xs" fw={700}>H2</Text></ActionIcon></Tooltip>
-                <Tooltip label="Heading 3 (\subsubsection)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\subsubsection{', '}')}><Text size="xs" fw={700}>H3</Text></ActionIcon></Tooltip>
-                <Tooltip label="Heading 4 (\paragraph)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\paragraph{', '}')}><Text size="xs" fw={700}>H4</Text></ActionIcon></Tooltip>
+            <Group gap={2} bg="dark.7" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+                <Tooltip label="Heading 1 (\chapter)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\chapter{', '}')}><Text size="xs" fw={700}>H1</Text></ActionIcon></Tooltip>
+                <Tooltip label="Heading 2 (\section)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\section{', '}')}><Text size="xs" fw={700}>H2</Text></ActionIcon></Tooltip>
+                <Tooltip label="Heading 3 (\subsection)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\subsection{', '}')}><Text size="xs" fw={700}>H3</Text></ActionIcon></Tooltip>
+                <Tooltip label="Heading 4 (\subsubsection)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\subsubsection{', '}')}><Text size="xs" fw={700}>H4</Text></ActionIcon></Tooltip>
+                <Tooltip label="Heading 5 (\paragraph)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\paragraph{', '}')}><Text size="xs" fw={700}>H5</Text></ActionIcon></Tooltip>
             </Group>
           )
       },
       {
           id: 'align',
           render: () => (
-            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+            <Group gap={2} bg="dark.7" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
                 <Tooltip label="Align Left (flushleft)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapEnvironment('flushleft')}><FontAwesomeIcon icon={faAlignLeft} /></ActionIcon></Tooltip>
                 <Tooltip label="Align Center (center)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapEnvironment('center')}><FontAwesomeIcon icon={faAlignCenter} /></ActionIcon></Tooltip>
                 <Tooltip label="Align Right (flushright)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapEnvironment('flushright')}><FontAwesomeIcon icon={faAlignRight} /></ActionIcon></Tooltip>
@@ -101,7 +102,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
       {
           id: 'lists',
           render: () => (
-            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+            <Group gap={2} bg="dark.7" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
                 <Tooltip label="Quote environment"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapEnvironment('quote')}><FontAwesomeIcon icon={faQuoteRight} /></ActionIcon></Tooltip>
                 <Tooltip label="Ellipsis (\dots)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\dots')}><FontAwesomeIcon icon={faEllipsisH} /></ActionIcon></Tooltip>
                 <Tooltip label="Bullet List (itemize)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\begin{itemize}\n  \\item \n\\end{itemize}')}><FontAwesomeIcon icon={faListUl} /></ActionIcon></Tooltip>
@@ -112,8 +113,8 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
         {
             id: 'math',
             render: () => (
-                <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
-                    <Tooltip label="Inline Math ($...$)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('$', '$')}><Text size="xs" fw={200}>Σ</Text></ActionIcon></Tooltip>
+                <Group gap={2} bg="dark.7" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+                <Tooltip label="Inline Math ($...$)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('$', '$')}><Text size="xs" fw={200}>Σ</Text></ActionIcon></Tooltip>
                     <Tooltip label="Display Math (\[...\])"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\[', '\\]')}><Text size="xs" fw={700}>Σ</Text></ActionIcon></Tooltip>
                     <Tooltip label="Subscript (_{})"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('_{', '}')}><FontAwesomeIcon icon={faSubscript} /></ActionIcon></Tooltip>
                     <Tooltip label="Superscript (^{})"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('^{', '}')}><FontAwesomeIcon icon={faSuperscript} /></ActionIcon></Tooltip>
@@ -123,7 +124,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
       {
             id: 'spacing',
             render: () => (
-                <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+                <Group gap={2} bg="dark.7" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
                     <Tooltip label="Horizontal Space (\hspace)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\hspace{length}')}><Text size="xs" fw={700}>HS</Text></ActionIcon></Tooltip>
                     <Tooltip label="Vertical Space (\vspace)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\vspace{length}')}><Text size="xs" fw={700}>VS</Text></ActionIcon></Tooltip>
                     <Tooltip label="Small Space (\,)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => insertText('\\,')}><Text size="xs" fw={700}>,</Text></ActionIcon></Tooltip>
@@ -136,7 +137,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
       {
           id: 'links',
           render: () => (
-            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+            <Group gap={2} bg="dark.7" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
                 <Tooltip label="Link (\href)"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={() => wrapSelection('\\href{url}{', '}')}><FontAwesomeIcon icon={faLink} /></ActionIcon></Tooltip>
                 <Tooltip label="Unlink (Remove Link)"><ActionIcon variant="subtle" size="sm" color='gray.5' disabled><FontAwesomeIcon icon={faUnlink} /></ActionIcon></Tooltip>
             </Group>
@@ -145,7 +146,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
       {
           id: 'history',
           render: () => (
-            <Group gap={2} bg="dark.6" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
+            <Group gap={2} bg="dark.7" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
                 <Tooltip label="Undo"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={handleUndo}><FontAwesomeIcon icon={faUndo} /></ActionIcon></Tooltip>
                 <Tooltip label="Redo"><ActionIcon variant="subtle" size="sm" color='gray.5' onClick={handleRedo}><FontAwesomeIcon icon={faRedo} /></ActionIcon></Tooltip>
             </Group>
@@ -156,21 +157,31 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
   // --- Responsive Logic ---
   const { ref: containerRef, width: containerWidth } = useElementSize();
   const [groupWidths, setGroupWidths] = useState<number[]>([]);
+  
+  // NEW STATE: Track if we have finished measuring
+  const [measurementsDone, setMeasurementsDone] = useState(false);
+  
   const ghostRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Measure ghost elements
   useLayoutEffect(() => {
-     // We only need to measure once unless groups change substantially.
-     // If we haven't measured yet, or if count mismatches (defensive)
-     if (ghostRefs.current.length > 0 && (groupWidths.length === 0 || groupWidths.length !== toolbarGroups.length)) {
-         // Small delay to ensure render? usually useLayoutEffect is enough.
+     // If we haven't measured yet, and we have refs
+     if (!measurementsDone && ghostRefs.current.length > 0) {
          const widths = ghostRefs.current.map(el => el?.getBoundingClientRect().width || 0);
-         // Only set if we got valid widths
+         // Ensure we actually got measurements (elements were rendered)
          if (widths.some(w => w > 0)) {
              setGroupWidths(widths);
+             setMeasurementsDone(true); // Stop rendering ghosts!
          }
      }
+  }, [toolbarGroups, measurementsDone]);
+
+  // If toolbar groups configuration changes fundamentally (rare), reset measurements
+  useLayoutEffect(() => {
+      setMeasurementsDone(false);
+      setGroupWidths([]);
   }, [toolbarGroups]);
+
 
   // Calculate Visible Count
   let visibleCount = toolbarGroups.length;
@@ -182,27 +193,6 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
 
       for (let i = 0; i < groupWidths.length; i++) {
           const w = groupWidths[i];
-          // Calculate if this item fits.
-          // If it is the last item, we don't need the 'more' button.
-          // If it is NOT the last item, we need to check if it fits ALONG with the more button (in case next one doesn't fit).
-
-          // Logic:
-          // Can we fit this item?
-          // If we fit this item, will we need a more button?
-          // We need a more button if (i < length - 1).
-
-          // Actually simpler:
-          // Try to fit item `i`.
-          // If `currentWidth + w > containerWidth`, we stop. `visibleCount` stays as is.
-          // BUT, if we stop, we need to ensure the PREVIOUS items + MoreButton fit?
-          // No, we are iterating. `currentWidth` already contains previous items.
-          // We need to check: `currentWidth + w + (needsMore ? moreBtnWidth : 0) <= containerWidth`
-
-          // If we include item `i`, do we need more button?
-          // Only if `i < total - 1`.
-
-          // Optimization: If we fit ALL, we don't need more button.
-
           const needsMoreIfChecking = (i < groupWidths.length - 1);
           const widthWithItem = currentWidth + w;
           const totalRequired = widthWithItem + (needsMoreIfChecking ? gap + moreBtnWidth : 0);
@@ -211,15 +201,9 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
               visibleCount++;
               currentWidth += w + gap;
           } else {
-              // Can't fit this one (or this one + more button).
-              // So we stop.
               break;
           }
       }
-
-      // Edge case: If 0 items fit, maybe show 0? Or always show 1 if possible?
-      // User said "hide icons that don't fit".
-      // If visibleCount is 0, we only show More button.
   }
 
   const visibleGroups = toolbarGroups.slice(0, visibleCount);
@@ -252,25 +236,27 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 </Menu>
             )}
 
-            {/* Ghost Toolbar for Measurement */}
-            <div
-                style={{
-                    position: 'absolute',
-                    top: -9999,
-                    left: 0,
-                    visibility: 'hidden',
-                    pointerEvents: 'none',
-                    display: 'flex',
-                    gap: 8
-                }}
-                aria-hidden="true"
-            >
-                {toolbarGroups.map((group, i) => (
-                    <div key={group.id} ref={(el) => { ghostRefs.current[i] = el; }}>
-                        {group.render()}
-                    </div>
-                ))}
-            </div>
+            {/* Ghost Toolbar for Measurement - ONLY RENDER IF NOT MEASURED YET */}
+            {!measurementsDone && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: -9999,
+                        left: 0,
+                        visibility: 'hidden',
+                        pointerEvents: 'none',
+                        display: 'flex',
+                        gap: 8
+                    }}
+                    aria-hidden="true"
+                >
+                    {toolbarGroups.map((group, i) => (
+                        <div key={group.id} ref={(el) => { ghostRefs.current[i] = el; }}>
+                            {group.render()}
+                        </div>
+                    ))}
+                </div>
+            )}
 
         </Group>
     </div>

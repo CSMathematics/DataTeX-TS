@@ -5,7 +5,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faFileCode, faBookOpen, faCog, faImage, faFile,
-  faTimes, faPlay, faColumns, faCode, faStop, faHome, faChevronRight,
+  faTimes, faPlay, faCode, faStop, faHome, faChevronRight,
   faFilePdf, faArrowRight, faCopy
 } from "@fortawesome/free-solid-svg-icons";
 import { TableDataView } from "../database/TableDataView";
@@ -277,7 +277,7 @@ export const EditorArea = React.memo<EditorAreaProps>(({
                 <Group gap="xs">
                   {isCompiling && <Tooltip label="Stop"><ActionIcon size="sm" variant="subtle" color="red" onClick={onStopCompile}><FontAwesomeIcon icon={faStop} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
                   <Tooltip label="Compile"><ActionIcon size="sm" variant="subtle" color="green" onClick={onCompile} loading={isCompiling} disabled={!isTexFile || isCompiling}>{!isCompiling && <FontAwesomeIcon icon={faPlay} style={{ width: 14, height: 14 }} />}</ActionIcon></Tooltip>
-                  {activeFile?.type === 'editor' && isTexFile && <Tooltip label="PDF"><ActionIcon size="sm" variant="subtle" color="blue" onClick={onTogglePdf}><FontAwesomeIcon icon={faColumns} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
+                  {activeFile?.type === 'editor' && isTexFile && <Tooltip label="PDF"><ActionIcon size="sm" variant="subtle" color="gray.2" onClick={onTogglePdf}><FontAwesomeIcon icon={faFilePdf} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
                 </Group>
             </Group>
             {activeFile?.type === 'editor' && isTexFile && editorInstance && (
