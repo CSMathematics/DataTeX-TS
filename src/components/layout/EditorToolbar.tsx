@@ -184,6 +184,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
 
 
   // Calculate Visible Count
+  // This logic handles the overflow requirement: items that don't fit are moved to a dropdown
   let visibleCount = toolbarGroups.length;
   if (groupWidths.length > 0 && containerWidth > 0) {
       const moreBtnWidth = 32;

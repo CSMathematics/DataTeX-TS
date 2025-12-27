@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Box, Text, LoadingOverlay } from '@mantine/core';
+import { useState, useEffect, useMemo } from 'react';
+import { Box, Text, LoadingOverlay, Group, ActionIcon, Tooltip } from '@mantine/core';
 import { Viewer, Worker } from '@react-pdf-viewer/core';
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faColumns, faTools } from '@fortawesome/free-solid-svg-icons';
 
 // Εισαγωγή των CSS της βιβλιοθήκης
 import '@react-pdf-viewer/core/lib/styles/index.css';
@@ -17,7 +19,13 @@ interface PdfPreviewProps {
 }
 
 export function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPreviewProps) {
-  const defaultLayoutPluginInstance = defaultLayoutPlugin();
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [showToolbar, setShowToolbar] = useState(true);
+
+  const defaultLayoutPluginInstance = useMemo(() => defaultLayoutPlugin({
+    sidebarTabs: showSidebar ? undefined : () => [],
+    renderToolbar: showToolbar ? undefined : () => <></>,
+  }), [showSidebar, showToolbar]);
   
   // State για να ξέρουμε πότε φορτώνει το PDF
   const [ready, setReady] = useState(false);
@@ -82,14 +90,29 @@ export function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPrevi
 
   return (
     <Box h="100%" bg="dark.8" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClickCapture={handleDocumentClick}>
+      {/* Header with Toggles */}
+      <Group justify="flex-end" px="xs" py={4} bg="dark.8" style={{ borderBottom: '1px solid var(--mantine-color-dark-6)' }}>
+        <Tooltip label={showToolbar ? "Hide Toolbar" : "Show Toolbar"}>
+            <ActionIcon variant={showToolbar ? "light" : "subtle"} color="gray" size="sm" onClick={() => setShowToolbar(!showToolbar)}>
+                <FontAwesomeIcon icon={faTools} />
+            </ActionIcon>
+        </Tooltip>
+        <Tooltip label={showSidebar ? "Hide Sidebar" : "Show Sidebar"}>
+            <ActionIcon variant={showSidebar ? "light" : "subtle"} color="gray" size="sm" onClick={() => setShowSidebar(!showSidebar)}>
+                <FontAwesomeIcon icon={faColumns} />
+            </ActionIcon>
+        </Tooltip>
+      </Group>
+
       {/* Ο Worker χρειάζεται για να γίνει το parsing του PDF */}
       <Worker workerUrl={WORKER_URL}>
         {/* Χρησιμοποιούμε το 'rpv-core__viewer--dark' class για native Dark Mode */}
         <div
             style={{
-                height: '100%',
+                flex: 1,
                 width: '100%',
                 backgroundColor: '#2C2E33', // Mantine dark.7
+                overflow: 'hidden',
             }}
             className="rpv-core__viewer--dark"
         >
