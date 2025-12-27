@@ -1,5 +1,7 @@
 use tauri::{State, Manager};
 use tokio::sync::Mutex;
+use directories::ProjectDirs;
+use std::fs;
 
 mod compiler;
 mod db; // Import το module της βάσης
@@ -10,24 +12,13 @@ struct AppState {
     db_manager: Mutex<Option<DatabaseManager>>,
 }
 
-// 2. Η εντολή για άνοιγμα Project (και σύνδεση DB)
+// 2. Η εντολή για άνοιγμα Project - Πλέον δεν αλλάζει βάση δεδομένων
 #[tauri::command]
-async fn open_project(path: String, state: State<'_, AppState>) -> Result<String, String> {
-    println!("Opening project at: {}", path);
-
-    // Σύνδεση στη βάση project.db μέσα στον φάκελο path
-    let manager = DatabaseManager::new(&path)
-        .await
-        .map_err(|e| {
-            println!("Error connecting to DB: {}", e);
-            e.to_string()
-        })?;
-
-    // Αποθήκευση στο State
-    let mut db_guard = state.db_manager.lock().await;
-    *db_guard = Some(manager);
-
-    Ok("Project opened and DB connected successfully".to_string())
+async fn open_project(path: String, _state: State<'_, AppState>) -> Result<String, String> {
+    println!("Setting active project path to: {}", path);
+    // Εδώ θα μπορούσαμε να αποθηκεύσουμε το path ως "active working directory"
+    // αλλά η βάση δεδομένων είναι πλέον Global και έχει φορτωθεί στο startup.
+    Ok("Project path set (Global DB in use)".to_string())
 }
 
 // ... Οι υπάρχουσες εντολές σου ...
@@ -82,6 +73,44 @@ pub fn run() {
         // 3. Αρχικοποίηση του State
         .manage(AppState {
             db_manager: Mutex::new(None),
+        })
+        .setup(|app| {
+            // Εύρεση του φακέλου δεδομένων
+            let proj_dirs = ProjectDirs::from("com", "datatex", "DataTeX");
+            let data_dir = if let Some(proj_dirs) = proj_dirs {
+                let dir = proj_dirs.data_dir().to_path_buf();
+                // Δημιουργία του φακέλου αν δεν υπάρχει
+                if let Err(e) = fs::create_dir_all(&dir) {
+                    eprintln!("Error creating data directory: {}", e);
+                    return Err(Box::new(e));
+                }
+                dir
+            } else {
+                // Fallback (θα μπορούσε να είναι το current dir ή panic)
+                eprintln!("Could not determine project directories");
+                return Err("Could not determine project directories".into());
+            };
+
+            let data_dir_str = data_dir.to_string_lossy().to_string();
+            println!("Initializing Global DB at: {}", data_dir_str);
+
+            // Ασύγχρονη αρχικοποίηση της βάσης
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                match DatabaseManager::new(&data_dir_str).await {
+                    Ok(manager) => {
+                        let state = app_handle.state::<AppState>();
+                        let mut db_guard = state.db_manager.lock().await;
+                        *db_guard = Some(manager);
+                        println!("Global database initialized successfully.");
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to initialize global database: {}", e);
+                    }
+                }
+            });
+
+            Ok(())
         })
         // 4. Τα Plugins σου (για να δουλεύουν οι διάλογοι)
         .plugin(tauri_plugin_fs::init())
