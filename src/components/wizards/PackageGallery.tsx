@@ -18,6 +18,7 @@ import { PACKAGES_DB, LatexPackage } from './preamble/packages';
 
 import { TikzWizard } from './TikzWizard';
 import { TableWizard } from './TableWizard';
+import { PstricksWizard } from './PstricksWizard';
 import { ColorsTab } from './preamble/tabs/ColorsTab';
 import { ListsTab } from './preamble/tabs/ListsTab';
 
@@ -215,7 +216,7 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ selectedPkgId, o
     }
   };
 
-  const isEmbeddedWizard = ['tikz', 'pgfplots', 'booktabs', 'multirow', 'xcolor', 'enumitem'].includes(selectedPkgId);
+  const isEmbeddedWizard = ['tikz', 'pgfplots', 'booktabs', 'multirow', 'xcolor', 'enumitem', 'pstricks'].includes(selectedPkgId);
 
   return (
     // MAIN LAYOUT
@@ -262,6 +263,9 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ selectedPkgId, o
                     )}
                     {(selectedPkgId === 'booktabs' || selectedPkgId === 'multirow') && (
                         <TableWizard onInsert={onInsert} />
+                    )}
+                    {selectedPkgId === 'pstricks' && (
+                        <PstricksWizard onInsert={onInsert} onChange={setGeneratedCode} />
                     )}
                     {selectedPkgId === 'xcolor' && (
                         <Box p="md" h="100%">
@@ -318,12 +322,12 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ selectedPkgId, o
                 </ScrollArea>
             )}
 
-            {!isEmbeddedWizard || ['xcolor', 'enumitem'].includes(selectedPkgId) ? (
+            {!isEmbeddedWizard || ['xcolor', 'enumitem', 'pstricks'].includes(selectedPkgId) ? (
                 <Stack gap={0} p="md" style={{ backgroundColor: 'var(--app-header-bg)', borderTop: '1px solid var(--mantine-color-default-border)', flexShrink: 0 }}>
                     <Group justify="space-between" mb="xs">
                         <Text size="xs" fw={700} c="dimmed">GENERATED CODE</Text>
                         <Group gap="xs">
-                            {activePackage?.command && !['xcolor', 'enumitem'].includes(selectedPkgId) && (
+                            {activePackage?.command && !['xcolor', 'enumitem', 'pstricks'].includes(selectedPkgId) && (
                                 <Button
                                     variant="default"
                                     size="compact-xs"
