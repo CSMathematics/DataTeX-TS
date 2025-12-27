@@ -27,4 +27,6 @@ tauri-plugin-fs = "2.4.4"
 tauri-plugin-dialog = "2.4.2"
 # ΠΡΟΣΘΗΚΗ ΤΩΝ PLUGINS ΕΔΩ:
 tauri-plugin-shell = "2.0.0" 
-
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite"] }
+tokio = { version = "1", features = ["full"] }
+directories = "5.0"
