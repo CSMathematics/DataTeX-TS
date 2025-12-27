@@ -8,6 +8,7 @@ import {
   faTimes, faPlay, faCode, faStop, faHome, faChevronRight,
   faFilePdf, faArrowRight, faCopy, faCalculator, faHeading
 } from "@fortawesome/free-solid-svg-icons";
+import { IconLayoutBottombarCollapseFilled, IconLayoutSidebarLeftCollapseFilled } from '@tabler/icons-react';
 import { TableDataView } from "../database/TableDataView";
 import { AppTab } from "./Sidebar"; 
 import { StartPage } from "./StartPage";
@@ -279,26 +280,26 @@ export const EditorArea = React.memo<EditorAreaProps>(({
                   {activeFile && <><FontAwesomeIcon icon={faChevronRight} style={{ width: 12, height: 12, color: "gray" }} /><Text size="xs" c="white" truncate>{activeFile.title}</Text></>}
                 </Group>
                 <Group gap="xs">
+
+                  {isCompiling && <Tooltip label="Stop"><ActionIcon size="sm" variant="subtle" color="red" onClick={onStopCompile}><FontAwesomeIcon icon={faStop} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
+                  <Tooltip label="Compile"><ActionIcon size="xs" variant="subtle" color="green" onClick={onCompile} loading={isCompiling} disabled={!isTexFile || isCompiling}>{!isCompiling && <FontAwesomeIcon icon={faPlay} style={{ width: 14, height: 14 }} />}</ActionIcon></Tooltip>
+                  {activeFile?.type === 'editor' && isTexFile && <Tooltip label="PDF"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={onTogglePdf}><FontAwesomeIcon icon={faFilePdf} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
                   {/* Editor Toolbars Toggles */}
                   {activeFile?.type === 'editor' && isTexFile && (
                       <>
                         <Tooltip label={showTopEditorToolbar ? "Hide Editor Toolbar" : "Show Editor Toolbar"}>
-                            <ActionIcon size="sm" variant={showTopEditorToolbar ? "light" : "subtle"} color="gray" onClick={() => setShowTopEditorToolbar(!showTopEditorToolbar)}>
-                                <FontAwesomeIcon icon={faHeading} style={{ width: 14, height: 14 }} />
+                            <ActionIcon size="xs" variant={showTopEditorToolbar ? "light" : "subtle"} color="gray.4" onClick={() => setShowTopEditorToolbar(!showTopEditorToolbar)}>
+                                <IconLayoutBottombarCollapseFilled style={{ transform: 'rotate(180deg)' }} />
                             </ActionIcon>
                         </Tooltip>
                         <Tooltip label={showLeftMathToolbar ? "Hide Math Sidebar" : "Show Math Sidebar"}>
-                            <ActionIcon size="sm" variant={showLeftMathToolbar ? "light" : "subtle"} color="gray" onClick={() => setShowLeftMathToolbar(!showLeftMathToolbar)}>
-                                <FontAwesomeIcon icon={faCalculator} style={{ width: 14, height: 14 }} />
+                            <ActionIcon size="xs" variant={showLeftMathToolbar ? "light" : "subtle"} color="gray.4" onClick={() => setShowLeftMathToolbar(!showLeftMathToolbar)}>
+                                <IconLayoutSidebarLeftCollapseFilled />
                             </ActionIcon>
                         </Tooltip>
                         <Box style={{ width: 1, height: 16, backgroundColor: 'var(--mantine-color-dark-4)' }} />
                       </>
                   )}
-
-                  {isCompiling && <Tooltip label="Stop"><ActionIcon size="sm" variant="subtle" color="red" onClick={onStopCompile}><FontAwesomeIcon icon={faStop} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
-                  <Tooltip label="Compile"><ActionIcon size="sm" variant="subtle" color="green" onClick={onCompile} loading={isCompiling} disabled={!isTexFile || isCompiling}>{!isCompiling && <FontAwesomeIcon icon={faPlay} style={{ width: 14, height: 14 }} />}</ActionIcon></Tooltip>
-                  {activeFile?.type === 'editor' && isTexFile && <Tooltip label="PDF"><ActionIcon size="sm" variant="subtle" color="gray.2" onClick={onTogglePdf}><FontAwesomeIcon icon={faFilePdf} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
                 </Group>
             </Group>
             {activeFile?.type === 'editor' && isTexFile && editorInstance && showTopEditorToolbar && (

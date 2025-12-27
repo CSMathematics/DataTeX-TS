@@ -10,9 +10,9 @@ import {
     faCalculator,
     faQuoteRight,
     faFlag,
-    faStar,
-    faGlobe
+    faStar
 } from '@fortawesome/free-solid-svg-icons';
+import { IconAlphabetCyrillic } from '@tabler/icons-react';
 import { SymbolCategory } from '../wizards/preamble/SymbolDB';
 
 interface SymbolSidebarProps {
@@ -26,7 +26,7 @@ const CATEGORIES: { id: SymbolCategory; icon: any; label: string }[] = [
     { id: 'arrows', icon: faArrowRight, label: 'Arrows' },
     { id: 'delimiters', icon: faCode, label: 'Delimiters' },
     { id: 'greek', icon: faFont, label: 'Greek' },
-    { id: 'cyrillic', icon: faGlobe, label: 'Cyrillic' },
+    { id: 'cyrillic', icon: IconAlphabetCyrillic, label: 'Cyrillic' },
     { id: 'misc', icon: faCalculator, label: 'Misc Math' },
     { id: 'misc_text', icon: faQuoteRight, label: 'Misc Text' },
     { id: 'fontawesome', icon: faFlag, label: 'FontAwesome' },
@@ -58,7 +58,7 @@ export const SymbolSidebar = React.memo<SymbolSidebarProps>(({ activeCategory, o
                             transition: 'background-color 0.2s, color 0.2s',
                         }}
                     >
-                        <FontAwesomeIcon icon={cat.icon} style={{ width: 16, height: 16 }} />
+                        {cat.id !== "cyrillic" ? <FontAwesomeIcon icon={cat.icon} style={{ width: 16, height: 16 }} /> : <cat.icon />}
                     </UnstyledButton>
                 </Tooltip>
             ))}

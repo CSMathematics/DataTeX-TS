@@ -5,8 +5,9 @@ import {
   faEquals, faSuperscript, faBook, faFont, faLayerGroup,
   faHatWizard, faArrowsAltH, faSquareRootAlt, faSubscript,
   faDivide, faCode, faBold, faItalic, faTerminal, faFontAwesome,
-  faListOl, faPlusMinus, faCalculator // Added a couple generic fallbacks
+  faListOl, faPlusMinus // Added a couple generic fallbacks
 } from "@fortawesome/free-solid-svg-icons";
+import { IconMathFunction } from '@tabler/icons-react';
 import { MATH_TOOLBAR_ITEMS, MathToolbarItem } from './MathToolbarItems';
 
 // --- Interfaces ---
@@ -18,7 +19,7 @@ interface LeftMathToolbarProps {
 const MENU_ICONS: Record<string, any> = {
   'mathmodegroup': faPlusMinus,
   'equations': faEquals,
-  'functions': faCalculator,
+  'functions': IconMathFunction,
   'definitions': faBook,
   'fontstyles': faFont,
   'grouping': faLayerGroup,
@@ -172,7 +173,7 @@ export const LeftMathToolbar = React.memo<LeftMathToolbarProps>(({ editor }) => 
                <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
                  <Tooltip label={item.text} position="left" openDelay={300} withArrow>
                     <ActionIcon variant="subtle" color="gray.7" size="md" radius="md">
-                        <FontAwesomeIcon icon={icon} />
+                        { item.id !== 'functions' ? <FontAwesomeIcon icon={icon} />: <IconMathFunction /> }
                     </ActionIcon>
                  </Tooltip>
                </div>
