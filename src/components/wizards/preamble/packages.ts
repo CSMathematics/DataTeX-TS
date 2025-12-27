@@ -25,6 +25,7 @@ export const PACKAGES_DB: LatexPackage[] = [
 
   // GRAPHICS
   { id: 'tikz', name: 'TikZ', category: 'graphics', description: 'Create graphics programmatically.', hasWizard: true },
+  { id: 'pstricks', name: 'PSTricks', category: 'graphics', description: 'PostScript macros for graphics.', hasWizard: true },
   { id: 'pgfplots', name: 'PGFPlots', category: 'graphics', description: 'Create plots and charts.', hasWizard: true },
   { id: 'graphicx', name: 'Graphicx', category: 'graphics', description: 'Include external images.', command: '\\usepackage{graphicx}' },
 
