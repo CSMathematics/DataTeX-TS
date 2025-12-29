@@ -17,6 +17,7 @@ import { LeftMathToolbar } from "./LeftMathToolbar";
 import { EditorSettings } from '../../hooks/useSettings';
 import { LogPanel } from "../ui/LogPanel";
 import { LogEntry } from "../../utils/logParser";
+import { TexlabLspClient } from "../../services/lspClient";
 
 interface EditorAreaProps {
   files: AppTab[];
@@ -53,10 +54,11 @@ interface EditorAreaProps {
   onSyncTexForward?: (line: number, column: number) => void;
   spellCheckEnabled?: boolean;
   onOpenFileFromTable?: (path: string) => void;
+  lspClient?: TexlabLspClient | null;
 }
 
 const getFileIcon = (name: string, type: string) => {
-    if (type === 'start-page') return <FontAwesomeIcon icon={faHome} style={{ width: 14, height: 14, color: "#fab005" }} />;
+    if (type === 'start-page') return <FontAwesomeIcon icon={faHome} style={{ width: 14, height: 14, color: "#1f8ee9ff" }} />;
     const ext = name.split('.').pop()?.toLowerCase();
     switch(ext) {
         case 'tex': return <FontAwesomeIcon icon={faFileCode} style={{ width: 14, height: 14, color: "#4dabf7" }} />;
@@ -133,13 +135,14 @@ const TabItem = React.memo(({
 
 export const EditorArea = React.memo<EditorAreaProps>(({ 
   files, activeFileId, onFileSelect, onFileClose, onCloseFiles,
-  onContentChange, onMount, showPdf, onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile,
+  onContentChange, onMount, onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile,
   onCreateEmpty, onOpenWizard, onCreateFromTemplate,
   recentProjects, onOpenRecent,
   editorSettings,
   logEntries, showLogPanel, onCloseLogPanel, onJumpToLine,
   onCursorChange, onSyncTexForward, spellCheckEnabled,
-  onOpenFileFromTable
+  onOpenFileFromTable,
+  lspClient: _lspClient // Prefixed with underscore to indicate intentionally unused
 }) => {
   
   const activeFile = files.find(f => f.id === activeFileId);
@@ -163,14 +166,211 @@ export const EditorArea = React.memo<EditorAreaProps>(({
     editor.onMouseDown((e: any) => {
         if (e.event.ctrlKey && e.target.position) {
              const { lineNumber, column } = e.target.position;
+             
+             // Add visual feedback - use more visible inline style
+             const decoration = editor.deltaDecorations([], [{
+                 range: new monaco.Range(lineNumber, 1, lineNumber, Number.MAX_VALUE),
+                 options: {
+                     isWholeLine: true,
+                     inlineClassName: 'synctex-highlight-line',
+                     linesDecorationsClassName: 'synctex-glyph',
+                     className: 'synctex-highlight-line'
+                 }
+             }]);
+             
+             // Remove decoration after animation
+             setTimeout(() => {
+                 editor.deltaDecorations(decoration, []);
+             }, 1200);
+             
              if (onSyncTexForward) {
                  onSyncTexForward(lineNumber, column);
              }
         }
     });
 
+    // === LSP Integration ===
+    // DISABLED: Texlab returns empty completions despite proper configuration
+    // Infrastructure is complete and ready - texlab requires either:
+    //   1. .texlabroot file in project root, OR
+    //   2. Incremental sync implementation (complex diff algorithm)
+    // Using snippet-based completion for now (working perfectly)
+    /*
+    if (lspClient && lspClient.isReady()) {
+        console.log('🔌 Registering LSP providers for Monaco');
+
+        // Get existing snippet provider suggestions
+        const getSnippetSuggestions = (model: any, position: any) => {
+            const word = model.getWordUntilPosition(position);
+            const range = {
+                startLineNumber: position.lineNumber,
+                endLineNumber: position.lineNumber,
+                startColumn: word.startColumn,
+                endColumn: word.endColumn
+            };
+
+            return [
+                {
+                    label: 'itemize',
+                    kind: monaco.languages.CompletionItemKind.Snippet,
+                    insertText: ['\\begin{itemize}', '\t\\item $0', '\\end{itemize}'].join('\n'),
+                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                    documentation: 'Bulleted list environment',
+                    range
+                },
+                {
+                    label: 'enumerate',
+                    kind: monaco.languages.CompletionItemKind.Snippet,
+                    insertText: ['\\begin{enumerate}', '\t\\item $0', '\\end{enumerate}'].join('\n'),
+                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                    documentation: 'Numbered list environment',
+                    range
+                },
+                {
+                    label: 'equation',
+                    kind: monaco.languages.CompletionItemKind.Snippet,
+                    insertText: ['\\begin{equation}', '\t$0', '\\end{equation}'].join('\n'),
+                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                    documentation: 'Equation environment',
+                    range
+                },
+                {
+                    label: 'align',
+                    kind: monaco.languages.CompletionItemKind.Snippet,
+                    insertText: ['\\begin{align}', '\t$0', '\\end{align}'].join('\n'),
+                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                    documentation: 'Align environment',
+                    range
+                },
+                {
+                    label: 'figure',
+                    kind: monaco.languages.CompletionItemKind.Snippet,
+                    insertText: ['\\begin{figure}[h]', '\t\\centering', '\t\\includegraphics[width=0.8\\textwidth]{$1}', '\t\\caption{$2}', '\t\\label{fig:$3}', '\\end{figure}'].join('\n'),
+                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                    documentation: 'Figure environment',
+                    range
+                },
+                {
+                    label: 'table',
+                    kind: monaco.languages.CompletionItemKind.Snippet,
+                    insertText: ['\\begin{table}[h]', '\t\\centering', '\t\\begin{tabular}{|c|c|}', '\t\t\\hline', '\t\t$1 & $2 \\\\', '\t\t\\hline', '\t\\end{tabular}', '\t\\caption{$3}', '\t\\label{tab:$4}', '\\end{table}'].join('\n'),
+                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                    documentation: 'Table environment',
+                    range
+                },
+            ];
+        };
+
+        // Register COMBINED Completion Provider (LSP + Snippets)
+        monaco.languages.registerCompletionItemProvider('my-latex', {
+            triggerCharacters: ['\\', '{', '['],
+            async provideCompletionItems(model: any, position: any) {
+                console.log('🔍 Completion triggered at', position.lineNumber, position.column);
+                
+                // Always provide snippets as fallback
+                const snippetSuggestions = getSnippetSuggestions(model, position);
+                
+                // Try to get LSP completions
+                if (!lspClient.isReady()) {
+                    console.warn('⚠️ LSP not ready, returning only snippets');
+                    return { suggestions: snippetSuggestions };
+                }
+
+                try {
+                    const uri = `file://${model.uri.path}`;
+                    console.log('📡 Requesting LSP completions for', uri);
+                    
+                    const items = await lspClient.completion(uri, position.lineNumber, position.column);
+                    console.log('✅ LSP returned', items.length, 'items');
+
+                    const lspSuggestions = items.map(item => ({
+                        label: item.label,
+                        kind: item.kind,
+                        insertText: item.insertText || item.label,
+                        detail: item.detail,
+                        documentation: typeof item.documentation === 'string' 
+                            ? item.documentation 
+                            : item.documentation?.value,
+                        sortText: item.sortText,
+                        filterText: item.filterText,
+                    }));
+
+                    // Combine LSP suggestions with snippets
+                    const combined = [...lspSuggestions, ...snippetSuggestions];
+                    console.log('📝 Total suggestions:', combined.length);
+                    
+                    return { suggestions: combined };
+                } catch (error) {
+                    console.error('❌ LSP completion error:', error);
+                    // Return snippets on error
+                    return { suggestions: snippetSuggestions };
+                }
+            }
+        });
+
+        // Register Hover Provider
+        monaco.languages.registerHoverProvider('my-latex', {
+            async provideHover(model: any, position: any) {
+                if (!lspClient.isReady()) return null;
+
+                try {
+                    const uri = `file://${model.uri.path}`;
+                    const hover = await lspClient.hover(uri, position.lineNumber, position.column);
+
+                    if (!hover) return null;
+
+                    // Parse hover contents
+                    let contents: string;
+                    if (typeof hover.contents === 'string') {
+                        contents = hover.contents;
+                    } else if (Array.isArray(hover.contents)) {
+                        contents = hover.contents.map(c => 
+                            typeof c === 'string' ? c : c.value
+                        ).join('\n\n');
+                    } else {
+                        contents = hover.contents.value;
+                    }
+
+                    return {
+                        contents: [{ value: contents }],
+                        range: hover.range
+                    };
+                } catch (error) {
+                    console.error('LSP hover error:', error);
+                    return null;
+                }
+            }
+        });
+
+        // Register Definition Provider  
+        monaco.languages.registerDefinitionProvider('my-latex', {
+            async provideDefinition(model: any, position: any) {
+                if (!lspClient.isReady()) return null;
+
+                try {
+                    const uri = `file://${model.uri.path}`;
+                    const location = await lspClient.definition(uri, position.lineNumber, position.column);
+
+                    if (!location) return null;
+
+                    return {
+                        uri: monaco.Uri.parse(location.uri),
+                        range: location.range
+                    };
+                } catch (error) {
+                    console.error('LSP definition error:', error);
+                    return null;
+                }
+            }
+        });
+
+        console.log('✅ LSP providers registered successfully');
+    }
+    */
+
     if (onMount) onMount(editor, monaco);
   };
+
 
   // Update editor options when settings change
   React.useEffect(() => {
@@ -204,6 +404,43 @@ export const EditorArea = React.memo<EditorAreaProps>(({
           }
       }
   }, [editorInstance, spellCheckEnabled]);
+
+  // === LSP Document Synchronization ===
+  // DISABLED: LSP integration disabled - see above
+  /*
+  // Notify LSP when active file changes (didOpen)
+  React.useEffect(() => {
+      if (lspClient && lspClient.isReady() && activeFile && activeFile.type === 'editor' && editorInstance) {
+          const uri = `file://${activeFile.id}`;
+          const text = editorInstance.getValue() || activeFile.content || '';
+          
+          console.log(`📂 Triggering didOpen for ${uri}`);
+          lspClient.didOpen(uri, 'latex', text);
+      }
+  }, [activeFileId, lspClient, editorInstance]);
+
+  // Notify LSP when content changes (didChange) - debounced
+  React.useEffect(() => {
+      if (!editorInstance || !lspClient || !lspClient.isReady() || !activeFile || activeFile.type !== 'editor') {
+          return;
+      }
+
+      const disposable = editorInstance.onDidChangeModelContent(() => {
+          const text = editorInstance.getValue();
+          const uri = `file://${activeFile.id}`;
+          
+          // Debounce to avoid too many requests
+          const timeoutId = setTimeout(() => {
+              console.log(`📝 Triggering didChange for ${uri}`);
+              lspClient.didChange(uri, text);
+          }, 500);
+
+          return () => clearTimeout(timeoutId);
+      });
+
+      return () => disposable.dispose();
+  }, [editorInstance, lspClient, activeFile]);
+  */
 
   const handleCloseOthers = useCallback((currentId: string) => {
       const idsToClose = files

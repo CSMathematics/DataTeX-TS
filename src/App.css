@@ -84,3 +84,26 @@ a:hover {
   resize: none;
   box-sizing: border-box;
 }
+
+/* --- SyncTeX Visual Feedback --- */
+.synctex-highlight-line {
+  background-color: rgba(51, 154, 240, 0.3) !important;
+  border-left: 3px solid rgba(51, 154, 240, 0.8) !important;
+  animation: syncTexLineFade 0.8s ease-out forwards;
+}
+
+.synctex-glyph {
+  background-color: rgba(51, 154, 240, 0.8);
+  width: 4px !important;
+}
+
+@keyframes syncTexLineFade {
+  0% {
+    background-color: rgba(51, 154, 240, 0.5);
+    border-left-color: rgba(51, 154, 240, 1);
+  }
+  100% {
+    background-color: rgba(51, 154, 240, 0);
+    border-left-color: rgba(51, 154, 240, 0);
+  }
+}

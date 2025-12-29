@@ -210,11 +210,20 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({ selectedPkgId, o
     if (pkg.hasWizard) {
         if (pkg.id === 'geometry') {
             onOpenWizard('wizard-preamble'); 
+        } else if (pkg.id === 'fancyhdr') {
+            onOpenWizard('wizard-fancyhdr');
         } else if (!['tikz', 'pgfplots', 'booktabs', 'multirow', 'xcolor', 'enumitem'].includes(pkg.id)) {
             alert(`Opening specialized wizard for ${pkg.name}...`);
         }
     }
   };
+
+  // Immediately open wizard for fancyhdr instead of showing inline config
+  useEffect(() => {
+    if (selectedPkgId === 'fancyhdr') {
+      handleConfigure({ id: 'fancyhdr', name: 'Fancyhdr', category: 'layout', description: '', hasWizard: true });
+    }
+  }, [selectedPkgId]);
 
   const isEmbeddedWizard = ['tikz', 'pgfplots', 'booktabs', 'multirow', 'xcolor', 'enumitem', 'pstricks'].includes(selectedPkgId);
 

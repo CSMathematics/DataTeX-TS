@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Box, Text, LoadingOverlay } from '@mantine/core';
 import { Viewer, Worker } from '@react-pdf-viewer/core';
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
@@ -21,6 +21,12 @@ export function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPrevi
   
   // State για να ξέρουμε πότε φορτώνει το PDF
   const [ready, setReady] = useState(false);
+  // State για visual feedback στο SyncTeX
+  const [showSyncHighlight, setShowSyncHighlight] = useState(false);
+  // Ref to track the highlight timer
+  const highlightTimerRef = useRef<number | null>(null);
+  // Ref to track last processed coords to prevent loops
+  const lastCoordsRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Κάθε φορά που αλλάζει το URL, κάνουμε reset το state
@@ -35,37 +41,92 @@ export function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPrevi
   // Handle Forward Search (Jump to Location)
   useEffect(() => {
       if (syncTexCoords && defaultLayoutPluginInstance.toolbarPluginInstance.pageNavigationPluginInstance) {
+          // Create a unique key for these coords
+          const coordsKey = `${syncTexCoords.page}-${syncTexCoords.x}-${syncTexCoords.y}`;
+          
+          // Check if we've already processed these exact coords
+          if (lastCoordsRef.current === coordsKey) {
+              return; // Skip if same coords
+          }
+          
+          lastCoordsRef.current = coordsKey;
+          
+          // Clear any existing timer
+          if (highlightTimerRef.current) {
+              clearTimeout(highlightTimerRef.current);
+              highlightTimerRef.current = null;
+          }
+          
           const { page } = syncTexCoords;
           // SyncTeX pages are 1-based. jumpToPage is 0-based.
           const pageIndex = Math.max(0, page - 1);
           defaultLayoutPluginInstance.toolbarPluginInstance.pageNavigationPluginInstance.jumpToPage(pageIndex);
+          
+          // Show visual feedback
+          setShowSyncHighlight(true);
+          highlightTimerRef.current = setTimeout(() => {
+              setShowSyncHighlight(false);
+              highlightTimerRef.current = null;
+          }, 1500);
       }
   }, [syncTexCoords, defaultLayoutPluginInstance]);
+  
+  // Cleanup on unmount
+  useEffect(() => {
+      return () => {
+          if (highlightTimerRef.current) {
+              clearTimeout(highlightTimerRef.current);
+          }
+      };
+  }, []);
 
   const handleDocumentClick = (e: React.MouseEvent) => {
      if (e.ctrlKey && onSyncTexInverse) {
-         // This is a rough approximation.
-         // Ideally we need the page number and relative coordinates.
-         // @react-pdf-viewer renders pages as divs with `data-testid="page-layer-X"` or similar structure.
-         // We try to find the closest .rpv-core__page-layer element.
-
          const target = e.target as HTMLElement;
-         const pageLayer = target.closest('.rpv-core__page-layer');
+         
+         // Try multiple ways to find the page layer and number
+         let pageLayer = target.closest('.rpv-core__page-layer');
+         
+         // If not found, try alternative selectors
+         if (!pageLayer) {
+             pageLayer = target.closest('[data-testid^="core__page-layer"]');
+         }
 
          if (pageLayer) {
              const rect = pageLayer.getBoundingClientRect();
              const x = e.clientX - rect.left;
              const y = e.clientY - rect.top;
 
-             // Get page number from aria-label or data attribute if available.
-             // DefaultLayout puts `data-page-number` on `.rpv-core__page-layer`.
-             const pageNumberStr = pageLayer.getAttribute('data-page-number');
+             // Try multiple methods to get page number
+             let pageNumberStr = pageLayer.getAttribute('data-page-number');
+             
+             if (!pageNumberStr) {
+                 // Try aria-label
+                 const ariaLabel = pageLayer.getAttribute('aria-label');
+                 if (ariaLabel) {
+                     const match = ariaLabel.match(/page\s+(\d+)/i);
+                     if (match) pageNumberStr = match[1];
+                 }
+             }
+             
+             if (!pageNumberStr) {
+                 // Try to get from class name like rpv-core__page-layer--1
+                 const classMatch = pageLayer.className.match(/page-layer--(\d+)/);
+                 if (classMatch) pageNumberStr = classMatch[1];
+             }
+             
+             if (!pageNumberStr) {
+                 // Last resort: find page index from siblings
+                 const parent = pageLayer.parentElement;
+                 if (parent) {
+                     const pages = Array.from(parent.children);
+                     const index = pages.indexOf(pageLayer);
+                     if (index >= 0) pageNumberStr = String(index);
+                 }
+             }
+             
              if (pageNumberStr) {
                  const page = parseInt(pageNumberStr, 10);
-                 // We pass these to the parent. Note these are screen coordinates relative to the page div.
-                 // SyncTeX expects points. PDF usually 72dpi.
-                 // Viewer scaling affects this.
-                 // This is a "best effort" inverse search trigger.
                  onSyncTexInverse(page + 1, x, y);
              }
          }
@@ -81,7 +142,25 @@ export function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPrevi
   }
 
   return (
-    <Box h="100%" bg="dark.8" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClickCapture={handleDocumentClick}>
+    <Box h="100%" bg="dark.8" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }} onClickCapture={handleDocumentClick}>
+      {/* SyncTeX Visual Feedback Overlay */}
+      {showSyncHighlight && (
+        <Box
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 9999,
+            pointerEvents: 'none',
+            border: '3px solid #339af0',
+            animation: 'syncPulse 1.5s ease-in-out',
+            boxShadow: '0 0 20px rgba(51, 154, 240, 0.6)',
+          }}
+        />
+      )}
+      
       {/* Ο Worker χρειάζεται για να γίνει το parsing του PDF */}
       <Worker workerUrl={WORKER_URL}>
         {/* Χρησιμοποιούμε το 'rpv-core__viewer--dark' class για native Dark Mode */}
@@ -105,6 +184,24 @@ export function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPrevi
             )}
         </div>
       </Worker>
+      
+      {/* CSS Animation for Sync Pulse */}
+      <style>{`
+        @keyframes syncPulse {
+          0% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.7;
+            transform: scale(0.98);
+          }
+          100% {
+            opacity: 0;
+            transform: scale(1);
+          }
+        }
+      `}</style>
     </Box>
   );
 }

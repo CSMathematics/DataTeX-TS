@@ -1,15 +1,18 @@
-use tauri::{State, Manager};
-use tokio::sync::Mutex;
 use directories::ProjectDirs;
 use std::fs;
+use tauri::{Manager, State};
+use tokio::sync::Mutex;
 
 mod compiler;
 mod db; // Import το module της βάσης
+mod lsp; // Import το LSP module
 use db::DatabaseManager;
+use lsp::TexlabManager;
 
-// 1. Το State για τη βάση δεδομένων
+// 1. Το State για τη βάση δεδομένων και LSP
 struct AppState {
     db_manager: Mutex<Option<DatabaseManager>>,
+    lsp_manager: Mutex<Option<TexlabManager>>,
 }
 
 // 2. Η εντολή για άνοιγμα Project - Πλέον δεν αλλάζει βάση δεδομένων
@@ -34,7 +37,12 @@ fn get_db_path() -> Result<String, String> {
 
 // ... Οι υπάρχουσες εντολές σου ...
 #[tauri::command]
-fn compile_tex(file_path: String, engine: String, args: Vec<String>, output_dir: String) -> Result<String, String> {
+fn compile_tex(
+    file_path: String,
+    engine: String,
+    args: Vec<String>,
+    output_dir: String,
+) -> Result<String, String> {
     compiler::compile(&file_path, &engine, args, &output_dir)
 }
 
@@ -73,8 +81,11 @@ fn get_system_fonts() -> Vec<String> {
         }
     }
     vec![
-        "Consolas".to_string(), "Monaco".to_string(), "Courier New".to_string(),
-        "monospace".to_string(), "Arial".to_string(),
+        "Consolas".to_string(),
+        "Monaco".to_string(),
+        "Courier New".to_string(),
+        "monospace".to_string(),
+        "Arial".to_string(),
     ]
 }
 
@@ -96,8 +107,14 @@ async fn get_table_data_cmd(
 ) -> Result<TableDataResponse, String> {
     let db_guard = state.db_manager.lock().await;
     if let Some(db) = &*db_guard {
-        let (data, total_count, columns) = db.get_table_data(table_name, page, page_size, search, search_cols).await?;
-        Ok(TableDataResponse { data, total_count, columns })
+        let (data, total_count, columns) = db
+            .get_table_data(table_name, page, page_size, search, search_cols)
+            .await?;
+        Ok(TableDataResponse {
+            data,
+            total_count,
+            columns,
+        })
     } else {
         Err("Database not initialized".to_string())
     }
@@ -113,10 +130,208 @@ async fn update_cell_cmd(
 ) -> Result<(), String> {
     let db_guard = state.db_manager.lock().await;
     if let Some(db) = &*db_guard {
-         db.update_cell(table_name, id, column, value).await
+        db.update_cell(table_name, id, column, value).await
     } else {
         Err("Database not initialized".to_string())
     }
+}
+
+// ===== LSP Commands =====
+
+#[tauri::command]
+async fn lsp_initialize(root_uri: String, state: State<'_, AppState>) -> Result<(), String> {
+    let mut lsp_guard = state.lsp_manager.lock().await;
+
+    if lsp_guard.is_none() {
+        let mut manager = TexlabManager::new();
+        manager.start().await?;
+
+        // Αποστολή initialize request
+        let params = serde_json::json!({
+            "processId": std::process::id(),
+            "rootUri": root_uri,
+            "capabilities": {
+                "textDocument": {
+                    "completion": {
+                        "completionItem": {
+                            "snippetSupport": true,
+                            "documentationFormat": ["markdown", "plaintext"]
+                        }
+                    },
+                    "hover": {
+                        "contentFormat": ["markdown", "plaintext"]
+                    },
+                    "definition": {
+                        "linkSupport": true
+                    }
+                }
+            }
+        });
+
+        manager.send_request("initialize", params).await?;
+
+        // Αποστολή initialized notification
+        manager
+            .send_notification("initialized", serde_json::json!({}))
+            .await?;
+
+        // CRITICAL: Send workspace/didChangeConfiguration
+        // This is required by texlab to activate completion features
+        let config = serde_json::json!({
+            "settings": {
+                "texlab": {
+                    "completion": {
+                        "matcher": "fuzzy-ignore-case"
+                    },
+                    "build": {
+                        "onSave": false
+                    }
+                }
+            }
+        });
+        manager
+            .send_notification("workspace/didChangeConfiguration", config)
+            .await?;
+
+        *lsp_guard = Some(manager);
+        Ok(())
+    } else {
+        Ok(()) // Already initialized
+    }
+}
+
+#[tauri::command]
+async fn lsp_completion(
+    uri: String,
+    line: u32,
+    character: u32,
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let mut lsp_guard = state.lsp_manager.lock().await;
+
+    if let Some(manager) = lsp_guard.as_mut() {
+        let params = serde_json::json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": line, "character": character }
+        });
+
+        manager
+            .send_request("textDocument/completion", params)
+            .await
+    } else {
+        Err("LSP not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn lsp_hover(
+    uri: String,
+    line: u32,
+    character: u32,
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let mut lsp_guard = state.lsp_manager.lock().await;
+
+    if let Some(manager) = lsp_guard.as_mut() {
+        let params = serde_json::json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": line, "character": character }
+        });
+
+        manager.send_request("textDocument/hover", params).await
+    } else {
+        Err("LSP not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn lsp_definition(
+    uri: String,
+    line: u32,
+    character: u32,
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let mut lsp_guard = state.lsp_manager.lock().await;
+
+    if let Some(manager) = lsp_guard.as_mut() {
+        let params = serde_json::json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": line, "character": character }
+        });
+
+        manager
+            .send_request("textDocument/definition", params)
+            .await
+    } else {
+        Err("LSP not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn lsp_did_open(
+    uri: String,
+    language_id: String,
+    version: i32,
+    text: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mut lsp_guard = state.lsp_manager.lock().await;
+
+    if let Some(manager) = lsp_guard.as_mut() {
+        let params = serde_json::json!({
+            "textDocument": {
+                "uri": uri,
+                "languageId": language_id,
+                "version": version,
+                "text": text
+            }
+        });
+
+        manager
+            .send_notification("textDocument/didOpen", params)
+            .await
+    } else {
+        Err("LSP not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn lsp_did_change(
+    uri: String,
+    version: i32,
+    text: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mut lsp_guard = state.lsp_manager.lock().await;
+
+    if let Some(manager) = lsp_guard.as_mut() {
+        let params = serde_json::json!({
+            "textDocument": {
+                "uri": uri,
+                "version": version
+            },
+            "contentChanges": [{
+                "text": text
+            }]
+        });
+
+        manager
+            .send_notification("textDocument/didChange", params)
+            .await
+    } else {
+        Err("LSP not initialized".to_string())
+    }
+}
+
+#[tauri::command]
+async fn lsp_shutdown(state: State<'_, AppState>) -> Result<(), String> {
+    let mut lsp_guard = state.lsp_manager.lock().await;
+
+    if let Some(mut manager) = lsp_guard.take() {
+        manager.stop().await?;
+    }
+
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -125,6 +340,7 @@ pub fn run() {
         // 3. Αρχικοποίηση του State
         .manage(AppState {
             db_manager: Mutex::new(None),
+            lsp_manager: Mutex::new(None),
         })
         .setup(|app| {
             // Εύρεση του φακέλου δεδομένων
@@ -171,14 +387,22 @@ pub fn run() {
         // .plugin(tauri_plugin_sql::Builder::default().build()) // REMOVED
         // 5. Καταχώρηση ΟΛΩΝ των εντολών
         .invoke_handler(tauri::generate_handler![
-            open_project,      // Η νέα εντολή
+            open_project, // Η νέα εντολή
             get_db_path,
             compile_tex,
             run_synctex_command,
             run_texcount_command,
             get_system_fonts,
             get_table_data_cmd,
-            update_cell_cmd
+            update_cell_cmd,
+            // LSP Commands
+            lsp_initialize,
+            lsp_completion,
+            lsp_hover,
+            lsp_definition,
+            lsp_did_open,
+            lsp_did_change,
+            lsp_shutdown
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -22,7 +22,7 @@ import { PACKAGES_DB, Category } from '../wizards/preamble/packages';
 
 // --- Types ---
 export type SidebarSection = "files" | "search" | "git" | "database" | "settings" | "symbols" | "gallery" | "outline";
-export type ViewType = "editor" | "wizard-preamble" | "wizard-table" | "wizard-tikz" | "gallery" | "settings";
+export type ViewType = "editor" | "wizard-preamble" | "wizard-table" | "wizard-tikz" | "wizard-fancyhdr" | "gallery" | "settings";
 
 export interface FileSystemNode {
   id: string;

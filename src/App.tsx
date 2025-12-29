@@ -37,6 +37,7 @@ import { WizardWrapper } from "./components/wizards/WizardWrapper";
 import { PreambleWizard } from "./components/wizards/PreambleWizard";
 import { TableWizard } from "./components/wizards/TableWizard";
 import { TikzWizard } from "./components/wizards/TikzWizard";
+import { FancyhdrWizard } from "./components/wizards/FancyhdrWizard";
 import { PackageGallery } from "./components/wizards/PackageGallery";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 
@@ -46,6 +47,7 @@ import { dataTexLightTheme } from "./themes/monaco-light";
 import { dataTexHCTheme } from "./themes/monaco-hc";
 import { useSettings } from "./hooks/useSettings";
 import { parseLatexLog, LogEntry } from "./utils/logParser";
+import { TexlabLspClient } from "./services/lspClient";
 
 // --- CSS Variables Resolver ---
 const resolver: CSSVariablesResolver = (theme) => ({
@@ -94,6 +96,9 @@ export default function App() {
   const [cursorPosition, setCursorPosition] = useState({ lineNumber: 1, column: 1 });
   const [spellCheckEnabled, setSpellCheckEnabled] = useState(false);
 
+  // --- LSP State ---
+  const lspClientRef = useRef<TexlabLspClient | null>(null);
+
   // --- Compilation State ---
   const [isCompiling, setIsCompiling] = useState(false);
   const [compileError, setCompileError] = useState<string | null>(null);
@@ -140,6 +145,31 @@ export default function App() {
           } catch (e) { console.error("Failed to parse recent projects", e); }
       }
   }, []);
+
+  // --- Initialize LSP when rootPath changes ---
+  useEffect(() => {
+      const initLsp = async () => {
+          if (rootPath && !lspClientRef.current) {
+              try {
+                  const client = new TexlabLspClient();
+                  await client.initialize(`file://${rootPath}`);
+                  lspClientRef.current = client;
+                  console.log('LSP client initialized for:', rootPath);
+              } catch (error) {
+                  console.error('Failed to initialize LSP:', error);
+              }
+          }
+      };
+      initLsp();
+
+      return () => {
+          // Cleanup on unmount or rootPath change
+          if (lspClientRef.current) {
+              lspClientRef.current.shutdown();
+              lspClientRef.current = null;
+          }
+      };
+  }, [rootPath]);
 
   const addToRecent = useCallback((path: string) => {
       setRecentProjects(prev => {
@@ -698,13 +728,22 @@ export default function App() {
   // Editor -> PDF (Forward)
   const handleSyncTexForward = useCallback(async (line: number, column: number) => {
      if (!activeTab || !activeTab.id || !isTexFile) return;
-     if (!pdfUrl) return;
 
      try {
          const texPath = activeTab.id;
          const pdfPath = texPath.replace(/\.tex$/i, '.pdf');
          const lastSlash = texPath.lastIndexOf(texPath.includes('\\') ? '\\' : '/');
          const cwd = texPath.substring(0, lastSlash);
+         
+         // Check if PDF file actually exists on disk
+         // @ts-ignore
+         const { exists } = await import('@tauri-apps/plugin-fs');
+         const pdfExists = await exists(pdfPath);
+         
+         if (!pdfExists) {
+             setCompileError("PDF not available. Please compile your document first.");
+             return;
+         }
 
          const args = [
              "view",
@@ -715,6 +754,7 @@ export default function App() {
          const result = await invoke<string>('run_synctex_command', { args, cwd });
          console.log("SyncTeX View Result:", result);
 
+         // Validate regex matches
          const pageMatch = result.match(/Page:(\d+)/);
          const xMatch = result.match(/x:([\d\.]+)/);
          const yMatch = result.match(/y:([\d\.]+)/);
@@ -723,14 +763,28 @@ export default function App() {
              const page = parseInt(pageMatch[1], 10);
              const x = xMatch ? parseFloat(xMatch[1]) : 0;
              const y = yMatch ? parseFloat(yMatch[1]) : 0;
+             
+             if (isNaN(page) || page < 1) {
+                 setCompileError("SyncTeX returned invalid page number.");
+                 return;
+             }
+             
              setSyncTexCoords({ page, x, y });
-             setShowPdf(true); // Don't check previous value, just set true
+             setShowPdf(true);
+         } else {
+             setCompileError("SyncTeX forward sync failed. Make sure you compiled with -synctex=1 flag.");
          }
 
      } catch (e) {
          console.error("SyncTeX Forward Failed:", e);
+         const errorMsg = String(e);
+         if (errorMsg.includes('synctex.gz')) {
+             setCompileError("SyncTeX file not found. Please recompile your document with SyncTeX enabled.");
+         } else {
+             setCompileError("SyncTeX forward search failed: " + errorMsg);
+         }
      }
-  }, [activeTab, isTexFile, pdfUrl]);
+  }, [activeTab, isTexFile]);
 
   // PDF -> Editor (Inverse)
   const handleSyncTexInverse = useCallback(async (page: number, x: number, y: number) => {
@@ -747,18 +801,32 @@ export default function App() {
               "-o", `${page}:${x}:${y}:${pdfPath}`
           ];
 
-          // @ts-ignore
           const result = await invoke<string>('run_synctex_command', { args, cwd });
+          console.log("SyncTeX Edit Result:", result);
           
           const lineMatch = result.match(/Line:(\d+)/);
 
           if (lineMatch) {
               const line = parseInt(lineMatch[1], 10);
+              
+              if (isNaN(line) || line < 1) {
+                  setCompileError("SyncTeX returned invalid line number.");
+                  return;
+              }
+              
               handleRevealLine(line);
+          } else {
+              setCompileError("SyncTeX inverse sync failed. Could not find corresponding line.");
           }
 
       } catch (e) {
           console.error("SyncTeX Inverse Failed:", e);
+          const errorMsg = String(e);
+          if (errorMsg.includes('synctex.gz')) {
+              setCompileError("SyncTeX file not found. Please recompile your document with SyncTeX enabled.");
+          } else {
+              setCompileError("SyncTeX inverse search failed: " + errorMsg);
+          }
       }
   }, [activeTab, isTexFile, handleRevealLine]);
 
@@ -1107,6 +1175,7 @@ export default function App() {
                             onSyncTexForward={handleSyncTexForward}
                             spellCheckEnabled={spellCheckEnabled}
                             onOpenFileFromTable={handleOpenFileFromTable}
+                            lspClient={lspClientRef.current}
                         />
                     )}
                 </Box>
@@ -1149,6 +1218,11 @@ export default function App() {
                             {activeView === "wizard-tikz" && (
                                 <WizardWrapper title="TikZ Wizard" onClose={() => setActiveView("editor")}>
                                     <TikzWizard onInsert={handleInsertSnippet} />
+                                </WizardWrapper>
+                            )}
+                            {activeView === "wizard-fancyhdr" && (
+                                <WizardWrapper title="Fancyhdr Wizard" onClose={() => setActiveView("editor")}>
+                                    <FancyhdrWizard onInsert={handleInsertSnippet} />
                                 </WizardWrapper>
                             )}
                             {activeView === "gallery" && (

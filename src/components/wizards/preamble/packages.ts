@@ -15,7 +15,7 @@ export const PACKAGES_DB: LatexPackage[] = [
 
   // LAYOUT
   { id: 'geometry', name: 'Geometry', category: 'layout', description: 'Page dimensions and margins.', hasWizard: true },
-  { id: 'fancyhdr', name: 'Fancyhdr', category: 'layout', description: 'Custom headers and footers.', command: '\\usepackage{fancyhdr}' },
+  { id: 'fancyhdr', name: 'Fancyhdr', category: 'layout', description: 'Custom headers and footers.', command: '\\usepackage{fancyhdr}', hasWizard: true },
   { id: 'enumitem', name: 'Enumitem', category: 'layout', description: 'Custom lists, spacing and labels.', hasWizard: true },
 
   // MATH
