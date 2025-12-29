@@ -131,10 +131,11 @@ const TabItem = React.memo(({
     );
 });
 
-export const EditorArea = React.memo<EditorAreaProps>(({
-  files, activeFileId, onFileSelect, onFileClose, onCloseFiles, onContentChange, onMount,
-  onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile,
-  onCreateEmpty, onOpenWizard, onCreateFromTemplate, recentProjects, onOpenRecent,
+export const EditorArea = React.memo<EditorAreaProps>(({ 
+  files, activeFileId, onFileSelect, onFileClose, onCloseFiles,
+  onContentChange, onMount, showPdf, onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile,
+  onCreateEmpty, onOpenWizard, onCreateFromTemplate,
+  recentProjects, onOpenRecent,
   editorSettings,
   logEntries, showLogPanel, onCloseLogPanel, onJumpToLine,
   onCursorChange, onSyncTexForward, spellCheckEnabled,

@@ -135,14 +135,15 @@ export default function App() {
       const saved = localStorage.getItem('recentProjects');
       if (saved) {
           try {
-              setRecentProjects(JSON.parse(saved));
+              const parsed = JSON.parse(saved);
+              setRecentProjects(parsed);
           } catch (e) { console.error("Failed to parse recent projects", e); }
       }
   }, []);
 
   const addToRecent = useCallback((path: string) => {
       setRecentProjects(prev => {
-          const newRecent = [path, ...prev.filter(p => p !== path)].slice(10);
+          const newRecent = [path, ...prev.filter(p => p !== path)].slice(0, 10);
           localStorage.setItem('recentProjects', JSON.stringify(newRecent));
           return newRecent;
       });
@@ -299,6 +300,7 @@ export default function App() {
             } catch(e) {}
             setActiveActivity("files");
             setIsSidebarOpen(true);
+            addToRecent(parentDir);
         }
 
         setTabs(prev => {

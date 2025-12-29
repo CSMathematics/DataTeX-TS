@@ -6,7 +6,7 @@ import {
   faBold, faItalic, faUnderline, faStrikethrough, faFont, faPen, faCode,
   faQuoteRight, faEllipsisH, faListUl, faListOl, faSubscript, faSuperscript,
   faLink, faUnlink, faAlignLeft, faAlignCenter, faAlignRight, faAlignJustify,
-  faUndo, faRedo, faEllipsisV
+  faUndo, faRedo, faEllipsisV, faChevronDown
 } from "@fortawesome/free-solid-svg-icons";
 
 interface EditorToolbarProps {
@@ -60,6 +60,38 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
   const handleUndo = () => editor.trigger('toolbar', 'undo', null);
   const handleRedo = () => editor.trigger('toolbar', 'redo', null);
 
+  // --- Structure Menu Component ---
+  const StructureMenu = ({ label, cmd }: { label: string, cmd: string }) => {
+      return (
+          <Menu shadow="sm" width={150}>
+              <Menu.Target>
+                  <Tooltip label={`${cmd} options`}>
+                      <ActionIcon variant="subtle" size="sm" color='gray.5' w={36}>
+                          <Group gap={2}>
+                              <Text size="xs" fw={700}>{label}</Text>
+                              <FontAwesomeIcon icon={faChevronDown} style={{ fontSize: 8, opacity: 0.5 }} />
+                          </Group>
+                      </ActionIcon>
+                  </Tooltip>
+              </Menu.Target>
+              <Menu.Dropdown bg="dark.7" style={{ border: "1px solid var(--mantine-color-dark-4)" }}>
+                  <Menu.Item 
+                      color="white"
+                      onClick={() => wrapSelection(`\\${cmd}{`, '}')}
+                  >
+                      <Text size="xs"><Text span fw={700}>\{cmd}</Text> (Numbered)</Text>
+                  </Menu.Item>
+                  <Menu.Item 
+                      color="white"
+                      onClick={() => wrapSelection(`\\${cmd}*{`, '}')}
+                  >
+                        <Text size="xs"><Text span fw={700}>\{cmd}*</Text> (Unnumbered)</Text>
+                  </Menu.Item>
+              </Menu.Dropdown>
+          </Menu>
+      );
+  };
+
   // --- Toolbar Groups Configuration ---
   const toolbarGroups = useMemo(() => [
       {
@@ -80,11 +112,11 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
           id: 'headings',
           render: () => (
             <Group gap={2} bg="dark.7" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
-                <Tooltip label="Heading 1 (\chapter)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\chapter{', '}')}><Text size="xs" fw={700}>H1</Text></ActionIcon></Tooltip>
-                <Tooltip label="Heading 2 (\section)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\section{', '}')}><Text size="xs" fw={700}>H2</Text></ActionIcon></Tooltip>
-                <Tooltip label="Heading 3 (\subsection)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\subsection{', '}')}><Text size="xs" fw={700}>H3</Text></ActionIcon></Tooltip>
-                <Tooltip label="Heading 4 (\subsubsection)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\subsubsection{', '}')}><Text size="xs" fw={700}>H4</Text></ActionIcon></Tooltip>
-                <Tooltip label="Heading 5 (\paragraph)"><ActionIcon variant="subtle" size="sm" color='gray.5' w={28} onClick={() => wrapSelection('\\paragraph{', '}')}><Text size="xs" fw={700}>H5</Text></ActionIcon></Tooltip>
+                <StructureMenu label="H1" cmd="chapter" />
+                <StructureMenu label="H2" cmd="section" />
+                <StructureMenu label="H3" cmd="subsection" />
+                <StructureMenu label="H4" cmd="subsubsection" />
+                <StructureMenu label="H5" cmd="paragraph" />
             </Group>
           )
       },
@@ -168,48 +200,97 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
      // If we haven't measured yet, and we have refs
      if (!measurementsDone && ghostRefs.current.length > 0) {
          const widths = ghostRefs.current.map(el => el?.getBoundingClientRect().width || 0);
-         // Ensure we actually got measurements (elements were rendered)
-         if (widths.some(w => w > 0)) {
+         // Ensure we actually got ALL measurements (elements were rendered)
+         if (widths.length === toolbarGroups.length && widths.every(w => w > 0)) {
              setGroupWidths(widths);
-             setMeasurementsDone(true); // Stop rendering ghosts!
+             setMeasurementsDone(true);
          }
      }
   }, [toolbarGroups, measurementsDone]);
+  
+  // FALLBACK: Force measurement after a timeout if it never completes
+  useLayoutEffect(() => {
+      const timer = setTimeout(() => {
+          if (!measurementsDone && ghostRefs.current.length > 0) {
+              const widths = ghostRefs.current.map(el => el?.getBoundingClientRect().width || 0);
+              // Use whatever we have, even if some are 0
+              setGroupWidths(widths);
+              setMeasurementsDone(true);
+          }
+      }, 500);
+      return () => clearTimeout(timer);
+  }, [measurementsDone]);
 
   // If toolbar groups configuration changes fundamentally (rare), reset measurements
   useLayoutEffect(() => {
       setMeasurementsDone(false);
       setGroupWidths([]);
+      ghostRefs.current = []; // Clear refs
   }, [toolbarGroups]);
 
 
   // Calculate Visible Count
-  // This logic handles the overflow requirement (Requirement 2): items that don't fit are moved to a dropdown.
-  // We use useElementSize to get containerWidth and calculate how many groups fit.
-  let visibleCount = toolbarGroups.length;
-  if (groupWidths.length > 0 && containerWidth > 0) {
-      const moreBtnWidth = 32;
-      const gap = 8;
-      let currentWidth = 0;
-      visibleCount = 0;
+  // Default to 0. If we haven't measured, we render nothing (except ghosts) to prevent flickering.
+  // Once measured, we calculate.
+  let visibleCount = 0; 
 
-      for (let i = 0; i < groupWidths.length; i++) {
-          const w = groupWidths[i];
-          const needsMoreIfChecking = (i < groupWidths.length - 1);
-          const widthWithItem = currentWidth + w;
-          const totalRequired = widthWithItem + (needsMoreIfChecking ? gap + moreBtnWidth : 0);
+  if (measurementsDone && groupWidths.length > 0) {
+      if (containerWidth <= 0) {
+          // If container width is 0 (hidden), we can't calculate.
+          // Keep visibleCount = 0.
+      } else {
+          // Calculate how many fit
+          const moreBtnWidth = 40; 
+          const gap = 8;
+          let currentWidth = 0;
+          
+          for (let i = 0; i < groupWidths.length; i++) {
+              const w = groupWidths[i];
+              const isLastItem = (i === groupWidths.length - 1);
+              const gapSpace = (i > 0 ? gap : 0);
+              
+              const widthWithItem = currentWidth + gapSpace + w;
+              const requiredSpace = isLastItem ? widthWithItem : widthWithItem + gap + moreBtnWidth;
 
-          if (totalRequired <= containerWidth) {
-              visibleCount++;
-              currentWidth += w + gap;
-          } else {
-              break;
+              if (requiredSpace <= containerWidth) {
+                  visibleCount++;
+                  currentWidth += gapSpace + w;
+              } else {
+                  break;
+              }
           }
-      }
-  }
 
+          // SAFEGUARD: If nothing fits, but we have space, show at least the "Three Dots" menu.
+          // visibleCount = 0 means "Show 0 groups", so all go to hidden. "More" button appears (if hidden > 0).
+          // This is correct behavior for very narrow screens.
+      }
+  } else {
+     // If not measured yet, render NOTHING (visibleCount = 0). 
+     // The "More" button logic below checks hiddenGroups.length > 0.
+     // If visibleCount = 0, hiddenGroups = all. "More" button would show ALL items.
+     // This causes a flicker of "Just a menu button" before layout.
+     // To avoid this, we can set visibleCount to toolbarGroups.length (Show All) initially,
+     // but that causes "All items flash then collapse". 
+     // A cleaner approach is to render NOTHING visible until measured.
+     // But 'hiddenGroups' would be ALL.
+     // Let's force visibleCount = length (All Visible) if !measurementsDone,
+     // AND ensure 'hiddenGroups' is empty so "More" doesn't show.
+     if (!measurementsDone) {
+         visibleCount = toolbarGroups.length;
+     }
+  }
+  
+  // FORCE RE-MEASURE ON RESIZE (Debounced)
+  React.useEffect(() => {
+     if (containerWidth > 0) {
+         // Trigger a state update to force re-calc if needed, though render does it.
+         // This is just to log or verify.
+     }
+  }, [containerWidth]);
+
+  // Slicing logic
   const visibleGroups = toolbarGroups.slice(0, visibleCount);
-  const hiddenGroups = toolbarGroups.slice(visibleCount);
+  const hiddenGroups = !measurementsDone ? [] : toolbarGroups.slice(visibleCount);
 
   return (
     <div ref={containerRef} style={{ width: '100%', overflow: 'hidden' }}>
