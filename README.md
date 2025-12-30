@@ -1,7 +1,26 @@
-# Tauri + React + Typescript
+# DataTex - Modern LaTeX Editor
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+DataTex is a next-generation LaTeX editor built for speed and usability, leveraging the power of **Tauri**, **React**, and **Rust**. It goes beyond standard editing by offering a suite of visual tools that simplify complex LaTeX tasks.
 
-## Recommended IDE Setup
+## 🚀 Unique Features
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+### ✨ Visual Generators (Wizards)
+Forget about memorizing complex syntax. DataTex provides interactive wizards for the most challenging parts of LaTeX:
+
+- **Fancyhdr Wizard**: Visually design your document's headers and footers with a real-time preview.
+- **TikZ & PSTricks Wizards**: A powerful GUI to generate complex vector graphics code without writing a single line of code manually.
+- **Table Wizard**: Create and edit professional tables effortlessly. handle row/column merging and alignment visually.
+
+### 🧠 Smart Management
+- **Package Gallery**: A browsable, visual catalog of LaTeX packages. Read descriptions, see usage examples, and add them to your project with a single click.
+- **Preamble Wizard**: specialized interface to manage global document settings, macros, and environments without cluttering your main document.
+
+### ⚡ Architecture
+- **Rust-Powered Database**: Built-in SQLite database managed by Rust for lightning-fast indexing and retrieval of your documents and projects.
+- **Modern Tech Stack**: Built on Tauri and React, ensuring the application is lightweight, cross-platform, and responsive.
+
+## Getting Started
+
+```bash
+pnpm tauri dev
+```

@@ -159,10 +159,6 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 <Group gap={2} bg="dark.7" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
                     <Tooltip label="Horizontal Space (\hspace)"><ActionIcon variant="subtle" size="xs" color='gray.5' onClick={() => insertText('\\hspace{length}')}><Text size="xs" fw={700}>HS</Text></ActionIcon></Tooltip>
                     <Tooltip label="Vertical Space (\vspace)"><ActionIcon variant="subtle" size="xs" color='gray.5' onClick={() => insertText('\\vspace{length}')}><Text size="xs" fw={700}>VS</Text></ActionIcon></Tooltip>
-                    <Tooltip label="Small Space (\,)"><ActionIcon variant="subtle" size="xs" color='gray.5' onClick={() => insertText('\\,')}><Text size="xs" fw={700}>,</Text></ActionIcon></Tooltip>
-                    <Tooltip label="Medium Space (\:)"><ActionIcon variant="subtle" size="xs" color='gray.5' onClick={() => insertText('\\:')}><Text size="xs" fw={700}>:</Text></ActionIcon></Tooltip>
-                    <Tooltip label="Large Space (\;)"><ActionIcon variant="subtle" size="xs" color='gray.5' onClick={() => insertText('\\;')}><Text size="xs" fw={700}>;</Text></ActionIcon></Tooltip>
-                    <Tooltip label=" Negative Space (\!)"><ActionIcon variant="subtle" size="xs" color='gray.5' onClick={() => insertText('\\!')}><Text size="xs" fw={700}>!</Text></ActionIcon></Tooltip>
                 </Group>
             )
       },
@@ -172,15 +168,6 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
             <Group gap={2} bg="dark.7" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
                 <Tooltip label="Link (\href)"><ActionIcon variant="subtle" size="xs" color='gray.5' onClick={() => wrapSelection('\\href{url}{', '}')}><FontAwesomeIcon icon={faLink} /></ActionIcon></Tooltip>
                 <Tooltip label="Unlink (Remove Link)"><ActionIcon variant="subtle" size="xs" color='gray.5' disabled><FontAwesomeIcon icon={faUnlink} /></ActionIcon></Tooltip>
-            </Group>
-          )
-      },
-      {
-          id: 'history',
-          render: () => (
-            <Group gap={2} bg="dark.7" p={2} style={{ borderRadius: 4, flexShrink: 0 }}>
-                <Tooltip label="Undo"><ActionIcon variant="subtle" size="xs" color='gray.5' onClick={handleUndo}><FontAwesomeIcon icon={faUndo} /></ActionIcon></Tooltip>
-                <Tooltip label="Redo"><ActionIcon variant="subtle" size="xs" color='gray.5' onClick={handleRedo}><FontAwesomeIcon icon={faRedo} /></ActionIcon></Tooltip>
             </Group>
           )
       }

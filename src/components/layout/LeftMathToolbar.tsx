@@ -204,7 +204,7 @@ export const LeftMathToolbar = React.memo<LeftMathToolbarProps>(({ editor }) => 
         p={4}
         bg="dark.7"
         style={{
-            borderRight: "1px solid var(--mantine-color-dark-6)",
+            borderRight: "none",
             overflowY: 'auto',
             width: 40, // Slightly wider for better click targets
             flexShrink: 0,
