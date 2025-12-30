@@ -16,8 +16,140 @@ interface PdfPreviewProps {
   syncTexCoords?: { page: number, x: number, y: number } | null;
 }
 
+import { IconArrowLeft, IconArrowRight, IconDownload, IconMaximize, IconPrinter, IconSearch, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
+import { ActionIcon, Tooltip } from '@mantine/core';
+import type { ToolbarSlot, ToolbarProps } from '@react-pdf-viewer/default-layout';
+
 export function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPreviewProps) {
-  const defaultLayoutPluginInstance = defaultLayoutPlugin();
+  // Configure defaultLayoutPlugin to hide sidebar and customize layout
+  const defaultLayoutPluginInstance = defaultLayoutPlugin({
+    // Hide all sidebar tabs (bookmarks, thumbnails, attachments)
+    sidebarTabs: () => [],
+    // Configure toolbar with custom rendering
+    renderToolbar: (Toolbar: (props: ToolbarProps) => React.ReactElement) => (
+      <Toolbar>
+        {(slots: ToolbarSlot) => {
+          const {
+            CurrentPageInput,
+            Download,
+            EnterFullScreen,
+            GoToNextPage,
+            GoToPreviousPage,
+            NumberOfPages,
+            Print,
+            ShowSearchPopover,
+            Zoom,
+            ZoomIn,
+            ZoomOut,
+          } = slots;
+          return (
+            <div
+              style={{
+                alignItems: 'center',
+                display: 'flex',
+                width: '100%',
+                justifyContent: 'space-between',
+                padding: '4px 8px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ padding: '0px 2px' }}>
+                  <ShowSearchPopover>
+                    {(props) => (
+                      <Tooltip label="Search" position="bottom" withArrow>
+                        <ActionIcon variant="subtle" color="gray" size="xs" onClick={props.onClick}>
+                          <IconSearch size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                  </ShowSearchPopover>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <GoToPreviousPage>
+                    {(props) => (
+                      <Tooltip label="Previous Page" position="bottom" withArrow>
+                        <ActionIcon variant="subtle" color="gray" size="xs" onClick={props.onClick} disabled={props.isDisabled}>
+                          <IconArrowLeft size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                  </GoToPreviousPage>
+                   <div style={{ display: 'flex', alignItems: 'center', margin: '0 4px' }} className="pdf-page-controls">
+                    <CurrentPageInput />
+                    <span style={{ margin: '0 4px', fontSize: '12px', color: '#868e96' }}>/</span>
+                    <NumberOfPages/>
+                  </div>
+                  <GoToNextPage>
+                    {(props) => (
+                       <Tooltip label="Next Page" position="bottom" withArrow>
+                        <ActionIcon variant="subtle" color="gray" size="xs" onClick={props.onClick} disabled={props.isDisabled}>
+                          <IconArrowRight size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                  </GoToNextPage>
+                </div>
+              </div>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                 <ZoomOut>
+                  {(props) => (
+                    <Tooltip label="Zoom Out" position="bottom" withArrow>
+                      <ActionIcon variant="subtle" color="gray" size="xs" onClick={props.onClick}>
+                        <IconZoomOut size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
+                </ZoomOut>
+                <div style={{ margin: '0 4px' }} className="pdf-zoom-controls">
+                    <Zoom />
+                </div>
+                <ZoomIn>
+                  {(props) => (
+                    <Tooltip label="Zoom In" position="bottom" withArrow>
+                      <ActionIcon variant="subtle" color="gray" size="xs" onClick={props.onClick}>
+                        <IconZoomIn size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
+                </ZoomIn>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                 <EnterFullScreen>
+                  {(props) => (
+                    <Tooltip label="Full Screen" position="bottom" withArrow>
+                      <ActionIcon variant="subtle" color="gray" size="xs" onClick={props.onClick}>
+                        <IconMaximize size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
+                </EnterFullScreen>
+                 <Download>
+                  {(props) => (
+                    <Tooltip label="Download" position="bottom" withArrow>
+                      <ActionIcon variant="subtle" color="gray" size="xs" onClick={props.onClick}>
+                        <IconDownload size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
+                </Download>
+                <Print>
+                  {(props) => (
+                    <Tooltip label="Print" position="bottom" withArrow>
+                      <ActionIcon variant="subtle" color="gray" size="xs" onClick={props.onClick}>
+                        <IconPrinter size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
+                </Print>
+              </div>
+            </div>
+          );
+        }}
+      </Toolbar>
+    ),
+  });
   
   // State για να ξέρουμε πότε φορτώνει το PDF
   const [ready, setReady] = useState(false);
@@ -76,6 +208,7 @@ export function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPrevi
       return () => {
           if (highlightTimerRef.current) {
               clearTimeout(highlightTimerRef.current);
+              highlightTimerRef.current = null;
           }
       };
   }, []);
@@ -185,7 +318,7 @@ export function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPrevi
         </div>
       </Worker>
       
-      {/* CSS Animation for Sync Pulse */}
+      {/* CSS Animation for Sync Pulse and PDF Viewer Customization */}
       <style>{`
         @keyframes syncPulse {
           0% {
@@ -200,6 +333,60 @@ export function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPrevi
             opacity: 0;
             transform: scale(1);
           }
+        }
+        
+        /* Hide sidebar completely */
+        .rpv-default-layout__sidebar {
+          display: none !important;
+        }
+        
+        /* Ensure toolbar is at the top */
+        .rpv-default-layout__toolbar {
+          order: -1;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        /* Maximize PDF viewing area */
+        .rpv-default-layout__main {
+          width: 100% !important;
+          flex: 1 !important;
+        }
+        
+        /* Dark mode toolbar styling */
+        .rpv-core__viewer--dark .rpv-default-layout__toolbar {
+          background-color: #25262b;
+          border-bottom-color: #373A40;
+          height: auto !important;
+          min-height: 30px;
+        }
+        
+        /* Smaller font sizes for controls */
+        .pdf-page-controls input {
+          height: 24px !important;
+          font-size: 12px !important;
+          width: 40px !important;
+          padding: 0 4px !important;
+          text-align: center;
+          border-radius: 4px;
+        }
+        
+        .pdf-page-controls span {
+          font-size: 12px !important;
+        }
+        
+        .pdf-zoom-controls button {
+          height: 24px !important;
+          font-size: 12px !important;
+        }
+        
+        /* Remove default button styles from RPV if any leak through */
+        .rpv-core__button {
+           display: none !important; /* This hides original buttons inside our wrappers if they duplicated */
+        }
+        
+        /* Custom Styling for the Zoom Menu text */
+        .rpv-core__popover-body {
+           font-size: 12px !important;
         }
       `}</style>
     </Box>

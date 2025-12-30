@@ -10,6 +10,8 @@
     "shell:allow-execute",
     "shell:allow-open",
     "dialog:default",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text",
     {
       "identifier": "fs:allow-read-text-file",
       "allow": [

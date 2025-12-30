@@ -15,11 +15,11 @@ export const dataTexDarkTheme = {
     { token: 'entity.name.package.latex', foreground: '9CDCFE' }, // Package names (light blue)
     
     // === Sections ===
-    { token: 'entity.name.section.latex', foreground: 'DCDCAA', fontStyle: 'bold' }, // Section commands (yellow)
-    { token: 'entity.name.section.content.latex', foreground: 'DCDCAA' }, // Section titles
+    { token: 'entity.name.section.latex', foreground: '3C81FF', fontStyle: 'bold' }, // Section commands (yellow)
+    { token: 'entity.name.section.content.latex', foreground: '3C81FF' }, // Section titles
     
     // === Formatting ===
-    { token: 'entity.name.function.formatting.latex', foreground: 'DCDCAA' }, // \textbf, \textit, etc.
+    { token: 'entity.name.function.formatting.latex', foreground: '3C81FF' }, // \textbf, \textit, etc.
     { token: 'text.formatting.latex', foreground: 'D4D4D4' }, // Text inside formatting commands
     
     // === References ===
@@ -27,7 +27,7 @@ export const dataTexDarkTheme = {
     { token: 'entity.name.reference.content.latex', foreground: '9CDCFE' }, // Reference labels
     
     // === Functions ===
-    { token: 'entity.name.function.latex', foreground: 'DCDCAA' }, // Other functions
+    { token: 'entity.name.function.latex', foreground: '3C81FF' }, // Other functions
     { token: 'entity.name.function.user.latex', foreground: 'C586C0' }, // User-defined commands
     
     // === Math Mode ===
@@ -42,8 +42,8 @@ export const dataTexDarkTheme = {
     
     // Math delimiters
     { token: 'delimiter.curly.math.latex', foreground: 'FFD700' }, // {} in math
-    { token: 'delimiter.bracket.math.latex', foreground: 'DA70D6' }, // [] in math
-    { token: 'delimiter.parenthesis.math.latex', foreground: 'D4D4D4' }, // () in math
+    { token: 'delimiter.bracket.math.latex', foreground: '70A3DA' }, // [] in math
+    { token: 'delimiter.parenthesis.math.latex', foreground: '00A968' }, // () in math
     
     // === Comments ===
     { token: 'comment.line.latex', foreground: '6A9955', fontStyle: 'italic' }, // % Comments
@@ -54,15 +54,15 @@ export const dataTexDarkTheme = {
     
     // === Delimiters (outside math) ===
     { token: 'delimiter.curly.latex', foreground: 'FFD700' }, // {}
-    { token: 'delimiter.bracket.latex', foreground: 'DA70D6' }, // []
-    { token: 'delimiter.parenthesis.latex', foreground: 'D4D4D4' }, // ()
+    { token: 'delimiter.bracket.latex', foreground: '70A3DA' }, // []
+    { token: 'delimiter.parenthesis.latex', foreground: '00A968' }, // ()
     
     // === Operators ===
-    { token: 'keyword.operator.latex', foreground: 'D4D4D4' }, // &, ~, etc.
+    { token: 'keyword.operator.latex', foreground: '00A968' }, // &, ~, etc.
     
     // === Generic ===
-    { token: 'meta.bracket.latex', foreground: 'DA70D6' }, // Optional arguments
-    { token: 'meta.block.latex', foreground: 'D4D4D4' }, // Required arguments
+    { token: 'meta.bracket.latex', foreground: '70A3DA' }, // Optional arguments
+    { token: 'meta.block.latex', foreground: '00A968' }, // Required arguments
     
     // Legacy compatibility
     { token: 'string', foreground: 'CE9178' },
@@ -73,7 +73,7 @@ export const dataTexDarkTheme = {
     { token: 'attribute.name', foreground: 'DCDCAA' }
   ],
   colors: {
-    'editor.background': '#1f1f1f', // Το σκούρο γκρι του VSCode
+    'editor.background': '#1a1b1e', // Το σκούρο γκρι του VSCode
     'editor.foreground': '#D4D4D4',
     'editor.lineHighlightBackground': '#2a2a2a', // Η γραμμή που έχεις τον κέρσορα
     'editorCursor.foreground': '#A6E22E', // Πράσινος κέρσορας

@@ -486,8 +486,20 @@ export default function App() {
       }
   }, []);
 
-  const handleCloseTab = useCallback((id: string, e?: React.MouseEvent) => {
+  const handleCloseTab = useCallback(async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+
+    const tab = tabs.find(t => t.id === id);
+    if (tab && tab.isDirty) {
+        // @ts-ignore
+        const { confirm } = await import('@tauri-apps/plugin-dialog');
+        const confirmed = await confirm(
+            `You have unsaved changes in '${tab.title}'.\nAre you sure you want to close it?`,
+            { title: 'Unsaved Changes', kind: 'warning', okLabel: 'Close', cancelLabel: 'Cancel' }
+        );
+        if (!confirmed) return;
+    }
+
     setTabs(prev => {
         const newTabs = prev.filter(t => t.id !== id);
         setActiveTabId(currentId => {
@@ -504,7 +516,7 @@ export default function App() {
 
         return newTabs;
     });
-  }, [handleRequestNewFile]);
+  }, [tabs, handleRequestNewFile]);
 
   const handleDeleteItem = useCallback(async (node: FileSystemNode) => {
       try {
@@ -850,54 +862,81 @@ export default function App() {
       }
   }, [activeTab, isTexFile]);
 
-  // --- Compilation (Simplified: No Output Directory) ---
-  const handleCompile = useCallback(async () => {
+  // --- Helper: Save File ---
+  const handleSave = useCallback(async (tabId?: string) => {
+    const targetId = tabId || activeTabId;
+    const tab = tabs.find(t => t.id === targetId);
+
+    if (!tab || !tab.id) return;
+
+    // Use current content from ref if it's the active tab, otherwise use stored content
+    let contentToSave = tab.content || "";
+    if (tab.id === activeTabId && editorRef.current) {
+        contentToSave = editorRef.current.getValue();
+    }
+
+    try {
+        // @ts-ignore
+        const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+        await writeTextFile(tab.id, contentToSave);
+        
+        // Update tab dirty state
+        setTabs(prev => prev.map(t => t.id === targetId ? { ...t, isDirty: false, content: contentToSave } : t));
+        
+    } catch (e) {
+        console.error("Failed to save file:", e);
+        setCompileError("Failed to save file: " + String(e));
+    }
+  }, [tabs, activeTabId]);
+
+  // --- Compilation ---
+  const handleCompile = useCallback(async (engine?: string) => {
     if (!activeTab || !activeTab.id || !isTexFile) {
         console.warn("[COMPILER DEBUG] Compile aborted: No active tab or not a tex file.");
         return;
     }
 
+    // Save before compiling
+    await handleSave(activeTab.id);
+
     const filePath = activeTab.id;
-    console.log(`[COMPILER DEBUG] Starting compilation for: ${filePath}`);
+    console.log(`[COMPILER DEBUG] Starting compilation for: ${filePath} with engine: ${engine || 'default'}`);
 
     try {
         setIsCompiling(true);
         setCompileError(null);
         
-        let contentToSave = activeTab.content || "";
-        if (editorRef.current) {
-            contentToSave = editorRef.current.getValue();
-        }
-
-        // @ts-ignore
-        const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-        
-        console.log("[COMPILER DEBUG] Saving file content to disk...");
-        await writeTextFile(filePath, contentToSave);
-        
-        let engine = 'pdflatex';
+        let selectedEngine = engine || 'pdflatex';
         let args = ['-interaction=nonstopmode', '-synctex=1'];
         const outputDir = ''; 
 
-        const savedConfig = localStorage.getItem('tex-engine-config');
-        if (savedConfig) {
-            try {
-                const config = JSON.parse(savedConfig);
-                const engineKey = config.defaultEngine || 'pdflatex';
-                if (engineKey === 'xelatex') engine = config.xelatexPath || 'xelatex';
-                else if (engineKey === 'lualatex') engine = config.lualatexPath || 'lualatex';
-                else engine = config.pdflatexPath || 'pdflatex';
+        // If no engine explicitly passed, check config
+        if (!engine) {
+            const savedConfig = localStorage.getItem('tex-engine-config');
+            if (savedConfig) {
+                try {
+                    const config = JSON.parse(savedConfig);
+                    const engineKey = config.defaultEngine || 'pdflatex';
+                    if (engineKey === 'xelatex') selectedEngine = config.xelatexPath || 'xelatex';
+                    else if (engineKey === 'lualatex') selectedEngine = config.lualatexPath || 'lualatex';
+                    else selectedEngine = config.pdflatexPath || 'pdflatex';
 
-                args = ['-interaction=nonstopmode'];
-                if (config.synctex) args.push('-synctex=1');
-                if (config.shellEscape) args.push('-shell-escape');
-            } catch (e) {
-                console.warn("[COMPILER DEBUG] Failed to parse config, using defaults", e);
+                    args = ['-interaction=nonstopmode'];
+                    if (config.synctex) args.push('-synctex=1');
+                    if (config.shellEscape) args.push('-shell-escape');
+                } catch (e) {
+                    console.warn("[COMPILER DEBUG] Failed to parse config, using defaults", e);
+                }
             }
+        } else {
+             // Basic args for explicit engine choice
+             if (selectedEngine === 'xelatex' || selectedEngine === 'lualatex') {
+                 // Common args for these engines can go here if needed
+             }
         }
 
         // @ts-ignore
-        const result = await invoke('compile_tex', { filePath, engine, args, outputDir });
+        const result = await invoke('compile_tex', { filePath, engine: selectedEngine, args, outputDir });
         setPdfRefreshTrigger(prev => prev + 1);
 
     } catch (error: any) {
@@ -920,7 +959,7 @@ export default function App() {
         }
         setIsCompiling(false);
     }
-  }, [activeTab, isTexFile]);
+  }, [activeTab, isTexFile, handleSave]);
 
   const handleStopCompile = useCallback(() => {
       setIsCompiling(false);
@@ -1160,6 +1199,7 @@ export default function App() {
                             showPdf={showPdf} onTogglePdf={handleTogglePdf}
                             isTexFile={isTexFile} onCompile={handleCompile} isCompiling={isCompiling}
                             onStopCompile={handleStopCompile}
+                            onSave={handleSave}
                             onCreateEmpty={handleCreateEmpty}
                             onOpenWizard={handleOpenPreambleWizard}
                             onCreateFromTemplate={handleCreateFromTemplate}

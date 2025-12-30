@@ -269,16 +269,13 @@ export const latexLanguage: languages.IMonarchLanguage = {
 
       // \usepackage{package} - highlight package name
       [
-        /(\\)(usepackage)(\s*)(\[.*?\])?(\s*)(\{)([a-zA-Z0-9,-]+)(\})/,
+        /(\\)(usepackage)((?:\s*\[.*?\])?)(\s*)(\{)/,
         [
           '',
           'keyword.control.latex',
-          '',
           'meta.bracket.latex',
           '',
-          'delimiter.curly.latex',
-          'entity.name.package.latex',
-          'delimiter.curly.latex'
+          { token: 'delimiter.curly.latex', next: '@packageContent' }
         ]
       ],
 
@@ -350,8 +347,17 @@ export const latexLanguage: languages.IMonarchLanguage = {
         ]
       ],
 
-      // Escaped characters or single-char commands (\\, \_, \$, etc.)
-      [/\\./, 'keyword.escape.latex'],
+      // Display math: \[ ... \] - Must come before bracket delimiters!
+      [/\\\[/, { token: 'keyword.math.delimiter.latex', next: '@displayMathBracket' }],
+
+      // Display math: \] closing - Must come before bracket delimiters!
+      [/\\\]/, 'keyword.math.delimiter.latex'],
+
+      // Inline math: \( ... \) - Must come before parenthesis delimiters!
+      [/\\\(/, { token: 'keyword.math.delimiter.latex', next: '@inlineMathBracket' }],
+
+      // Inline math: \) closing - Must come before parenthesis delimiters!
+      [/\\\)/, 'keyword.math.delimiter.latex'],
 
       // Display math: $$ ... $$
       [/\$\$/, { token: 'keyword.math.delimiter.latex', next: '@displayMath' }],
@@ -359,11 +365,9 @@ export const latexLanguage: languages.IMonarchLanguage = {
       // Inline math: $ ... $
       [/\$/, { token: 'keyword.math.delimiter.latex', next: '@inlineMath' }],
 
-      // Display math: \[ ... \]
-      [/\\\[/, { token: 'keyword.math.delimiter.latex', next: '@displayMathBracket' }],
-
-      // Inline math: \( ... \)
-      [/\\\(/, { token: 'keyword.math.delimiter.latex', next: '@inlineMathBracket' }],
+      // Escaped characters or single-char commands (\\, \_, \$, etc.)
+      // This must come AFTER the specific math delimiters
+      [/\\./, 'keyword.escape.latex'],
 
       // Brackets and delimiters
       [/[{}]/, 'delimiter.curly.latex'],
@@ -387,6 +391,14 @@ export const latexLanguage: languages.IMonarchLanguage = {
     referenceContent: [
       [/\}/, { token: 'delimiter.curly.latex', next: '@pop' }],
       [/./, 'entity.name.reference.content.latex']
+    ],
+
+    // Package content (e.g., \usepackage{amsmath,graphicx})
+    packageContent: [
+      [/\}/, { token: 'delimiter.curly.latex', next: '@pop' }],
+      [/[a-zA-Z0-9_-]+/, 'entity.name.package.latex'],
+      [/,/, 'delimiter.comma.latex'],
+      [/\s+/, '']
     ],
 
     // Formatting content (e.g., \textbf{bold text})

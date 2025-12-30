@@ -455,25 +455,25 @@ export const Sidebar = React.memo<SidebarProps>(({
       <Stack w={48} h="100%" gap={0} justify="space-between" py="md" style={{ backgroundColor: "var(--app-sidebar-bg)", borderRight: "1px solid var(--mantine-color-default-border)", zIndex: 20 }}>
         <Stack gap={4} align="center">
           <Tooltip label="Explorer" position="right">
-              <ActionIcon size="lg" variant={getVariant("files")} color={getColor("files")} onClick={() => onToggleSection("files")}><FontAwesomeIcon icon={faCopy} style={{ width: 20, height: 20 }} /></ActionIcon>
+              <ActionIcon size="md" variant={getVariant("files")} color={getColor("files")} onClick={() => onToggleSection("files")}><FontAwesomeIcon icon={faFile} style={{ width: 20, height: 20 }} /></ActionIcon>
           </Tooltip>
           <Tooltip label="Structure" position="right">
-              <ActionIcon size="lg" variant={getVariant("outline")} color={getColor("outline")} onClick={() => onToggleSection("outline")}><FontAwesomeIcon icon={faList} style={{ width: 20, height: 20 }} /></ActionIcon>
+              <ActionIcon size="md" variant={getVariant("outline")} color={getColor("outline")} onClick={() => onToggleSection("outline")}><FontAwesomeIcon icon={faList} style={{ width: 20, height: 20 }} /></ActionIcon>
           </Tooltip>
           <Tooltip label="AMS Symbols" position="right">
-              <ActionIcon size="lg" variant={getVariant("symbols")} color={getColor("symbols")} onClick={() => onToggleSection("symbols")}><FontAwesomeIcon icon={faSquareRootAlt} style={{ width: 20, height: 20 }} /></ActionIcon>
+              <ActionIcon size="md" variant={getVariant("symbols")} color={getColor("symbols")} onClick={() => onToggleSection("symbols")}><FontAwesomeIcon icon={faSquareRootAlt} style={{ width: 20, height: 20 }} /></ActionIcon>
           </Tooltip>
           <Tooltip label="Package Gallery" position="right">
-              <ActionIcon size="lg" variant={getVariant("gallery")} color={getColor("gallery")} onClick={() => onToggleSection("gallery")}><FontAwesomeIcon icon={faCube} style={{ width: 20, height: 20 }} /></ActionIcon>
+              <ActionIcon size="md" variant={getVariant("gallery")} color={getColor("gallery")} onClick={() => onToggleSection("gallery")}><FontAwesomeIcon icon={faCube} style={{ width: 20, height: 20 }} /></ActionIcon>
           </Tooltip>
           <Tooltip label="Search" position="right">
-              <ActionIcon size="lg" variant={getVariant("search")} color={getColor("search")} onClick={() => onToggleSection("search")}><FontAwesomeIcon icon={faSearch} style={{ width: 20, height: 20 }} /></ActionIcon>
+              <ActionIcon size="md" variant={getVariant("search")} color={getColor("search")} onClick={() => onToggleSection("search")}><FontAwesomeIcon icon={faSearch} style={{ width: 20, height: 20 }} /></ActionIcon>
           </Tooltip>
           <Tooltip label="Source Control" position="right">
-              <ActionIcon size="lg" variant={getVariant("git")} color={getColor("git")} onClick={() => onToggleSection("git")}><FontAwesomeIcon icon={faCodeBranch} style={{ width: 20, height: 20 }} /></ActionIcon>
+              <ActionIcon size="md" variant={getVariant("git")} color={getColor("git")} onClick={() => onToggleSection("git")}><FontAwesomeIcon icon={faCodeBranch} style={{ width: 20, height: 20 }} /></ActionIcon>
           </Tooltip>
           <Tooltip label="Database" position="right">
-              <ActionIcon size="lg" variant={getVariant("database")} color={getColor("database")} onClick={() => onToggleSection("database")}><FontAwesomeIcon icon={faDatabase} style={{ width: 20, height: 20 }} /></ActionIcon>
+              <ActionIcon size="md" variant={getVariant("database")} color={getColor("database")} onClick={() => onToggleSection("database")}><FontAwesomeIcon icon={faDatabase} style={{ width: 20, height: 20 }} /></ActionIcon>
           </Tooltip>
         </Stack>
         <Stack gap={4} align="center">

@@ -6,9 +6,10 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faFileCode, faBookOpen, faCog, faImage, faFile,
   faTimes, faPlay, faCode, faStop, faHome, faChevronRight,
-  faFilePdf, faArrowRight, faCopy
+  faFilePdf, faArrowRight, faCopy, faSave, faUndo, faRedo, faSearch, faCut, faPaste
 } from "@fortawesome/free-solid-svg-icons";
 import { IconLayoutBottombarCollapseFilled, IconLayoutSidebarLeftCollapseFilled } from '@tabler/icons-react';
+import { writeText, readText } from '@tauri-apps/plugin-clipboard-manager';
 import { TableDataView } from "../database/TableDataView";
 import { AppTab } from "./Sidebar"; 
 import { StartPage } from "./StartPage";
@@ -30,9 +31,10 @@ interface EditorAreaProps {
   showPdf: boolean;
   onTogglePdf: () => void;
   isTexFile: boolean;
-  onCompile?: () => void;
+  onCompile?: (engine?: string) => void;
   isCompiling?: boolean;
   onStopCompile?: () => void;
+  onSave?: () => void;
   
   // Start Page Props
   onCreateEmpty: () => void;
@@ -101,7 +103,7 @@ const TabItem = React.memo(({
                     style={{
                         borderTop: file.id === activeFileId ? "2px solid #339af0" : "2px solid transparent",
                         borderRight: "1px solid var(--mantine-color-dark-6)",
-                        borderTopRightRadius: 4, borderTopLeftRadius: 4,
+                        borderTopRightRadius: 1, borderTopLeftRadius: 1,
                         cursor: "pointer", minWidth: 120,
                     }}
                 >
@@ -110,7 +112,7 @@ const TabItem = React.memo(({
 
                     <Group gap={8} wrap="nowrap">
                         {getFileIcon(file.title, file.type)}
-                        <Text size="xs" c={file.id === activeFileId ? "white" : "dimmed"}>{file.title}</Text>
+                        <Text size="xs" c={file.id === activeFileId ? "white" : "dimmed"}>{file.title}{file.isDirty ? ' ●' : ''}</Text>
                         <ActionIcon size="xs" variant="transparent" color="gray" className="close-tab" onClick={(e) => onClose(file.id, e)} style={{ opacity: file.id === activeFileId ? 1 : 0.5 }}>
                             <FontAwesomeIcon icon={faTimes} style={{ width: 12, height: 12 }} />
                         </ActionIcon>
@@ -135,7 +137,7 @@ const TabItem = React.memo(({
 
 export const EditorArea = React.memo<EditorAreaProps>(({ 
   files, activeFileId, onFileSelect, onFileClose, onCloseFiles,
-  onContentChange, onMount, onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile,
+  onContentChange, onMount, onTogglePdf, isTexFile, onCompile, isCompiling, onStopCompile, onSave,
   onCreateEmpty, onOpenWizard, onCreateFromTemplate,
   recentProjects, onOpenRecent,
   editorSettings,
@@ -151,6 +153,9 @@ export const EditorArea = React.memo<EditorAreaProps>(({
   // Toolbar visibility states
   const [showLeftMathToolbar, setShowLeftMathToolbar] = React.useState(true);
   const [showTopEditorToolbar, setShowTopEditorToolbar] = React.useState(true);
+
+  // Local state for compile engine
+  const [selectedEngine, setSelectedEngine] = React.useState<string>('pdflatex');
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     setEditorInstance(editor);
@@ -189,184 +194,14 @@ export const EditorArea = React.memo<EditorAreaProps>(({
         }
     });
 
-    // === LSP Integration ===
-    // DISABLED: Texlab returns empty completions despite proper configuration
-    // Infrastructure is complete and ready - texlab requires either:
-    //   1. .texlabroot file in project root, OR
-    //   2. Incremental sync implementation (complex diff algorithm)
-    // Using snippet-based completion for now (working perfectly)
-    /*
-    if (lspClient && lspClient.isReady()) {
-        console.log('🔌 Registering LSP providers for Monaco');
 
-        // Get existing snippet provider suggestions
-        const getSnippetSuggestions = (model: any, position: any) => {
-            const word = model.getWordUntilPosition(position);
-            const range = {
-                startLineNumber: position.lineNumber,
-                endLineNumber: position.lineNumber,
-                startColumn: word.startColumn,
-                endColumn: word.endColumn
-            };
 
-            return [
-                {
-                    label: 'itemize',
-                    kind: monaco.languages.CompletionItemKind.Snippet,
-                    insertText: ['\\begin{itemize}', '\t\\item $0', '\\end{itemize}'].join('\n'),
-                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                    documentation: 'Bulleted list environment',
-                    range
-                },
-                {
-                    label: 'enumerate',
-                    kind: monaco.languages.CompletionItemKind.Snippet,
-                    insertText: ['\\begin{enumerate}', '\t\\item $0', '\\end{enumerate}'].join('\n'),
-                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                    documentation: 'Numbered list environment',
-                    range
-                },
-                {
-                    label: 'equation',
-                    kind: monaco.languages.CompletionItemKind.Snippet,
-                    insertText: ['\\begin{equation}', '\t$0', '\\end{equation}'].join('\n'),
-                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                    documentation: 'Equation environment',
-                    range
-                },
-                {
-                    label: 'align',
-                    kind: monaco.languages.CompletionItemKind.Snippet,
-                    insertText: ['\\begin{align}', '\t$0', '\\end{align}'].join('\n'),
-                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                    documentation: 'Align environment',
-                    range
-                },
-                {
-                    label: 'figure',
-                    kind: monaco.languages.CompletionItemKind.Snippet,
-                    insertText: ['\\begin{figure}[h]', '\t\\centering', '\t\\includegraphics[width=0.8\\textwidth]{$1}', '\t\\caption{$2}', '\t\\label{fig:$3}', '\\end{figure}'].join('\n'),
-                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                    documentation: 'Figure environment',
-                    range
-                },
-                {
-                    label: 'table',
-                    kind: monaco.languages.CompletionItemKind.Snippet,
-                    insertText: ['\\begin{table}[h]', '\t\\centering', '\t\\begin{tabular}{|c|c|}', '\t\t\\hline', '\t\t$1 & $2 \\\\', '\t\t\\hline', '\t\\end{tabular}', '\t\\caption{$3}', '\t\\label{tab:$4}', '\\end{table}'].join('\n'),
-                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-                    documentation: 'Table environment',
-                    range
-                },
-            ];
-        };
-
-        // Register COMBINED Completion Provider (LSP + Snippets)
-        monaco.languages.registerCompletionItemProvider('my-latex', {
-            triggerCharacters: ['\\', '{', '['],
-            async provideCompletionItems(model: any, position: any) {
-                console.log('🔍 Completion triggered at', position.lineNumber, position.column);
-                
-                // Always provide snippets as fallback
-                const snippetSuggestions = getSnippetSuggestions(model, position);
-                
-                // Try to get LSP completions
-                if (!lspClient.isReady()) {
-                    console.warn('⚠️ LSP not ready, returning only snippets');
-                    return { suggestions: snippetSuggestions };
-                }
-
-                try {
-                    const uri = `file://${model.uri.path}`;
-                    console.log('📡 Requesting LSP completions for', uri);
-                    
-                    const items = await lspClient.completion(uri, position.lineNumber, position.column);
-                    console.log('✅ LSP returned', items.length, 'items');
-
-                    const lspSuggestions = items.map(item => ({
-                        label: item.label,
-                        kind: item.kind,
-                        insertText: item.insertText || item.label,
-                        detail: item.detail,
-                        documentation: typeof item.documentation === 'string' 
-                            ? item.documentation 
-                            : item.documentation?.value,
-                        sortText: item.sortText,
-                        filterText: item.filterText,
-                    }));
-
-                    // Combine LSP suggestions with snippets
-                    const combined = [...lspSuggestions, ...snippetSuggestions];
-                    console.log('📝 Total suggestions:', combined.length);
-                    
-                    return { suggestions: combined };
-                } catch (error) {
-                    console.error('❌ LSP completion error:', error);
-                    // Return snippets on error
-                    return { suggestions: snippetSuggestions };
-                }
-            }
-        });
-
-        // Register Hover Provider
-        monaco.languages.registerHoverProvider('my-latex', {
-            async provideHover(model: any, position: any) {
-                if (!lspClient.isReady()) return null;
-
-                try {
-                    const uri = `file://${model.uri.path}`;
-                    const hover = await lspClient.hover(uri, position.lineNumber, position.column);
-
-                    if (!hover) return null;
-
-                    // Parse hover contents
-                    let contents: string;
-                    if (typeof hover.contents === 'string') {
-                        contents = hover.contents;
-                    } else if (Array.isArray(hover.contents)) {
-                        contents = hover.contents.map(c => 
-                            typeof c === 'string' ? c : c.value
-                        ).join('\n\n');
-                    } else {
-                        contents = hover.contents.value;
-                    }
-
-                    return {
-                        contents: [{ value: contents }],
-                        range: hover.range
-                    };
-                } catch (error) {
-                    console.error('LSP hover error:', error);
-                    return null;
-                }
-            }
-        });
-
-        // Register Definition Provider  
-        monaco.languages.registerDefinitionProvider('my-latex', {
-            async provideDefinition(model: any, position: any) {
-                if (!lspClient.isReady()) return null;
-
-                try {
-                    const uri = `file://${model.uri.path}`;
-                    const location = await lspClient.definition(uri, position.lineNumber, position.column);
-
-                    if (!location) return null;
-
-                    return {
-                        uri: monaco.Uri.parse(location.uri),
-                        range: location.range
-                    };
-                } catch (error) {
-                    console.error('LSP definition error:', error);
-                    return null;
-                }
-            }
-        });
-
-        console.log('✅ LSP providers registered successfully');
-    }
-    */
+    // Handle Ctrl+S for saving
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+        if (onSave) {
+            onSave();
+        }
+    });
 
     if (onMount) onMount(editor, monaco);
   };
@@ -404,43 +239,6 @@ export const EditorArea = React.memo<EditorAreaProps>(({
           }
       }
   }, [editorInstance, spellCheckEnabled]);
-
-  // === LSP Document Synchronization ===
-  // DISABLED: LSP integration disabled - see above
-  /*
-  // Notify LSP when active file changes (didOpen)
-  React.useEffect(() => {
-      if (lspClient && lspClient.isReady() && activeFile && activeFile.type === 'editor' && editorInstance) {
-          const uri = `file://${activeFile.id}`;
-          const text = editorInstance.getValue() || activeFile.content || '';
-          
-          console.log(`📂 Triggering didOpen for ${uri}`);
-          lspClient.didOpen(uri, 'latex', text);
-      }
-  }, [activeFileId, lspClient, editorInstance]);
-
-  // Notify LSP when content changes (didChange) - debounced
-  React.useEffect(() => {
-      if (!editorInstance || !lspClient || !lspClient.isReady() || !activeFile || activeFile.type !== 'editor') {
-          return;
-      }
-
-      const disposable = editorInstance.onDidChangeModelContent(() => {
-          const text = editorInstance.getValue();
-          const uri = `file://${activeFile.id}`;
-          
-          // Debounce to avoid too many requests
-          const timeoutId = setTimeout(() => {
-              console.log(`📝 Triggering didChange for ${uri}`);
-              lspClient.didChange(uri, text);
-          }, 500);
-
-          return () => clearTimeout(timeoutId);
-      });
-
-      return () => disposable.dispose();
-  }, [editorInstance, lspClient, activeFile]);
-  */
 
   const handleCloseOthers = useCallback((currentId: string) => {
       const idsToClose = files
@@ -491,6 +289,94 @@ export const EditorArea = React.memo<EditorAreaProps>(({
     lineNumbers: editorSettings?.lineNumbers ?? "on"
   }), [editorSettings]);
 
+  const handleCompileClick = () => {
+      if (onCompile) {
+          onCompile(selectedEngine);
+      }
+  };
+
+  const handleCopy = async () => {
+      if (!editorInstance) return;
+      const selection = editorInstance.getSelection();
+      const model = editorInstance.getModel();
+      
+      if (selection && model && !selection.isEmpty()) {
+          const text = model.getValueInRange(selection);
+          if (text) {
+              try {
+                  await writeText(text);
+              } catch (error) {
+                  console.error('Failed to copy to clipboard:', error);
+              }
+          }
+      }
+  };
+
+  const handleCut = async () => {
+      if (!editorInstance) return;
+      const selection = editorInstance.getSelection();
+      const model = editorInstance.getModel();
+      
+      if (selection && model && !selection.isEmpty()) {
+          const text = model.getValueInRange(selection);
+          if (text) {
+              try {
+                  await writeText(text);
+                  editorInstance.executeEdits('toolbar', [{ 
+                      range: selection, 
+                      text: '', 
+                      forceMoveMarkers: true 
+                  }]);
+              } catch (error) {
+                  console.error('Failed to cut to clipboard:', error);
+              }
+          }
+      }
+  };
+
+  const handlePaste = async () => {
+      if (!editorInstance) return;
+      const model = editorInstance.getModel();
+      if (!model) return;
+      
+      try {
+          const text = await readText();
+          if (text) {
+              const selection = editorInstance.getSelection();
+              if (selection) {
+                  editorInstance.executeEdits('toolbar', [{
+                      range: selection,
+                      text: text,
+                      forceMoveMarkers: true
+                  }]);
+                  // Move cursor to end of pasted text
+                  const lines = text.split('\n');
+                  const lastLine = lines[lines.length - 1];
+                  const newPosition = {
+                      lineNumber: selection.startLineNumber + lines.length - 1,
+                      column: lines.length === 1 ? selection.startColumn + lastLine.length : lastLine.length + 1
+                  };
+                  editorInstance.setPosition(newPosition);
+              }
+          }
+      } catch (e) {
+          console.error("Failed to read from clipboard:", e);
+      }
+  };
+  
+  const handleUndo = () => {
+      editorInstance?.focus();
+      editorInstance?.trigger('toolbar', 'undo');
+  };
+  const handleRedo = () => {
+      editorInstance?.focus();
+      editorInstance?.trigger('toolbar', 'redo');
+  };
+  const handleFind = () => {
+      editorInstance?.focus();
+      editorInstance?.trigger('toolbar', 'actions.find');
+  };
+
   return (
     <Stack gap={0} h="100%" w="100%" style={{ overflow: "hidden" }}>
       {/* Tabs Bar */}
@@ -519,25 +405,74 @@ export const EditorArea = React.memo<EditorAreaProps>(({
                   <Text size="xs" c="dimmed">DataTex</Text>
                   {activeFile && <><FontAwesomeIcon icon={faChevronRight} style={{ width: 12, height: 12, color: "gray" }} /><Text size="xs" c="white" truncate>{activeFile.title}</Text></>}
                 </Group>
-                <Group gap="xs">
+                <Group gap="4px">
 
-                  {isCompiling && <Tooltip label="Stop"><ActionIcon size="sm" variant="subtle" color="red" onClick={onStopCompile}><FontAwesomeIcon icon={faStop} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
-                  <Tooltip label="Compile"><ActionIcon size="xs" variant="subtle" color="green" onClick={onCompile} loading={isCompiling} disabled={!isTexFile || isCompiling}>{!isCompiling && <FontAwesomeIcon icon={faPlay} style={{ width: 14, height: 14 }} />}</ActionIcon></Tooltip>
+                  {/* Compile Split Button */}
+                  <Group gap={0} style={{ backgroundColor: 'transparent' }}>
+                      <Tooltip label={`Compile (${selectedEngine})`}>
+                          <ActionIcon 
+                              size="xs" 
+                              variant="subtle" 
+                              color="green" 
+                              onClick={handleCompileClick} 
+                              loading={isCompiling} 
+                              disabled={!isTexFile || isCompiling}
+                              style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+                          >
+                              {!isCompiling && <FontAwesomeIcon icon={faPlay} style={{ width: 14, height: 14 }} />}
+                          </ActionIcon>
+                      </Tooltip>
+                      <Menu shadow="md" width={150} position="bottom-end">
+                          <Menu.Target>
+                              <ActionIcon 
+                                  size="xs" 
+                                  variant="subtle" 
+                                  color="green" 
+                                  disabled={!isTexFile || isCompiling}
+                                  style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: '1px solid rgba(255,255,255,0.1)' }}
+                              >
+                                  <FontAwesomeIcon icon={faChevronRight} style={{ width: 8, height: 8, transform: 'rotate(90deg)' }} />
+                              </ActionIcon>
+                          </Menu.Target>
+                          <Menu.Dropdown bg="dark.7">
+                              <Menu.Label>Select Engine</Menu.Label>
+                              <Menu.Item onClick={() => setSelectedEngine('pdflatex')} rightSection={selectedEngine === 'pdflatex' && <Text size="xs" c="dimmed">✓</Text>}>PdfLaTeX</Menu.Item>
+                              <Menu.Item onClick={() => setSelectedEngine('xelatex')} rightSection={selectedEngine === 'xelatex' && <Text size="xs" c="dimmed">✓</Text>}>XeLaTeX</Menu.Item>
+                              <Menu.Item onClick={() => setSelectedEngine('lualatex')} rightSection={selectedEngine === 'lualatex' && <Text size="xs" c="dimmed">✓</Text>}>LuaLaTeX</Menu.Item>
+                              <Menu.Item onClick={() => setSelectedEngine('pythontex')} rightSection={selectedEngine === 'pythontex' && <Text size="xs" c="dimmed">✓</Text>}>PythonTeX</Menu.Item>
+                              <Menu.Divider />
+                              <Menu.Item onClick={() => setSelectedEngine('latex')} rightSection={selectedEngine === 'latex' && <Text size="xs" c="dimmed">✓</Text>}>LaTeX</Menu.Item>
+                              <Menu.Item onClick={() => setSelectedEngine('bibtex')} rightSection={selectedEngine === 'bibtex' && <Text size="xs" c="dimmed">✓</Text>}>BibTeX</Menu.Item>
+                              <Menu.Item onClick={() => setSelectedEngine('biber')} rightSection={selectedEngine === 'biber' && <Text size="xs" c="dimmed">✓</Text>}>Biber</Menu.Item>
+                          </Menu.Dropdown>
+                      </Menu>
+                  </Group>
+
+                  {isCompiling && <Tooltip label="Stop"><ActionIcon size="xs" variant="subtle" color="red" onClick={onStopCompile}><FontAwesomeIcon icon={faStop} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
                   {activeFile?.type === 'editor' && isTexFile && <Tooltip label="PDF"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={onTogglePdf}><FontAwesomeIcon icon={faFilePdf} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>}
                   {/* Editor Toolbars Toggles */}
                   {activeFile?.type === 'editor' && isTexFile && (
                       <>
+                        <Tooltip label="Save changes"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={() => onSave?.()}><FontAwesomeIcon icon={faSave} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                        <Box bg="dark.3" h="16px" w="1px"></Box>
+                        <Tooltip label="Copy"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={handleCopy}><FontAwesomeIcon icon={faCopy} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                        <Tooltip label="Cut"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={handleCut}><FontAwesomeIcon icon={faCut} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                        <Tooltip label="Paste"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={handlePaste}><FontAwesomeIcon icon={faPaste} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                        <Tooltip label="Undo"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={() => handleUndo()}><FontAwesomeIcon icon={faUndo} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                        <Tooltip label="Redo"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={() => handleRedo()}><FontAwesomeIcon icon={faRedo} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                        <Tooltip label="Find"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={() => handleFind()}><FontAwesomeIcon icon={faSearch} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+
+                        <Box bg="dark.3" h="16px" w="1px"></Box>
                         <Tooltip label={showTopEditorToolbar ? "Hide Editor Toolbar" : "Show Editor Toolbar"}>
-                            <ActionIcon size="xs" variant={showTopEditorToolbar ? "light" : "subtle"} color="gray.4" onClick={() => setShowTopEditorToolbar(!showTopEditorToolbar)}>
+                            <ActionIcon size="xs" variant="subtle" color="gray.4" onClick={() => setShowTopEditorToolbar(!showTopEditorToolbar)}>
                                 <IconLayoutBottombarCollapseFilled style={{ transform: 'rotate(180deg)' }} />
                             </ActionIcon>
                         </Tooltip>
                         <Tooltip label={showLeftMathToolbar ? "Hide Math Sidebar" : "Show Math Sidebar"}>
-                            <ActionIcon size="xs" variant={showLeftMathToolbar ? "light" : "subtle"} color="gray.4" onClick={() => setShowLeftMathToolbar(!showLeftMathToolbar)}>
+                            <ActionIcon size="xs" variant="subtle" color="gray.4" onClick={() => setShowLeftMathToolbar(!showLeftMathToolbar)}>
                                 <IconLayoutSidebarLeftCollapseFilled />
                             </ActionIcon>
                         </Tooltip>
-                        <Box style={{ width: 1, height: 16, backgroundColor: 'var(--mantine-color-dark-4)' }} />
                       </>
                   )}
                 </Group>
