@@ -1,23 +1,26 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { Stack, Text, NavLink, Loader, ActionIcon, Group, Tooltip, Box, Accordion, TextInput } from '@mantine/core';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { Stack, Text, Loader, ActionIcon, Group, Tooltip, Box, TextInput, Checkbox, UnstyledButton } from '@mantine/core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFolder, faPlus, faSync, faBook, faFileLines, faFile, faSearch, faTimes } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faSync, faSearch, faTimes, faDatabase } from '@fortawesome/free-solid-svg-icons';
 import { useDatabaseStore } from '../../stores/databaseStore';
 import { open } from '@tauri-apps/plugin-dialog';
 
-interface DatabaseSidebarProps {
-    onOpenResource?: (path: string) => void;
-}
-
-export const DatabaseSidebar = ({ onOpenResource }: DatabaseSidebarProps) => {
-    const { collections, fetchCollections, selectCollection, activeCollection, resources, isLoading, importFolder } = useDatabaseStore();
+export const DatabaseSidebar = () => {
+    const { 
+        collections, 
+        fetchCollections, 
+        loadedCollections, 
+        toggleCollectionLoaded, 
+        isLoading, 
+        importFolder 
+    } = useDatabaseStore();
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         fetchCollections();
     }, []);
 
-    const handleImport = async () => {
+    const handleImport = useCallback(async () => {
         try {
             const selected = await open({ directory: true, title: "Select Folder to Import" });
             if (selected && typeof selected === 'string') {
@@ -28,26 +31,16 @@ export const DatabaseSidebar = ({ onOpenResource }: DatabaseSidebarProps) => {
         } catch (e) {
             console.error("Import failed", e);
         }
-    };
+    }, [importFolder]);
 
-    const handleAccordionChange = (value: string | null) => {
-        if (value) {
-            selectCollection(value);
-        }
-    };
+    const handleToggleCollection = useCallback((name: string) => {
+        toggleCollectionLoaded(name);
+    }, [toggleCollectionLoaded]);
 
     const filteredCollections = useMemo(() => {
         if (!searchQuery) return collections;
         return collections.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
     }, [collections, searchQuery]);
-
-    const filteredResources = useMemo(() => {
-        if (!searchQuery) return resources;
-        return resources.filter(r => 
-            (r.title && r.title.toLowerCase().includes(searchQuery.toLowerCase())) || 
-            r.path.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [resources, searchQuery]);
 
     return (
         <Stack p="xs" gap="xs" h="100%" style={{ overflow: 'hidden' }}>
@@ -69,7 +62,7 @@ export const DatabaseSidebar = ({ onOpenResource }: DatabaseSidebarProps) => {
 
             <Box px={4}>
                 <TextInput 
-                    placeholder="Search..." 
+                    placeholder="Search collections..." 
                     size="xs" 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.currentTarget.value)}
@@ -83,30 +76,71 @@ export const DatabaseSidebar = ({ onOpenResource }: DatabaseSidebarProps) => {
                  <Text size="xs" c="dimmed" ta="center">No collections found.</Text>
             )}
 
-            <Box style={{ flex: 1, overflowY: 'auto' }}>
-                <Accordion variant="filled" chevronPosition="left" onChange={handleAccordionChange} value={activeCollection}>
-                    {filteredCollections.map(col => (
-                        <Accordion.Item value={col.name} key={col.name}>
-                            <Accordion.Control icon={<FontAwesomeIcon icon={col.icon === 'book' ? faBook : col.kind === 'documents' ? faFileLines : faFolder} style={{ width: 14, height: 14, color: "#fab005" }} />}>
-                                <Text size="sm" truncate>{col.name}</Text>
-                            </Accordion.Control>
-                            <Accordion.Panel>
-                                {activeCollection === col.name && isLoading && resources.length === 0 && <Loader size="xs" />}
-                                {activeCollection === col.name && filteredResources.length === 0 && !isLoading && <Text size="xs" c="dimmed" pl="md">Empty or no matches</Text>}
-                                {activeCollection === col.name && filteredResources.map(res => (
-                                    <NavLink
-                                        key={res.id}
-                                        label={res.title || res.path.split(/[/\\]/).pop()}
-                                        leftSection={<FontAwesomeIcon icon={faFile} style={{ width: 12, height: 12, color: "#4dabf7" }} />}
-                                        onClick={() => onOpenResource && onOpenResource(res.path)}
-                                        styles={{ root: { paddingLeft: 20, height: 28 }, label: { fontSize: 13 } }}
-                                    />
-                                ))}
-                            </Accordion.Panel>
-                        </Accordion.Item>
-                    ))}
-                </Accordion>
+            <Box style={{ flex: 1, overflowY: 'auto' }} px={4}>
+                <Stack gap={4}>
+                    {filteredCollections.map(col => {
+                        const isLoaded = loadedCollections.includes(col.name);
+                        return (
+                            <UnstyledButton
+                                key={col.name}
+                                onClick={() => handleToggleCollection(col.name)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    padding: '6px 8px',
+                                    borderRadius: 4,
+                                    backgroundColor: isLoaded ? 'rgba(64, 192, 87, 0.1)' : 'transparent',
+                                    transition: 'background-color 0.15s ease',
+                                }}
+                                styles={{
+                                    root: {
+                                        '&:hover': {
+                                            backgroundColor: isLoaded ? 'rgba(64, 192, 87, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                                        }
+                                    }
+                                }}
+                            >
+                                <Checkbox
+                                    checked={isLoaded}
+                                    onChange={() => {}}
+                                    size="xs"
+                                    styles={{
+                                        input: { cursor: 'pointer' }
+                                    }}
+                                />
+                                <FontAwesomeIcon 
+                                    icon={faDatabase} 
+                                    style={{ 
+                                        width: 14, 
+                                        height: 14, 
+                                        color: isLoaded ? '#40c057' : '#868e96',
+                                        transition: 'color 0.15s ease'
+                                    }} 
+                                />
+                                <Text 
+                                    size="sm" 
+                                    truncate 
+                                    style={{ 
+                                        flex: 1,
+                                        color: isLoaded ? '#c9c9c9' : '#868e96'
+                                    }}
+                                >
+                                    {col.name}
+                                </Text>
+                            </UnstyledButton>
+                        );
+                    })}
+                </Stack>
             </Box>
+
+            {loadedCollections.length > 0 && (
+                <Box px={4} py={4} style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                    <Text size="xs" c="dimmed">
+                        {loadedCollections.length} collection{loadedCollections.length > 1 ? 's' : ''} loaded
+                    </Text>
+                </Box>
+            )}
         </Stack>
     );
 };

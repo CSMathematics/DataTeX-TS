@@ -5,7 +5,9 @@ import {
   Button,
   TextInput,
   Menu,
-  Box
+  Box,
+  ActionIcon,
+  Tooltip
 } from "@mantine/core";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -14,19 +16,27 @@ import {
   faSave,
   faFolderOpen,
   faFileCirclePlus,
-  faFilePdf
+  faFilePdf,
+  faTableList
 } from "@fortawesome/free-solid-svg-icons";
 
 interface HeaderProps {
   onNewFile: () => void;
   onOpenFile: () => void;
   onSaveFile?: () => void;
+  // Database panel props
+  showDatabasePanel?: boolean;
+  onToggleDatabasePanel?: () => void;
+  isDatabaseView?: boolean;
 }
 
 export const HeaderContent: React.FC<HeaderProps> = ({ 
   onNewFile, 
   onOpenFile,
-  onSaveFile 
+  onSaveFile,
+  showDatabasePanel,
+  onToggleDatabasePanel,
+  isDatabaseView
 }) => (
   <Group h="100%" px="md" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }} data-tauri-drag-region>
     <Group data-tauri-drag-region>
@@ -86,6 +96,19 @@ export const HeaderContent: React.FC<HeaderProps> = ({
         }} 
       />
     </Box>
-    <Box w={100} /> 
+    <Group gap="xs">
+      {/* Database Panel Toggle - only visible in database view */}
+      {isDatabaseView && onToggleDatabasePanel && (
+        <Tooltip label={showDatabasePanel ? "Hide database table" : "Show database table"}>
+          <ActionIcon 
+            variant={showDatabasePanel ? "filled" : "subtle"} 
+            size="sm"
+            onClick={onToggleDatabasePanel}
+          >
+            <FontAwesomeIcon icon={faTableList} style={{ width: 14, height: 14 }} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+    </Group>
   </Group>
 );

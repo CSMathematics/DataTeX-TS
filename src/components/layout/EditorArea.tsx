@@ -157,6 +157,12 @@ export const EditorArea = React.memo<EditorAreaProps>(({
   // Local state for compile engine
   const [selectedEngine, setSelectedEngine] = React.useState<string>('pdflatex');
 
+  // --- Memoized Handlers for Performance ---
+  const handleSelectEngine = useCallback((engine: string) => setSelectedEngine(engine), []);
+  const handleToggleTopToolbar = useCallback(() => setShowTopEditorToolbar(prev => !prev), []);
+  const handleToggleMathToolbar = useCallback(() => setShowLeftMathToolbar(prev => !prev), []);
+  const handleSaveClick = useCallback(() => onSave?.(), [onSave]);
+
   const handleEditorMount: OnMount = (editor, monaco) => {
     setEditorInstance(editor);
 
@@ -436,14 +442,14 @@ export const EditorArea = React.memo<EditorAreaProps>(({
                           </Menu.Target>
                           <Menu.Dropdown bg="dark.7">
                               <Menu.Label>Select Engine</Menu.Label>
-                              <Menu.Item onClick={() => setSelectedEngine('pdflatex')} rightSection={selectedEngine === 'pdflatex' && <Text size="xs" c="dimmed">✓</Text>}>PdfLaTeX</Menu.Item>
-                              <Menu.Item onClick={() => setSelectedEngine('xelatex')} rightSection={selectedEngine === 'xelatex' && <Text size="xs" c="dimmed">✓</Text>}>XeLaTeX</Menu.Item>
-                              <Menu.Item onClick={() => setSelectedEngine('lualatex')} rightSection={selectedEngine === 'lualatex' && <Text size="xs" c="dimmed">✓</Text>}>LuaLaTeX</Menu.Item>
-                              <Menu.Item onClick={() => setSelectedEngine('pythontex')} rightSection={selectedEngine === 'pythontex' && <Text size="xs" c="dimmed">✓</Text>}>PythonTeX</Menu.Item>
+                              <Menu.Item onClick={() => handleSelectEngine('pdflatex')} rightSection={selectedEngine === 'pdflatex' && <Text size="xs" c="dimmed">✓</Text>}>PdfLaTeX</Menu.Item>
+                              <Menu.Item onClick={() => handleSelectEngine('xelatex')} rightSection={selectedEngine === 'xelatex' && <Text size="xs" c="dimmed">✓</Text>}>XeLaTeX</Menu.Item>
+                              <Menu.Item onClick={() => handleSelectEngine('lualatex')} rightSection={selectedEngine === 'lualatex' && <Text size="xs" c="dimmed">✓</Text>}>LuaLaTeX</Menu.Item>
+                              <Menu.Item onClick={() => handleSelectEngine('pythontex')} rightSection={selectedEngine === 'pythontex' && <Text size="xs" c="dimmed">✓</Text>}>PythonTeX</Menu.Item>
                               <Menu.Divider />
-                              <Menu.Item onClick={() => setSelectedEngine('latex')} rightSection={selectedEngine === 'latex' && <Text size="xs" c="dimmed">✓</Text>}>LaTeX</Menu.Item>
-                              <Menu.Item onClick={() => setSelectedEngine('bibtex')} rightSection={selectedEngine === 'bibtex' && <Text size="xs" c="dimmed">✓</Text>}>BibTeX</Menu.Item>
-                              <Menu.Item onClick={() => setSelectedEngine('biber')} rightSection={selectedEngine === 'biber' && <Text size="xs" c="dimmed">✓</Text>}>Biber</Menu.Item>
+                              <Menu.Item onClick={() => handleSelectEngine('latex')} rightSection={selectedEngine === 'latex' && <Text size="xs" c="dimmed">✓</Text>}>LaTeX</Menu.Item>
+                              <Menu.Item onClick={() => handleSelectEngine('bibtex')} rightSection={selectedEngine === 'bibtex' && <Text size="xs" c="dimmed">✓</Text>}>BibTeX</Menu.Item>
+                              <Menu.Item onClick={() => handleSelectEngine('biber')} rightSection={selectedEngine === 'biber' && <Text size="xs" c="dimmed">✓</Text>}>Biber</Menu.Item>
                           </Menu.Dropdown>
                       </Menu>
                   </Group>
@@ -453,23 +459,23 @@ export const EditorArea = React.memo<EditorAreaProps>(({
                   {/* Editor Toolbars Toggles */}
                   {activeFile?.type === 'editor' && isTexFile && (
                       <>
-                        <Tooltip label="Save changes"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={() => onSave?.()}><FontAwesomeIcon icon={faSave} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                        <Tooltip label="Save changes"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={handleSaveClick}><FontAwesomeIcon icon={faSave} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
                         <Box bg="dark.3" h="16px" w="1px"></Box>
                         <Tooltip label="Copy"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={handleCopy}><FontAwesomeIcon icon={faCopy} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
                         <Tooltip label="Cut"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={handleCut}><FontAwesomeIcon icon={faCut} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
                         <Tooltip label="Paste"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={handlePaste}><FontAwesomeIcon icon={faPaste} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
-                        <Tooltip label="Undo"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={() => handleUndo()}><FontAwesomeIcon icon={faUndo} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
-                        <Tooltip label="Redo"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={() => handleRedo()}><FontAwesomeIcon icon={faRedo} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
-                        <Tooltip label="Find"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={() => handleFind()}><FontAwesomeIcon icon={faSearch} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                        <Tooltip label="Undo"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={handleUndo}><FontAwesomeIcon icon={faUndo} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                        <Tooltip label="Redo"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={handleRedo}><FontAwesomeIcon icon={faRedo} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
+                        <Tooltip label="Find"><ActionIcon size="xs" variant="subtle" color="gray.4" onClick={handleFind}><FontAwesomeIcon icon={faSearch} style={{ width: 14, height: 14 }} /></ActionIcon></Tooltip>
 
                         <Box bg="dark.3" h="16px" w="1px"></Box>
                         <Tooltip label={showTopEditorToolbar ? "Hide Editor Toolbar" : "Show Editor Toolbar"}>
-                            <ActionIcon size="xs" variant="subtle" color="gray.4" onClick={() => setShowTopEditorToolbar(!showTopEditorToolbar)}>
+                            <ActionIcon size="xs" variant="subtle" color="gray.4" onClick={handleToggleTopToolbar}>
                                 <IconLayoutBottombarCollapseFilled style={{ transform: 'rotate(180deg)' }} />
                             </ActionIcon>
                         </Tooltip>
                         <Tooltip label={showLeftMathToolbar ? "Hide Math Sidebar" : "Show Math Sidebar"}>
-                            <ActionIcon size="xs" variant="subtle" color="gray.4" onClick={() => setShowLeftMathToolbar(!showLeftMathToolbar)}>
+                            <ActionIcon size="xs" variant="subtle" color="gray.4" onClick={handleToggleMathToolbar}>
                                 <IconLayoutSidebarLeftCollapseFilled />
                             </ActionIcon>
                         </Tooltip>

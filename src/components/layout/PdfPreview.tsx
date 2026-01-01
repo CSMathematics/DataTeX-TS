@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Box, Text, LoadingOverlay } from '@mantine/core';
 import { Viewer, Worker } from '@react-pdf-viewer/core';
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
@@ -20,8 +20,9 @@ import { IconArrowLeft, IconArrowRight, IconDownload, IconMaximize, IconPrinter,
 import { ActionIcon, Tooltip } from '@mantine/core';
 import type { ToolbarSlot, ToolbarProps } from '@react-pdf-viewer/default-layout';
 
-export function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPreviewProps) {
+export const PdfPreview = React.memo(function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPreviewProps) {
   // Configure defaultLayoutPlugin to hide sidebar and customize layout
+  // Note: Cannot use useMemo here as defaultLayoutPlugin uses hooks internally
   const defaultLayoutPluginInstance = defaultLayoutPlugin({
     // Hide all sidebar tabs (bookmarks, thumbnails, attachments)
     sidebarTabs: () => [],
@@ -391,4 +392,4 @@ export function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPrevi
       `}</style>
     </Box>
   );
-}
+});

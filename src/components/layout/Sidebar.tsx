@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Stack, ActionIcon, Tooltip, Text, Group, ScrollArea, Box, Collapse, UnstyledButton, Divider, TextInput, Button, Menu, NavLink } from '@mantine/core';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -23,7 +23,7 @@ import { DatabaseSidebar } from '../database/DatabaseSidebar';
 
 // --- Types ---
 export type SidebarSection = "files" | "search" | "git" | "database" | "settings" | "symbols" | "gallery" | "outline";
-export type ViewType = "editor" | "wizard-preamble" | "wizard-table" | "wizard-tikz" | "wizard-fancyhdr" | "gallery" | "settings";
+export type ViewType = "editor" | "wizard-preamble" | "wizard-table" | "wizard-tikz" | "wizard-fancyhdr" | "gallery" | "settings" | "database";
 
 export interface FileSystemNode {
   id: string;
@@ -36,7 +36,7 @@ export interface FileSystemNode {
 export interface AppTab {
   id: string;
   title: string;
-  type: 'editor' | 'table' | 'start-page';
+  type: 'editor' | 'table' | 'start-page' | 'settings' | 'wizard';
   content?: string;
   tableName?: string;
   language?: string;
@@ -369,7 +369,7 @@ const OutlineView = ({ content, onNavigate }: { content: string, onNavigate: (li
 export const Sidebar = React.memo<SidebarProps>(({
   width, isOpen, onResizeStart, activeSection, onToggleSection, onNavigate,
   projectData, onOpenFolder, onAddFolder, onRemoveFolder, onOpenFileNode, onCreateItem, onRenameItem, onDeleteItem,
-  dbConnected, dbTables, onConnectDB, onOpenTable, onInsertSymbol,
+  onInsertSymbol,
   activePackageId, onSelectPackage,
   outlineSource, onScrollToLine
 }) => {
@@ -384,9 +384,13 @@ export const Sidebar = React.memo<SidebarProps>(({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSymbolCategory, setActiveSymbolCategory] = useState<SymbolCategory | null>('greek');
 
-  const handleNodeClick = (node: FileSystemNode) => setSelectedNode(node);
+  // --- Memoized Handlers ---
+  const handleNodeClick = useCallback((node: FileSystemNode) => setSelectedNode(node), []);
+  const handleCancelCreation = useCallback(() => setCreatingItem(null), []);
+  const handleClearSelected = useCallback(() => setSelectedNode(null), []);
+  const handleClearSearch = useCallback(() => setSearchQuery(''), []);
 
-  const handleStartCreation = (type: 'file' | 'folder', specificParentId?: string) => {
+  const handleStartCreation = useCallback((type: 'file' | 'folder', specificParentId?: string) => {
     if (projectData.length === 0) return; 
     let parentId = specificParentId;
     if (!parentId) {
@@ -401,24 +405,24 @@ export const Sidebar = React.memo<SidebarProps>(({
         }
     }
     if (parentId) setCreatingItem({ type, parentId });
-  };
+  }, [projectData, selectedNode]);
 
-  const handleCommitCreation = (name: string, parentPath: string) => {
-    if (onCreateItem) onCreateItem(name, creatingItem!.type, parentPath);
+  const handleCommitCreation = useCallback((name: string, parentPath: string) => {
+    if (onCreateItem && creatingItem) onCreateItem(name, creatingItem.type, parentPath);
     setCreatingItem(null);
-  };
+  }, [onCreateItem, creatingItem]);
 
-  const handleToggleExpand = () => {
+  const handleToggleExpand = useCallback(() => {
       if (isToggleExpanded) {
           setCollapseAllSignal(prev => prev + 1);
       } else {
           setExpandAllSignal(prev => prev + 1);
       }
-      setIsToggleExpanded(!isToggleExpanded);
-  };
+      setIsToggleExpanded(prev => !prev);
+  }, [isToggleExpanded]);
 
-  const getVariant = (section: SidebarSection) => activeSection === section && isOpen ? "light" : "subtle";
-  const getColor = (section: SidebarSection) => activeSection === section && isOpen ? "blue" : "gray.7";
+  const getVariant = useCallback((section: SidebarSection) => activeSection === section && isOpen ? "light" : "subtle", [activeSection, isOpen]);
+  const getColor = useCallback((section: SidebarSection) => activeSection === section && isOpen ? "blue" : "gray.7", [activeSection, isOpen]);
 
   const filterNodes = (nodes: FileSystemNode[], query: string): FileSystemNode[] => {
       if (!query) return nodes;
@@ -520,7 +524,7 @@ export const Sidebar = React.memo<SidebarProps>(({
                     )}
                 </Group>
             ) : (
-            <ScrollArea style={{ flex: 1 }} onClick={() => setSelectedNode(null)}> 
+            <ScrollArea style={{ flex: 1 }} onClick={handleClearSelected}> 
                 {activeSection === "files" && (
                         <Stack gap={0}>
                             <Box p="xs">
@@ -554,7 +558,7 @@ export const Sidebar = React.memo<SidebarProps>(({
                                         <TextInput
                                             placeholder="Filter files..." size="xs"
                                             value={searchQuery} onChange={(e) => setSearchQuery(e.currentTarget.value)}
-                                            rightSection={searchQuery && <ActionIcon size="xs" variant="transparent" onClick={() => setSearchQuery('')}><FontAwesomeIcon icon={faMinusSquare} style={{ width: 10, height: 10 }} /></ActionIcon>}
+                                            rightSection={searchQuery && <ActionIcon size="xs" variant="transparent" onClick={handleClearSearch}><FontAwesomeIcon icon={faMinusSquare} style={{ width: 10, height: 10 }} /></ActionIcon>}
                                         />
                                     </Box>
                                 </Stack>
@@ -575,7 +579,7 @@ export const Sidebar = React.memo<SidebarProps>(({
                                                 level={0}
                                                 onSelect={onOpenFileNode} selectedId={selectedNode?.id || null} onNodeClick={handleNodeClick}
                                                 expandSignal={expandAllSignal} collapseSignal={collapseAllSignal} creatingState={creatingItem}
-                                                onCommitCreation={handleCommitCreation} onCancelCreation={() => setCreatingItem(null)}
+                                                onCommitCreation={handleCommitCreation} onCancelCreation={handleCancelCreation}
                                                 onRename={onRenameItem} onDelete={onDeleteItem} onCreateRequest={handleStartCreation}
                                                 onRemoveFolder={onRemoveFolder}
                                             />
@@ -592,13 +596,7 @@ export const Sidebar = React.memo<SidebarProps>(({
 
                 {/* Database & Gallery sections */}
                 {activeSection === "database" && (
-                     <DatabaseSidebar 
-                        onOpenResource={(path) => {
-                             // Create a dummy node to use with onOpenFileNode
-                             const name = path.split(/[/\\]/).pop() || path;
-                             onOpenFileNode({ id: path, name, type: 'file', path });
-                        }}
-                     />
+                     <DatabaseSidebar />
                 )}
                 {activeSection === "gallery" && (
                     <Stack gap={4} p="xs">

@@ -6,7 +6,7 @@ import {
   faBold, faItalic, faUnderline, faStrikethrough, faFont, faPen, faCode,
   faQuoteRight, faEllipsisH, faListUl, faListOl, faSubscript, faSuperscript,
   faLink, faUnlink, faAlignLeft, faAlignCenter, faAlignRight, faAlignJustify,
-  faUndo, faRedo, faEllipsisV, faChevronDown
+  faEllipsisV, faChevronDown
 } from "@fortawesome/free-solid-svg-icons";
 
 interface EditorToolbarProps {
@@ -57,8 +57,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
       wrapSelection(`\\begin{${envName}}\n`, `\n\\end{${envName}}`);
   };
 
-  const handleUndo = () => editor.trigger('toolbar', 'undo', null);
-  const handleRedo = () => editor.trigger('toolbar', 'redo', null);
+
 
   // --- Structure Menu Component ---
   const StructureMenu = ({ label, cmd }: { label: string, cmd: string }) => {
