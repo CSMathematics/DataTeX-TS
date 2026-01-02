@@ -247,4 +247,31 @@ impl DatabaseManager {
 
         Ok(())
     }
+
+    pub async fn delete_collection(&self, collection_name: &str) -> Result<(), String> {
+        // First, delete all resources associated with this collection
+        sqlx::query("DELETE FROM resources WHERE collection = ?")
+            .bind(collection_name)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        // Then, delete the collection itself
+        sqlx::query("DELETE FROM collections WHERE name = ?")
+            .bind(collection_name)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(())
+    }
+
+    pub async fn delete_resource(&self, id: &str) -> Result<(), String> {
+        sqlx::query("DELETE FROM resources WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
 }

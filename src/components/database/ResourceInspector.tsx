@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Stack, Text, Tabs, Group, ScrollArea, TextInput, Box, Button, Center, Loader } from '@mantine/core';
+import { Stack, Text, Tabs, ScrollArea, TextInput, Box, Button } from '@mantine/core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faInfoCircle, faFilePdf, faBook, faSave } from '@fortawesome/free-solid-svg-icons';
+import { faInfoCircle, faFilePdf, faBook, faSave, faMagic, faTimes } from '@fortawesome/free-solid-svg-icons';
 import { IconTex } from '@tabler/icons-react';
+import { PreambleWizard } from '../wizards/PreambleWizard';
 import { useDatabaseStore } from '../../stores/databaseStore';
 // @ts-ignore
 import { readFile, exists } from '@tauri-apps/plugin-fs';
@@ -10,12 +11,9 @@ import Editor from "@monaco-editor/react";
 import { EditorToolbar } from '../layout/EditorToolbar';
 import { LeftMathToolbar } from '../layout/LeftMathToolbar';
 import { EditorActionBar } from '../layout/EditorActionBar';
-
-// PDF Viewer imports
-import { Viewer, Worker } from '@react-pdf-viewer/core';
-import '@react-pdf-viewer/core/lib/styles/index.css';
-
-const WORKER_URL = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+import { PdfViewerContainer } from './PdfViewerContainer';
+import { LoadingState, EmptyState, PanelHeader, ToolbarButton } from '../ui';
+import '../../styles/pdf-viewer.css';
 
 interface ResourceInspectorProps {
     editorContent?: string;
@@ -158,6 +156,8 @@ export const ResourceInspector = ({
         }
     }, [resource?.path, resource?.id, editorInstance]);
 
+    // Configure defaultLayoutPlugin is now inside PdfViewerPanel
+
     const editorOptions = {
         minimap: { enabled: editorSettings?.minimap ?? false, scale: 2 },
         fontSize: editorSettings?.fontSize ?? 13,
@@ -168,34 +168,82 @@ export const ResourceInspector = ({
         lineNumbers: (editorSettings?.lineNumbers ?? "on") as "on" | "off" | "relative" | "interval"
     };
 
+    const { isWizardOpen, setWizardOpen, createResource } = useDatabaseStore();
+
+    const handleWizardFinish = async (code: string) => {
+        setWizardOpen(false);
+         // Find a valid collection
+         const collections = useDatabaseStore.getState().loadedCollections;
+         if (collections.length === 0) {
+             alert('Please select a collection first.');
+             return;
+         }
+         const collection = collections[0];
+
+        try {
+             const selectedPath = await import('@tauri-apps/plugin-dialog').then(({ save }) => save({
+                defaultPath: 'Untitled.tex',
+                filters: [{
+                    name: 'TeX Document',
+                    extensions: ['tex']
+                }]
+            }));
+
+            if (selectedPath) {
+                await createResource(selectedPath, collection, code);
+            }
+        } catch (err) {
+            console.error('Failed to create file', err);
+        }
+    };
+
+    if (isWizardOpen) {
+        return (
+            <Stack h="100%" gap={0}>
+                 <PanelHeader 
+                     icon={faMagic} 
+                     title="Preamble Wizard" 
+                     actions={
+                         <ToolbarButton 
+                             label="Close" 
+                             icon={faTimes} 
+                             onClick={() => setWizardOpen(false)} 
+                         />
+                     }
+                 />
+                 <ScrollArea style={{ flex: 1 }}>
+                    <PreambleWizard onInsert={handleWizardFinish} />
+                 </ScrollArea>
+            </Stack>
+        );
+    }
+
     if (!resource) {
         return (
-            <Box p="lg" ta="center">
-                <Text c="dimmed">Select a resource to view details</Text>
-            </Box>
+            <EmptyState message="Select a resource to view details" fullHeight={false} />
         );
     }
 
     const filename = resource.path.split(/[/\\]/).pop() || resource.title || 'Untitled';
 
-    return (
+    return (<>
         <Stack h="100%" gap={0}>
-             <Group p="xs" bg="var(--mantine-color-body)" justify="space-between" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
-                 <Group gap="xs">
-                     <FontAwesomeIcon icon={faInfoCircle} />
-                     <Text fw={700} size="sm" truncate style={{ maxWidth: 150 }}>{filename}{isDirty ? ' ●' : ''}</Text>
-                 </Group>
-                 {editorInstance && (
-                     <EditorActionBar 
-                         editor={editorInstance}
-                         onSave={onSave}
-                         onCompile={onCompile}
-                         onStopCompile={onStopCompile}
-                         isCompiling={isCompiling}
-                         compact={false}
-                     />
-                 )}
-             </Group>
+             <PanelHeader 
+                 icon={faInfoCircle} 
+                 title={`${filename}${isDirty ? ' ●' : ''}`} 
+                 actions={
+                     editorInstance && (
+                         <EditorActionBar 
+                             editor={editorInstance}
+                             onSave={onSave}
+                             onCompile={onCompile}
+                             onStopCompile={onStopCompile}
+                             isCompiling={isCompiling}
+                             compact={false}
+                         />
+                     )
+                 }
+             />
              
              <Tabs defaultValue="source" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <Tabs.List>
@@ -234,9 +282,7 @@ export const ResourceInspector = ({
                                         theme={editorSettings?.theme || "vs-dark"}
                                     />
                                 ) : (
-                                    <Center h="100%">
-                                        <Loader type="bars" />
-                                    </Center>
+                                    <LoadingState />
                                 )}
                             </Box>
                         </Box>
@@ -247,20 +293,11 @@ export const ResourceInspector = ({
                 <Tabs.Panel value="preview" style={{ flex: 1, position: 'relative' }}>
                     <Box style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}>
                         {pdfLoading ? (
-                            <Center h="100%">
-                                <Stack align="center" gap="xs">
-                                    <Loader type="bars" />
-                                    <Text size="xs" c="dimmed">Loading PDF...</Text>
-                                </Stack>
-                            </Center>
+                            <LoadingState message="Loading PDF..." />
                         ) : pdfUrl ? (
-                            <Worker workerUrl={WORKER_URL}>
-                                <Viewer fileUrl={pdfUrl} />
-                            </Worker>
+                            <PdfViewerContainer pdfUrl={pdfUrl} />
                         ) : (
-                            <Center h="100%">
-                                <Text c="dimmed" ta="center" size="sm">{pdfError || 'No preview available'}</Text>
-                            </Center>
+                            <EmptyState message={pdfError || 'No preview available'} />
                         )}
                     </Box>
                 </Tabs.Panel>
@@ -296,6 +333,5 @@ export const ResourceInspector = ({
                 </Tabs.Panel>
              </Tabs>
         </Stack>
-    );
+    </>);
 };
-

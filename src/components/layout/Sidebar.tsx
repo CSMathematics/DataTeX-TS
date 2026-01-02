@@ -81,7 +81,7 @@ interface SidebarProps {
 }
 
 // --- Icons Helper ---
-const getFileIcon = (name: string, type: 'file' | 'folder', expanded: boolean = false) => {
+export const getFileIcon = (name: string, type: 'file' | 'folder', expanded: boolean = false) => {
     if (type === 'folder') {
         return <FontAwesomeIcon icon={expanded ? faFolderOpen : faFolder} style={{ width: 14, height: 14, color: "#fab005" }} />;
     }

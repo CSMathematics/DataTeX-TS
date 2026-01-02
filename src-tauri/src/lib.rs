@@ -229,6 +229,139 @@ async fn import_folder_cmd(
     Ok(count)
 }
 
+#[tauri::command]
+async fn delete_collection_cmd(
+    collection_name: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    db.delete_collection(&collection_name).await
+}
+
+#[tauri::command]
+async fn delete_resource_cmd(id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    db.delete_resource(&id).await
+}
+
+#[tauri::command]
+async fn create_resource_cmd(
+    path: String,
+    collection_name: String,
+    content: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    // 1. Write file to disk
+    fs::write(&path, &content).map_err(|e| e.to_string())?;
+
+    // 2. Add to database
+    let file_name = std::path::Path::new(&path)
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+
+    let kind = if file_name.ends_with(".tex") {
+        "file"
+    } else {
+        "file"
+    };
+
+    let resource = Resource {
+        id: Uuid::new_v4().to_string(),
+        path: path.clone(),
+        kind: kind.to_string(),
+        collection: collection_name,
+        title: Some(file_name),
+        content_hash: None,
+        metadata: Some(serde_json::json!({})),
+        created_at: None,
+        updated_at: None,
+    };
+
+    db.add_resource(&resource).await
+}
+
+#[tauri::command]
+async fn import_file_cmd(
+    path: String,
+    collection_name: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    let file_name = std::path::Path::new(&path)
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+
+    // Simple type detection extension - reusing logic could be better but copying for now
+    let kind = if file_name.ends_with(".tex") {
+        "file"
+    } else if file_name.ends_with(".bib") {
+        "bibliography"
+    } else if file_name.ends_with(".sty") || file_name.ends_with(".cls") {
+        "package"
+    } else if file_name.ends_with(".png")
+        || file_name.ends_with(".jpg")
+        || file_name.ends_with(".pdf")
+    {
+        "figure"
+    } else {
+        "file"
+    };
+
+    let resource = Resource {
+        id: Uuid::new_v4().to_string(),
+        path: path.clone(),
+        kind: kind.to_string(),
+        collection: collection_name,
+        title: Some(file_name),
+        content_hash: None,
+        metadata: Some(serde_json::json!({})),
+        created_at: None,
+        updated_at: None,
+    };
+
+    db.add_resource(&resource).await
+}
+
+#[tauri::command]
+fn reveal_path_cmd(path: String) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 // ===== LSP Commands =====
 
 #[tauri::command]
@@ -481,6 +614,11 @@ pub fn run() {
             get_collections_cmd,
             get_resources_by_collection_cmd,
             import_folder_cmd,
+            delete_collection_cmd,
+            delete_resource_cmd,
+            create_resource_cmd,
+            import_file_cmd,
+            reveal_path_cmd,
             // LSP Commands
             lsp_initialize,
             lsp_completion,

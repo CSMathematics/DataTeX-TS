@@ -29,7 +29,10 @@ interface DatabaseState {
     isLoading: boolean;
     error: string | null;
     loadedCollections: string[];
+
     allLoadedResources: Resource[];
+    isWizardOpen: boolean;
+    setWizardOpen: (open: boolean) => void;
 
     fetchCollections: () => Promise<void>;
     selectCollection: (name: string) => Promise<void>;
@@ -37,6 +40,10 @@ interface DatabaseState {
     selectResource: (id: string | null) => void;
     toggleCollectionLoaded: (name: string) => Promise<void>;
     fetchResourcesForLoadedCollections: () => Promise<void>;
+    deleteCollection: (name: string) => Promise<void>;
+    deleteResource: (id: string) => Promise<void>;
+    createResource: (path: string, collection: string, content: string) => Promise<void>;
+    importFile: (path: string, collection: string) => Promise<void>;
 }
 
 export const useDatabaseStore = create<DatabaseState>((set, get) => ({
@@ -90,10 +97,7 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
                 allResources.push(...resources);
             }
             
-            // Filter to only .tex files
-            const texResources = allResources.filter(r => r.path.toLowerCase().endsWith('.tex'));
-            
-            set({ allLoadedResources: texResources, isLoading: false });
+            set({ allLoadedResources: allResources, isLoading: false });
         } catch (err: any) {
             set({ error: err.toString(), isLoading: false });
         }
@@ -114,10 +118,7 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
                 allResources.push(...resources);
             }
             
-            // Filter to only .tex files
-            const texResources = allResources.filter(r => r.path.toLowerCase().endsWith('.tex'));
-            
-            set({ allLoadedResources: texResources, isLoading: false });
+            set({ allLoadedResources: allResources, isLoading: false });
         } catch (err: any) {
             set({ error: err.toString(), isLoading: false });
         }
@@ -136,6 +137,78 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
         }
     },
 
+    deleteCollection: async (name: string) => {
+        set({ isLoading: true, error: null });
+        try {
+            // Call the backend command to delete the collection
+            await invoke('delete_collection_cmd', { collectionName: name });
+            
+            // If the collection was loaded, remove it from loadedCollections
+            const { loadedCollections } = get();
+            if (loadedCollections.includes(name)) {
+                const newLoadedCollections = loadedCollections.filter(c => c !== name);
+                set({ loadedCollections: newLoadedCollections });
+                
+                // Refresh resources for remaining loaded collections
+                await get().fetchResourcesForLoadedCollections();
+            }
+            
+            // Refresh the collections list
+            await get().fetchCollections();
+            
+            set({ isLoading: false });
+        } catch (err: any) {
+            set({ error: err.toString(), isLoading: false });
+        }
+    },
+
     activeResourceId: null as string | null,
-    selectResource: (id: string | null) => set({ activeResourceId: id })
+    selectResource: (id: string | null) => set({ activeResourceId: id }),
+
+    deleteResource: async (id: string) => {
+        set({ isLoading: true, error: null });
+        try {
+            await invoke('delete_resource_cmd', { id });
+            
+            // Remove from local state to avoid full re-fetch
+            const { resources, allLoadedResources, activeResourceId } = get();
+            
+            set({
+                resources: resources.filter(r => r.id !== id),
+                allLoadedResources: allLoadedResources.filter(r => r.id !== id),
+                // Deselect if the deleted resource was selected
+                activeResourceId: activeResourceId === id ? null : activeResourceId,
+                isLoading: false
+            });
+        } catch (err: any) {
+            set({ error: err.toString(), isLoading: false });
+        }
+    },
+
+    createResource: async (path: string, collection: string, content: string) => {
+        set({ isLoading: true, error: null });
+        try {
+            await invoke('create_resource_cmd', { path, collectionName: collection, content });
+            // Refresh to show new file
+            await get().fetchResourcesForLoadedCollections();
+            set({ isLoading: false });
+        } catch (err: any) {
+             set({ error: err.toString(), isLoading: false });
+        }
+    },
+
+    importFile: async (path: string, collection: string) => {
+        set({ isLoading: true, error: null });
+        try {
+            await invoke('import_file_cmd', { path, collectionName: collection });
+            // Refresh to show new file
+            await get().fetchResourcesForLoadedCollections();
+            set({ isLoading: false });
+        } catch (err: any) {
+            set({ error: err.toString(), isLoading: false });
+        }
+    },
+
+    isWizardOpen: false,
+    setWizardOpen: (open: boolean) => set({ isWizardOpen: open }),
 }));

@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Box, Text, LoadingOverlay } from '@mantine/core';
+import { Box, LoadingOverlay } from '@mantine/core';
 import { Viewer, Worker } from '@react-pdf-viewer/core';
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
 
 // Εισαγωγή των CSS της βιβλιοθήκης
 import '@react-pdf-viewer/core/lib/styles/index.css';
 import '@react-pdf-viewer/default-layout/lib/styles/index.css';
+import '../../styles/pdf-viewer.css';
+
+import { IconArrowLeft, IconArrowRight, IconDownload, IconMaximize, IconPrinter, IconSearch, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
+import { ActionIcon, Tooltip } from '@mantine/core';
+import type { ToolbarSlot, ToolbarProps } from '@react-pdf-viewer/default-layout';
+import { EmptyState } from '../ui';
 
 // --- Worker URL Configuration ---
 const WORKER_URL = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
@@ -15,10 +21,6 @@ interface PdfPreviewProps {
   onSyncTexInverse?: (page: number, x: number, y: number) => void;
   syncTexCoords?: { page: number, x: number, y: number } | null;
 }
-
-import { IconArrowLeft, IconArrowRight, IconDownload, IconMaximize, IconPrinter, IconSearch, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
-import { ActionIcon, Tooltip } from '@mantine/core';
-import type { ToolbarSlot, ToolbarProps } from '@react-pdf-viewer/default-layout';
 
 export const PdfPreview = React.memo(function PdfPreview({ pdfUrl, onSyncTexInverse, syncTexCoords }: PdfPreviewProps) {
   // Configure defaultLayoutPlugin to hide sidebar and customize layout
@@ -268,11 +270,7 @@ export const PdfPreview = React.memo(function PdfPreview({ pdfUrl, onSyncTexInve
   };
 
   if (!pdfUrl) {
-    return (
-      <Box h="100%" display="flex" style={{ alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }} bg="dark.8">
-        <Text c="dimmed" size="sm">No PDF loaded.</Text>
-      </Box>
-    );
+    return <EmptyState message="No PDF loaded." />;
   }
 
   return (
@@ -318,78 +316,6 @@ export const PdfPreview = React.memo(function PdfPreview({ pdfUrl, onSyncTexInve
             )}
         </div>
       </Worker>
-      
-      {/* CSS Animation for Sync Pulse and PDF Viewer Customization */}
-      <style>{`
-        @keyframes syncPulse {
-          0% {
-            opacity: 1;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.7;
-            transform: scale(0.98);
-          }
-          100% {
-            opacity: 0;
-            transform: scale(1);
-          }
-        }
-        
-        /* Hide sidebar completely */
-        .rpv-default-layout__sidebar {
-          display: none !important;
-        }
-        
-        /* Ensure toolbar is at the top */
-        .rpv-default-layout__toolbar {
-          order: -1;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        /* Maximize PDF viewing area */
-        .rpv-default-layout__main {
-          width: 100% !important;
-          flex: 1 !important;
-        }
-        
-        /* Dark mode toolbar styling */
-        .rpv-core__viewer--dark .rpv-default-layout__toolbar {
-          background-color: #25262b;
-          border-bottom-color: #373A40;
-          height: auto !important;
-          min-height: 30px;
-        }
-        
-        /* Smaller font sizes for controls */
-        .pdf-page-controls input {
-          height: 24px !important;
-          font-size: 12px !important;
-          width: 40px !important;
-          padding: 0 4px !important;
-          text-align: center;
-          border-radius: 4px;
-        }
-        
-        .pdf-page-controls span {
-          font-size: 12px !important;
-        }
-        
-        .pdf-zoom-controls button {
-          height: 24px !important;
-          font-size: 12px !important;
-        }
-        
-        /* Remove default button styles from RPV if any leak through */
-        .rpv-core__button {
-           display: none !important; /* This hides original buttons inside our wrappers if they duplicated */
-        }
-        
-        /* Custom Styling for the Zoom Menu text */
-        .rpv-core__popover-body {
-           font-size: 12px !important;
-        }
-      `}</style>
     </Box>
   );
 });
