@@ -83,18 +83,18 @@ interface SidebarProps {
 // --- Icons Helper ---
 const getFileIcon = (name: string, type: 'file' | 'folder', expanded: boolean = false) => {
     if (type === 'folder') {
-        return <FontAwesomeIcon icon={expanded ? faFolderOpen : faFolder} style={{ width: 16, height: 16, color: "#fab005" }} />;
+        return <FontAwesomeIcon icon={expanded ? faFolderOpen : faFolder} style={{ width: 14, height: 14, color: "#fab005" }} />;
     }
     const ext = name.split('.').pop()?.toLowerCase();
     switch(ext) {
-        case 'tex': return <FontAwesomeIcon icon={faFileCode} style={{ width: 16, height: 16, color: "#4dabf7" }} />;
-        case 'bib': return <FontAwesomeIcon icon={faBookOpen} style={{ width: 16, height: 16, color: "#fab005" }} />;
-        case 'sty': return <FontAwesomeIcon icon={faCog} style={{ width: 16, height: 16, color: "#be4bdb" }} />;
-        case 'pdf': return <FontAwesomeIcon icon={faFilePdf} style={{ width: 16, height: 16, color: "#fa5252" }} />;
+        case 'tex': return <FontAwesomeIcon icon={faFileCode} style={{ width: 14, height: 14, color: "#4dabf7" }} />;
+        case 'bib': return <FontAwesomeIcon icon={faBookOpen} style={{ width: 14, height: 14, color: "#fab005" }} />;
+        case 'sty': return <FontAwesomeIcon icon={faCog} style={{ width: 14, height: 14, color: "#be4bdb" }} />;
+        case 'pdf': return <FontAwesomeIcon icon={faFilePdf} style={{ width: 14, height: 14, color: "#fa5252" }} />;
         case 'png':
         case 'jpg':
-        case 'jpeg': return <FontAwesomeIcon icon={faImage} style={{ width: 16, height: 16, color: "#40c057" }} />;
-        default: return <FontAwesomeIcon icon={faFile} style={{ width: 16, height: 16, color: "#868e96" }} />;
+        case 'jpeg': return <FontAwesomeIcon icon={faImage} style={{ width: 14, height: 14, color: "#40c057" }} />;
+        default: return <FontAwesomeIcon icon={faFile} style={{ width: 14, height: 14, color: "#868e96" }} />;
     }
 };
 
@@ -180,10 +180,11 @@ const FileTreeItem = ({
   }
 
   // Styles based on level/root status
-  const paddingLeft = isRoot ? 8 : (level * 12 + 8);
+  const isFile = node.type === 'file' ? true : false;
+  const paddingLeft = isRoot ? 8 : (isFile ? level * 10 + 28 : level * 10 + 12);
   const bgColor = isRoot 
-      ? 'var(--app-header-bg)' 
-      : (selectedId === node.id ? 'var(--mantine-primary-color-light)' : 'transparent');
+        ? 'var(--app-header-bg)' 
+        : (selectedId === node.id ? 'var(--mantine-primary-color-light)' : 'transparent');
   const textColor = selectedId === node.id ? 'var(--mantine-primary-color-text)' : 'var(--mantine-color-text)';
   const fontWeight = isRoot ? 700 : 400;
   const borderBottom = isRoot ? '1px solid var(--mantine-color-default-border)' : 'none';

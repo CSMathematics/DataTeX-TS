@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Stack, Text, Tabs, Group, ScrollArea, TextInput, Box, Button, Center, Loader } from '@mantine/core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faInfoCircle, faEye, faBook, faSave, faCode } from '@fortawesome/free-solid-svg-icons';
+import { faInfoCircle, faFilePdf, faBook, faSave } from '@fortawesome/free-solid-svg-icons';
+import { IconTex } from '@tabler/icons-react';
 import { useDatabaseStore } from '../../stores/databaseStore';
 // @ts-ignore
 import { readFile, exists } from '@tauri-apps/plugin-fs';
@@ -191,17 +192,17 @@ export const ResourceInspector = ({
                          onCompile={onCompile}
                          onStopCompile={onStopCompile}
                          isCompiling={isCompiling}
-                         compact={true}
+                         compact={false}
                      />
                  )}
              </Group>
              
              <Tabs defaultValue="source" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <Tabs.List>
-                    <Tabs.Tab value="source" leftSection={<FontAwesomeIcon icon={faCode} />}>Source</Tabs.Tab>
-                    <Tabs.Tab value="preview" leftSection={<FontAwesomeIcon icon={faEye} />}>Preview</Tabs.Tab>
-                    <Tabs.Tab value="metadata" leftSection={<FontAwesomeIcon icon={faInfoCircle} />}>Meta</Tabs.Tab>
-                    <Tabs.Tab value="bibliography" leftSection={<FontAwesomeIcon icon={faBook} />}>Bib</Tabs.Tab>
+                    <Tabs.Tab value="source" leftSection={<IconTex stroke={1.5} />}></Tabs.Tab>
+                    <Tabs.Tab value="preview" leftSection={<FontAwesomeIcon icon={faFilePdf} />}></Tabs.Tab>
+                    <Tabs.Tab value="metadata" leftSection={<FontAwesomeIcon icon={faInfoCircle} />}></Tabs.Tab>
+                    <Tabs.Tab value="bibliography" leftSection={<FontAwesomeIcon icon={faBook} />}></Tabs.Tab>
                 </Tabs.List>
 
                 {/* Source Tab - Monaco Editor with Toolbars */}
