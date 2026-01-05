@@ -4,17 +4,11 @@ import {
   Box,
   Group,
   MantineProvider,
-  Loader,
-  Center,
   Notification,
-  ActionIcon,
   Text,
-  Stack,
   CSSVariablesResolver,
   Modal
 } from "@mantine/core";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faTimes } from "@fortawesome/free-solid-svg-icons";
 import { invoke } from "@tauri-apps/api/core"; 
 import { debounce, throttle } from "lodash";
 import { DndContext, DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
@@ -26,7 +20,6 @@ import { getTheme } from "./themes/ui-themes";
 import { HeaderContent } from "./components/layout/Header";
 import { Sidebar, SidebarSection, ViewType, FileSystemNode } from "./components/layout/Sidebar";
 import { EditorArea } from "./components/layout/EditorArea";
-import { PdfPreview } from "./components/layout/PdfPreview";
 import { StatusBar } from "./components/layout/StatusBar";
 
 // --- UI Components ---
@@ -52,6 +45,7 @@ import { parseLatexLog, LogEntry } from "./utils/logParser";
 import { TexlabLspClient } from "./services/lspClient";
 import { useTabsStore, useActiveTab, useIsTexFile } from "./stores/useTabsStore";
 import { useDatabaseStore } from "./stores/databaseStore";
+import { useProjectStore } from "./stores/projectStore";
 
 // --- CSS Variables Resolver ---
 const resolver: CSSVariablesResolver = (theme) => ({
@@ -77,7 +71,7 @@ export default function App() {
   const editorSettingsMemo = useMemo(() => settings.editor, [settings.editor]);
 
   // --- Layout State ---
-  const [activeActivity, setActiveActivity] = useState<SidebarSection>("files");
+  const [activeActivity, setActiveActivity] = useState<SidebarSection>("database");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
   const [activeView, setActiveView] = useState<ViewType>("editor");
   const [sidebarWidth, setSidebarWidth] = useState(300);
@@ -87,9 +81,11 @@ export default function App() {
   // --- Resizing State ---
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [isResizingRightPanel, setIsResizingRightPanel] = useState(false);
+  const [isResizingDatabase, setIsResizingDatabase] = useState(false);
+  const [databasePanelWidth, setDatabasePanelWidth] = useState(400);
   const rafRef = useRef<number | null>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
-  const dbGhostRef = useRef<HTMLDivElement>(null);
+
 
   // --- Editor State (from Zustand) ---
   const tabs = useTabsStore(state => state.tabs);
@@ -135,16 +131,11 @@ export default function App() {
   const [showPdf, setShowPdf] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfRefreshTrigger, setPdfRefreshTrigger] = useState(0);
-  const [syncTexCoords, setSyncTexCoords] = useState<{page: number, x: number, y: number} | null>(null);
+  // @ts-ignore - syncTexCoords may be used for SyncTeX in future
+  const [_syncTexCoords, setSyncTexCoords] = useState<{page: number, x: number, y: number} | null>(null);
 
   // --- Database Panel State ---
   const [showDatabasePanel, setShowDatabasePanel] = useState(true);
-
-  // --- Database Resource Editor State ---
-  const [resourceEditorContent, setResourceEditorContent] = useState<string | undefined>(undefined);
-  const [resourceEditorDirty, setResourceEditorDirty] = useState(false);
-  const [activeResourcePath, setActiveResourcePath] = useState<string | null>(null);
-  const { activeResourceId, allLoadedResources } = useDatabaseStore();
 
   // --- Derived State (from Zustand selectors) ---
   const activeTab = useActiveTab();
@@ -153,6 +144,12 @@ export default function App() {
 
   const isWizardActive = useMemo(() => activeView.startsWith('wizard-') || activeView === 'gallery', [activeView]);
   const showRightPanel = useMemo(() => isWizardActive || (activeView === 'editor' && showPdf && isTexFile), [isWizardActive, activeView, showPdf, isTexFile]);
+
+  // --- Sync projectData to projectStore for DatabaseSidebar ---
+  const setProjectDataToStore = useProjectStore(state => state.setProjectData);
+  useEffect(() => {
+      setProjectDataToStore(projectData);
+  }, [projectData, setProjectDataToStore]);
 
   // --- Handlers ---
   // --- Load Recent Projects on Mount ---
@@ -198,56 +195,6 @@ export default function App() {
           return newRecent;
       });
   }, []);
-
-  // --- Load resource content when database resource is selected ---
-  useEffect(() => {
-      const loadResourceContent = async () => {
-          if (!activeResourceId) {
-              setResourceEditorContent(undefined);
-              setActiveResourcePath(null);
-              return;
-          }
-          
-          const resource = allLoadedResources.find(r => r.id === activeResourceId);
-          if (!resource) return;
-          
-          setActiveResourcePath(resource.path);
-          setResourceEditorDirty(false);
-          
-          try {
-              // @ts-ignore
-              const { readTextFile } = await import('@tauri-apps/plugin-fs');
-              const content = await readTextFile(resource.path);
-              setResourceEditorContent(content);
-          } catch (e) {
-              console.error("Failed to load resource content:", e);
-              setResourceEditorContent('');
-          }
-      };
-      
-      loadResourceContent();
-  }, [activeResourceId, allLoadedResources]);
-
-  // --- Handle resource editor content change ---
-  const handleResourceContentChange = useCallback((content: string) => {
-      setResourceEditorContent(content);
-      setResourceEditorDirty(true);
-  }, []);
-
-  // --- Handle resource save ---
-  const handleResourceSave = useCallback(async () => {
-      if (!activeResourcePath || resourceEditorContent === undefined) return;
-      
-      try {
-          // @ts-ignore
-          const { writeTextFile } = await import('@tauri-apps/plugin-fs');
-          await writeTextFile(activeResourcePath, resourceEditorContent);
-          setResourceEditorDirty(false);
-      } catch (e) {
-          console.error("Failed to save resource:", e);
-          setCompileError("Failed to save file: " + String(e));
-      }
-  }, [activeResourcePath, resourceEditorContent]);
 
   const handleToggleSidebar = useCallback((section: SidebarSection) => {
     if (section === 'settings') {
@@ -325,7 +272,7 @@ export default function App() {
           const rootNodes = await Promise.all(promises);
           setProjectData(rootNodes);
       } catch (e) {
-          console.error("Failed to load project files", e);
+          console.error("Failed to load project database", e);
       } finally {
           setLoadingFiles(false);
       }
@@ -400,7 +347,7 @@ export default function App() {
                 // loadProjectFiles is async, so we just call it.
                 reloadProjectFiles([parentDir]);
             } catch(e) {}
-            setActiveActivity("files");
+            setActiveActivity("database");
             setIsSidebarOpen(true);
             addToRecent(parentDir);
         }
@@ -449,7 +396,7 @@ export default function App() {
         const newRoots = [selectedPath];
         setProjectRoots(newRoots);
         await reloadProjectFiles(newRoots);
-        setActiveActivity("files");
+        setActiveActivity("database");
         addToRecent(selectedPath);
       }
     } catch (e) {
@@ -470,7 +417,7 @@ export default function App() {
             reloadProjectFiles(newRoots);
             return newRoots;
         });
-        setActiveActivity("files");
+        setActiveActivity("database");
       }
     } catch (e) {
         setCompileError("Failed to add folder: " + String(e));
@@ -492,7 +439,7 @@ export default function App() {
           const newRoots = [path];
           setProjectRoots(newRoots);
           await reloadProjectFiles(newRoots);
-          setActiveActivity("files");
+          setActiveActivity("database");
           addToRecent(path);
       } catch (e) {
           setCompileError("Failed to open recent project: " + String(e));
@@ -719,6 +666,7 @@ export default function App() {
 
   // --- PDF Logic ---
   useEffect(() => {
+    console.log('[App.tsx PDF Logic] activeTab:', activeTab?.id, 'type:', activeTab?.type, 'title:', activeTab?.title);
     let activeBlobUrl: string | null = null;
     const loadPdf = async () => {
       if (activeTab && activeTab.type === 'editor' && activeTab.id) {
@@ -736,8 +684,10 @@ export default function App() {
                 const fileContents = await readFile(pdfPath);
                 const blob = new Blob([fileContents], { type: 'application/pdf' });
                 activeBlobUrl = URL.createObjectURL(blob);
+                console.log('[App.tsx PDF Logic] Setting pdfUrl to:', activeBlobUrl);
                 setPdfUrl(activeBlobUrl);
               } else {
+                console.log('[App.tsx PDF Logic] PDF does not exist at:', pdfPath);
                 setPdfUrl(null);
               }
             } catch (e) {
@@ -745,9 +695,11 @@ export default function App() {
               setPdfUrl(null);
             }
          } else {
+            console.log('[App.tsx PDF Logic] Not a real file or not .tex');
             setPdfUrl(null);
          }
       } else {
+        console.log('[App.tsx PDF Logic] No active tab or not editor type');
         setPdfUrl(null);
       }
     };
@@ -826,14 +778,14 @@ export default function App() {
      }
   }, [activeTab, isTexFile]);
 
-  // PDF -> Editor (Inverse)
-  const handleSyncTexInverse = useCallback(async (page: number, x: number, y: number) => {
+  /* PDF -> Editor (Inverse) - commented out, SyncTeX integration moved to ResourceInspector
+  const _handleSyncTexInverse = useCallback(async (page: number, x: number, y: number) => {
       if (!activeTab || !activeTab.id || !isTexFile) return;
 
       try {
           const texPath = activeTab.id;
-          const pdfPath = texPath.replace(/\.tex$/i, '.pdf');
-          const lastSlash = texPath.lastIndexOf(texPath.includes('\\') ? '\\' : '/');
+          const pdfPath = texPath.replace(/\\.tex$/i, '.pdf');
+          const lastSlash = texPath.lastIndexOf(texPath.includes('\\\\') ? '\\\\' : '/');
           const cwd = texPath.substring(0, lastSlash);
 
           const args = [
@@ -844,7 +796,7 @@ export default function App() {
           const result = await invoke<string>('run_synctex_command', { args, cwd });
           console.log("SyncTeX Edit Result:", result);
           
-          const lineMatch = result.match(/Line:(\d+)/);
+          const lineMatch = result.match(/Line:(\\d+)/);
 
           if (lineMatch) {
               const line = parseInt(lineMatch[1], 10);
@@ -869,6 +821,7 @@ export default function App() {
           }
       }
   }, [activeTab, isTexFile, handleRevealLine]);
+  */
 
   // --- Word Count Logic ---
   const handleWordCount = useCallback(async () => {
@@ -957,15 +910,23 @@ export default function App() {
                     console.warn("[COMPILER DEBUG] Failed to parse config, using defaults", e);
                 }
             }
-        } else {
-             // Basic args for explicit engine choice
-             if (selectedEngine === 'xelatex' || selectedEngine === 'lualatex') {
-                 // Common args for these engines can go here if needed
-             }
         }
 
-        // @ts-ignore
-        const result = await invoke('compile_tex', { filePath, engine: selectedEngine, args, outputDir });
+        // --- DYNAMIC COMPILATION CHECK ---
+        const allResources = useDatabaseStore.getState().allLoadedResources;
+        // Normalize paths for comparison if needed (though usually identical)
+        const resource = allResources.find(r => r.path === filePath);
+
+        if (resource && resource.metadata && resource.metadata.preamble) {
+             console.log(`[COMPILER DEBUG] Modular resource detected (Preamble: ${resource.metadata.preamble}). Using compile_resource_cmd.`);
+             // Use the specific command that handles wrapping
+             // We can ignore the returned path since we forced it to be standard filename.pdf
+             await invoke('compile_resource_cmd', { id: resource.id });
+        } else {
+             // Standard Compilation
+             await invoke('compile_tex', { filePath, engine: selectedEngine, args, outputDir });
+        }
+
         setPdfRefreshTrigger(prev => prev + 1);
 
     } catch (error: any) {
@@ -1021,8 +982,11 @@ export default function App() {
   }, [handleOpenFileNode]);
 
   // --- Resize Logic ---
+  // --- Resize Logic ---
   const startResizeSidebar = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Stop DndKit from capturing
+    console.log('[Resize] Start Sidebar');
     setIsResizingSidebar(true);
     if (ghostRef.current) {
         ghostRef.current.style.display = 'block';
@@ -1032,7 +996,20 @@ export default function App() {
 
   const startResizeRightPanel = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Stop DndKit from capturing
+    console.log('[Resize] Start Right Panel');
     setIsResizingRightPanel(true);
+    if (ghostRef.current) {
+        ghostRef.current.style.display = 'block';
+        ghostRef.current.style.left = `${e.clientX}px`;
+    }
+  }, []);
+
+  const startResizeDatabase = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation(); // Stop DndKit from capturing
+    console.log('[Resize] Start Database');
+    setIsResizingDatabase(true);
     if (ghostRef.current) {
         ghostRef.current.style.display = 'block';
         ghostRef.current.style.left = `${e.clientX}px`;
@@ -1062,6 +1039,10 @@ export default function App() {
              const x = Math.max(minX, Math.min(maxX, e.clientX));
              if (ghostRef.current) ghostRef.current.style.left = `${x}px`;
           }
+          if (isResizingDatabase) {
+             const x = Math.max(250, Math.min(window.innerWidth * 0.6, e.clientX));
+             if (ghostRef.current) ghostRef.current.style.left = `${x}px`;
+          }
           rafRef.current = null;
        });
     };
@@ -1088,19 +1069,30 @@ export default function App() {
                 ghostRef.current.style.display = 'none';
             }
         }
+        if (isResizingDatabase) {
+            if (ghostRef.current) {
+                const x = parseInt(ghostRef.current.style.left || '0', 10);
+                if (x > 0) {
+                    const w = Math.max(250, Math.min(window.innerWidth * 0.6, x - (isSidebarOpen ? sidebarWidth : 0) - 50));
+                    setDatabasePanelWidth(w);
+                }
+                ghostRef.current.style.display = 'none';
+            }
+        }
 
         setIsResizingSidebar(false);
         setIsResizingRightPanel(false);
+        setIsResizingDatabase(false);
 
         if(rafRef.current) cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
     };
 
-    if(isResizingSidebar || isResizingRightPanel) { 
+    if(isResizingSidebar || isResizingRightPanel || isResizingDatabase) { 
         window.addEventListener('mousemove', move); window.addEventListener('mouseup', up); document.body.style.cursor = 'col-resize'; 
     } else { document.body.style.cursor = 'default'; }
     return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
-  }, [isResizingSidebar, isResizingRightPanel]);
+  }, [isResizingSidebar, isResizingRightPanel, isResizingDatabase, isSidebarOpen, sidebarWidth]);
 
   // --- DND Logic ---
   const sensors = useSensors(
@@ -1151,20 +1143,20 @@ export default function App() {
                 onOpenFile={handleOpenFolder} 
                 showDatabasePanel={showDatabasePanel}
                 onToggleDatabasePanel={() => setShowDatabasePanel(!showDatabasePanel)}
-                isDatabaseView={activeView === 'database'}
+                showSidebar={isSidebarOpen}
+                onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
             />
+
         </AppShell.Header>
 
-        {/* MAIN LAYOUT */}
-        <AppShell.Main style={{ display: "flex", flexDirection: "column", height: "100vh", paddingTop: 35, paddingBottom: 24, overflow: "hidden", boxSizing: 'border-box', backgroundColor: 'var(--app-bg)' }}>
-            
-            {(isResizingSidebar || isResizingRightPanel) && (
-                <Box style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, cursor: 'col-resize', userSelect: 'none' }} />
-            )}
+        {/* Global Resize Overlay & Ghost Line - Placed here to avoid container clipping */}
+        {(isResizingSidebar || isResizingRightPanel || isResizingDatabase) && (
+            <Box style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, cursor: 'col-resize', userSelect: 'none' }} />
+        )}
 
-            <Box
-              ref={ghostRef}
-              style={{
+        <Box
+            ref={ghostRef}
+            style={{
                 position: 'fixed',
                 top: 0,
                 bottom: 0,
@@ -1174,8 +1166,13 @@ export default function App() {
                 display: 'none',
                 pointerEvents: 'none',
                 cursor: 'col-resize'
-              }}
-            />
+            }}
+        />
+
+        {/* MAIN LAYOUT */}
+        <AppShell.Main style={{ display: "flex", flexDirection: "column", height: "100vh", paddingTop: 35, paddingBottom: 24, overflow: "hidden", boxSizing: 'border-box', backgroundColor: 'var(--app-bg)' }}>
+
+
 
             {compileError && (
                 <Box style={{position: 'absolute', top: 10, right: 10, zIndex: 1000, maxWidth: 400}}>
@@ -1210,10 +1207,37 @@ export default function App() {
                     onScrollToLine={handleRevealLine}
                 />
                 
-                {/* 2. CENTER: EDITOR AREA or SETTINGS */}
-                <Box style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-                    {/* Top section: Editor / Settings / Wizards / Database */}
-                    <Box style={{ flex: activeView === 'database' && showDatabasePanel ? '0 0 0' : '1 1 100%', display: activeView === 'database' ? 'none' : 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
+                
+                {/* 2. CENTER: DATABASE VIEW (when toggled) + EDITOR AREA */}
+                <Box style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'row', overflow: 'hidden', minHeight: 0 }}>
+                    {/* Database Table - LEFT SIDE (only when toggled ON) */}
+                    {showDatabasePanel && (
+                        <>
+                            <Box style={{ 
+                                width: `${databasePanelWidth}px`,
+                                minWidth: '250px',
+                                maxWidth: '60%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                overflow: 'hidden'
+                            }}>
+                                <DatabaseView onOpenFile={handleOpenFileFromTable} />
+                            </Box>
+                            
+                            {/* Resize handle between Database and Editor */}
+                            <ResizerHandle onMouseDown={startResizeDatabase} isResizing={isResizingDatabase} />
+                        </>
+                    )}
+
+                    {/* Editor/Settings - RIGHT SIDE (always visible) */}
+                    <Box style={{ 
+                        flex: 1,
+                        minWidth: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                        minHeight: 0
+                    }}>
                         {activeView === 'settings' ? (
                             <SettingsPanel
                                 settings={settings}
@@ -1250,135 +1274,57 @@ export default function App() {
                             />
                         )}
 
-                        {activeView === 'settings' && (
-                           <SettingsPanel 
-                               settings={settings} 
-                               onUpdateGeneral={updateGeneralSetting} 
-                               onUpdateEditor={updateEditorSetting} 
-                               onUpdateUi={setUiTheme} 
-                            />
-                        )}
-                    </Box>
-                    
-                    {/* Horizontal Ghost Line for Database Panel Resize */}
-                    <Box
-                        ref={dbGhostRef}
-                        style={{
-                            position: 'fixed',
-                            left: 0,
-                            right: 0,
-                            height: 4,
-                            backgroundColor: 'var(--mantine-primary-color-6)',
-                            zIndex: 10000,
-                            display: 'none',
-                            pointerEvents: 'none',
-                            cursor: 'row-resize'
-                        }}
-                    />
 
-                    
-                    {/* Database Panel - Full Height in Database View */}
-                    {activeView === 'database' && showDatabasePanel && (
-                        <Box style={{ flex: 1, overflow: 'hidden' }}>
-                            <DatabaseView onOpenFile={handleOpenFileFromTable} />
-                        </Box>
-                    )}
+                    </Box>
                 </Box>
 
                 {/* 3. RIGHT PANEL WITH TRANSITION */}
                 
-                {/* O Resizer εμφανίζεται ΜΟΝΟ αν το panel είναι ανοιχτό */}
                 {/* Resizer for Right Panel */}
-                {(showRightPanel || activeView === 'database') && (
+                {(showRightPanel || showDatabasePanel) && (
                     <ResizerHandle onMouseDown={startResizeRightPanel} isResizing={isResizingRightPanel} />
                 )}
 
                 {/* Right Panel Content */}
                 <Box 
-                    w={(showRightPanel || activeView === 'database') ? "var(--right-panel-width)" : 0} 
+                    w={(showRightPanel || showDatabasePanel) ? "var(--right-panel-width)" : 0} 
                     h="100%" 
                     style={{ 
                         flexShrink: 0, 
                         overflow: 'hidden', 
-                        display: (showRightPanel || activeView === 'database') ? 'flex' : 'none', 
+                        display: (showRightPanel || showDatabasePanel) ? 'flex' : 'none', 
                         flexDirection: 'column',
                         minWidth: 0, 
-                        // Disable transitions when resizing for smooth performance
                         transition: isResizingRightPanel ? 'none' : "width 300ms ease-in-out, opacity 200ms ease-in-out",
-                        opacity: (showRightPanel || activeView === 'database') ? 1 : 0,
+                        opacity: (showRightPanel || showDatabasePanel) ? 1 : 0,
                         whiteSpace: "nowrap",
                         backgroundColor: 'var(--app-panel-bg)',
                         borderLeft: '1px solid var(--mantine-color-default-border)'
                     }}
                 >
-                    {activeView === 'database' ? (
-                        <ResourceInspector 
-                            editorContent={resourceEditorContent}
-                            onContentChange={handleResourceContentChange}
-                            onSave={handleResourceSave}
-                            onCompile={handleCompile}
-                            onStopCompile={handleStopCompile}
-                            isCompiling={isCompiling}
-                            editorSettings={editorSettingsMemo}
-                            isDirty={resourceEditorDirty}
+                    {/* Right Panel Content: Wizard > Gallery > ResourceInspector (when resource selected) > PDF Preview (default) */}
+                    {activeView.startsWith('wizard-') ? (
+                        <WizardWrapper
+                            title={activeView.replace('wizard-', '').toUpperCase()}
+                            onClose={() => setActiveView('editor')}
+                        >
+                            {activeView === 'wizard-preamble' && <PreambleWizard onInsert={(code: string) => { handleInsertSnippet(code); setActiveView('editor'); }} />}
+                            {activeView === 'wizard-table' && <TableWizard onInsert={(code: string) => { handleInsertSnippet(code); setActiveView('editor'); }} />}
+                            {activeView === 'wizard-tikz' && <TikzWizard onInsert={(code: string) => { handleInsertSnippet(code); setActiveView('editor'); }} />}
+                            {activeView === 'wizard-fancyhdr' && <FancyhdrWizard onInsert={(code: string) => { handleInsertSnippet(code); setActiveView('editor'); }} />}
+                        </WizardWrapper>
+                    ) : activeView === 'gallery' ? (
+                        <PackageGallery 
+                            selectedPkgId={activePackageId}
+                            onInsert={(code: string) => { handleInsertSnippet(code); setActiveView('editor'); }} 
+                            onClose={() => setActiveView('editor')}
+                            onOpenWizard={setActiveView}
                         />
                     ) : (
-                       // EXISTING WIZARD OR PDF LOGIC
-                       activeView === 'editor' && showPdf ? (
-                           <Box h="100%" style={{ display: "flex", flexDirection: "column" }}>
-                                <Group justify="space-between" px="xs" py={4} style={{ borderBottom: "1px solid var(--mantine-color-default-border)", flexShrink: 0, backgroundColor: 'var(--app-header-bg)' }}>
-                                    <Text size="xs" fw={700} c="dimmed">PDF PREVIEW</Text>
-                                    <Group gap={4}>
-                                        {isCompiling && <Loader size="xs" />}
-                                        <ActionIcon size="xs" variant="transparent" onClick={() => setShowPdf(false)}><FontAwesomeIcon icon={faTimes} style={{ width: 12, height: 12 }} /></ActionIcon>
-                                    </Group>
-                                </Group>
-                                <Box style={{ flex: 1, position: 'relative', overflow: 'hidden' }} bg="gray.7">
-                                    {pdfUrl ? (
-                                        <PdfPreview
-                                            pdfUrl={pdfUrl}
-                                            onSyncTexInverse={handleSyncTexInverse}
-                                            syncTexCoords={syncTexCoords}
-                                        />
-                                    ) : (
-                                        <Center h="100%">
-                                            {isCompiling ? 
-                                                <Stack align="center" gap="xs"><Loader type="bars" /><Text size="xs" c="dimmed">Compiling...</Text></Stack> :
-                                                <Text c="dimmed" size="sm">No PDF Loaded</Text>
-                                            }
-                                        </Center>
-                                    )}
-                                </Box>
-                           </Box>
-                       ) : (
-                           // WIZARDS handled in main view now? 
-                           // Wait, previous code had wizards in right panel??
-                           // Checking previous logic... 
-                           // Ah, previous code injected WizardWrapper in right panel if isWizardActive.
-                           // BUT new code put WizardWrapper in MAIN panel.
-                           // Let's stick to Main Panel for Wizards as per my previous edit.
-                           // So this block is just for PDF or Inspector.
-                       activeView.startsWith('wizard-') ? (
-                           <WizardWrapper
-                                title={activeView.replace('wizard-', '').toUpperCase()}
-                                onClose={() => setActiveView('editor')}
-                            >
-                                {activeView === 'wizard-preamble' && <PreambleWizard onInsert={(code: string) => { handleInsertSnippet(code); setActiveView('editor'); }} />}
-                                {activeView === 'wizard-table' && <TableWizard onInsert={(code: string) => { handleInsertSnippet(code); setActiveView('editor'); }} />}
-                                {activeView === 'wizard-tikz' && <TikzWizard onInsert={(code: string) => { handleInsertSnippet(code); setActiveView('editor'); }} />}
-                                {activeView === 'wizard-fancyhdr' && <FancyhdrWizard onInsert={(code: string) => { handleInsertSnippet(code); setActiveView('editor'); }} />}
-                            </WizardWrapper>
-                       ) : activeView === 'gallery' ? (
-                            <PackageGallery 
-                                selectedPkgId={activePackageId}
-                                onInsert={(code: string) => { handleInsertSnippet(code); setActiveView('editor'); }} 
-                                onClose={() => setActiveView('editor')}
-                                onOpenWizard={setActiveView}
-                             />
-                       ) : (
-                           null
-                       )
-                       )
+                        /* ResourceInspector with 3 tabs: PDF, Metadata, Bibliography */
+                        <ResourceInspector 
+                            mainEditorPdfUrl={pdfUrl}
+                        />
                     )}
                 </Box>
             </Group>

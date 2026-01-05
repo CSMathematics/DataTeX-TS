@@ -1,138 +1,57 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
-import { Stack, Text, Loader, ActionIcon, Group, Tooltip, Box, TextInput, Checkbox, UnstyledButton, Modal, Button, Collapse, ScrollArea } from '@mantine/core';
+import { useEffect, useMemo, useCallback, useState } from 'react';
+import { Stack, Text, Loader, Box, Checkbox, UnstyledButton, Modal, Button, Group, ActionIcon, ScrollArea, Divider } from '@mantine/core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { 
-    faPlus, faSync, faSearch, faTimes, faDatabase, faTrash, faFolderTree, 
-    faChevronRight, faFolder, faFolderOpen, faExpand, faCompress,
-    faChevronDown, faBoxOpen
-} from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faSync, faDatabase, faTrash, faFolderTree, faFolder, faWandMagicSparkles, faTable, faPenNib } from '@fortawesome/free-solid-svg-icons';
 import { useDatabaseStore } from '../../stores/databaseStore';
+import { useProjectStore } from '../../stores/projectStore';
 import { open } from '@tauri-apps/plugin-dialog';
-import { getFileIcon } from '../layout/Sidebar';
 
-// --- Types ---
-interface FileTreeNode {
-    id: string;
-    name: string;
-    type: 'file' | 'folder';
-    path: string;
-    children: FileTreeNode[];
-    isCollectionRoot?: boolean;
-}
+// Import shared tree components
+import { 
+    TreeNode,
+    TreeItemConfig,
+    TreeItemCallbacks,
+    UnifiedTreeItem,
+    TreeToolbar,
+    TreeSearchInput,
+    useTreeState,
+    ToolbarAction
+} from '../shared/tree';
+import { FileSystemNode } from '../layout/Sidebar';
 
 // Allowed file extensions for the file tree view
 const ALLOWED_EXTENSIONS = ['tex', 'pdf', 'bib', 'sty', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'];
 
-// --- File Tree Item Component ---
-const DatabaseFileTreeItem = ({ 
-    node, 
-    level, 
-    onFileClick,
-    selectedPath,
-    expandSignal,
-    collapseSignal
-}: { 
-    node: FileTreeNode; 
-    level: number; 
-    onFileClick: (path: string) => void;
-    selectedPath: string | null;
-    expandSignal: number;
-    collapseSignal: number;
-}) => {
-    const isRoot = node.isCollectionRoot;
-    const [expanded, setExpanded] = useState(isRoot); // Root folders start expanded
+// View types for the sidebar
+type SidebarViewType = 'collections' | 'dbFiles' | 'projects';
 
-    // React to expand/collapse all signals
-    useEffect(() => { if (expandSignal > 0) setExpanded(true); }, [expandSignal]);
-    useEffect(() => { if (collapseSignal > 0 && !isRoot) setExpanded(false); }, [collapseSignal, isRoot]);
+// Props for project folder operations
+interface DatabaseSidebarProps {
+    // Project folder operations (passed from App.tsx)
+    onOpenFolder?: () => void;
+    onRemoveFolder?: (path: string) => void;
+    onOpenFileNode?: (node: FileSystemNode) => void;
+    onCreateItem?: (name: string, type: 'file' | 'folder', parentPath: string) => void;
+    onRenameItem?: (node: FileSystemNode, newName: string) => void;
+    onDeleteItem?: (node: FileSystemNode) => void;
+    // Navigation to wizards
+    onNavigate?: (view: string) => void;
+}
 
-    const handleClick = useCallback(() => {
-        if (node.type === 'folder') {
-            setExpanded(prev => !prev);
-        } else {
-            onFileClick(node.path);
-        }
-    }, [node, onFileClick]);
-
-    const isSelected = node.path === selectedPath;
-    
-    // Styles based on level/root status
-    const isFile = node.type === 'file';
-    const paddingLeft = isRoot ? 8 : (isFile ? level * 10 + 28 : level * 10 + 12);
-    const bgColor = isRoot 
-        ? 'var(--app-header-bg)' 
-        : (isSelected ? 'var(--mantine-primary-color-light)' : 'transparent');
-    const textColor = isSelected ? 'var(--mantine-primary-color-text)' : 'var(--mantine-color-text)';
-    const fontWeight = isRoot ? 700 : 400;
-    const borderBottom = isRoot ? '1px solid var(--mantine-color-default-border)' : 'none';
-
-    return (
-        <Box>
-            <UnstyledButton
-                onClick={handleClick}
-                style={{
-                    width: '100%',
-                    padding: isRoot ? '8px 8px' : '4px 8px',
-                    paddingLeft: paddingLeft,
-                    fontSize: 13,
-                    color: textColor,
-                    backgroundColor: bgColor,
-                    borderBottom: borderBottom,
-                    fontWeight: fontWeight,
-                    display: 'flex',
-                    alignItems: 'center',
-                    transition: 'background-color 0.2s',
-                }}
-            >
-                <Group gap={isRoot ? 8 : 6} wrap="nowrap" style={{ flex: 1, overflow: 'hidden' }}>
-                    {node.type === 'folder' && (
-                        <Box style={{ 
-                            transform: expanded ? (isRoot ? 'rotate(0deg)' : 'rotate(90deg)') : (isRoot ? 'rotate(-90deg)' : 'none'), 
-                            transition: 'transform 0.2s', 
-                            display: 'flex', 
-                            opacity: 0.7 
-                        }}>
-                            <FontAwesomeIcon icon={isRoot ? faChevronDown : faChevronRight} style={{ width: 10, height: 10 }} />
-                        </Box>
-                    )}
-                    
-                    {isRoot ? (
-                        <FontAwesomeIcon icon={faBoxOpen} style={{ width: 14, height: 14, color: "var(--mantine-primary-color-filled)" }} />
-                    ) : node.type === 'folder' ? (
-                        <FontAwesomeIcon 
-                            icon={expanded ? faFolderOpen : faFolder} 
-                            style={{ width: 14, height: 14, color: "#fab005" }} 
-                        />
-                    ) : (
-                        getFileIcon(node.name, 'file')
-                    )}
-                    
-                    <Text size={isRoot ? "xs" : "xs"} truncate fw={isRoot ? 700 : 400} tt={isRoot ? "uppercase" : "none"}>
-                        {node.name}
-                    </Text>
-                </Group>
-            </UnstyledButton>
-
-            {node.type === 'folder' && node.children.length > 0 && (
-                <Collapse in={expanded ?? false}>
-                    {node.children.map(child => (
-                        <DatabaseFileTreeItem
-                            key={child.id}
-                            node={child}
-                            level={level + 1}
-                            onFileClick={onFileClick}
-                            selectedPath={selectedPath}
-                            expandSignal={expandSignal}
-                            collapseSignal={collapseSignal}
-                        />
-                    ))}
-                </Collapse>
-            )}
-        </Box>
-    );
-};
-
-export const DatabaseSidebar = () => {
+/**
+ * Database Sidebar component.
+ * Shows Collections, DB File Tree, or Project Folders (3-way toggle).
+ * Now uses shared UnifiedTreeItem component for file trees.
+ */
+export const DatabaseSidebar = ({
+    onOpenFolder,
+    onRemoveFolder,
+    onOpenFileNode,
+    onCreateItem,
+    onRenameItem,
+    onDeleteItem,
+    onNavigate
+}: DatabaseSidebarProps) => {
     const { 
         collections, 
         fetchCollections, 
@@ -145,29 +64,43 @@ export const DatabaseSidebar = () => {
         selectResource,
         activeResourceId
     } = useDatabaseStore();
-    const [searchQuery, setSearchQuery] = useState('');
+
+    // Project folder state from store
+    const { projectData } = useProjectStore();
+
+    // Use shared tree state hook
+    const {
+        expandAllSignal,
+        collapseAllSignal,
+        isToggleExpanded,
+        searchQuery,
+        setSearchQuery,
+        toggleExpandState
+    } = useTreeState<TreeNode>();
+
+    // Local state - 3-way view toggle
+    const [activeView, setActiveView] = useState<SidebarViewType>('collections');
     const [fileTreeSearch, setFileTreeSearch] = useState('');
+    const [projectSearch, setProjectSearch] = useState('');
     const [hoveredCollection, setHoveredCollection] = useState<string | null>(null);
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [collectionToDelete, setCollectionToDelete] = useState<string | null>(null);
-    const [showFileTree, setShowFileTree] = useState(false);
-    
-    // Expand/Collapse all state
-    const [expandAllSignal, setExpandAllSignal] = useState(0);
-    const [collapseAllSignal, setCollapseAllSignal] = useState(0);
-    const [isToggleExpanded, setIsToggleExpanded] = useState(true);
+    const [creatingItem, setCreatingItem] = useState<{ type: 'file' | 'folder', parentId: string } | null>(null);
+    const [selectedProjectNode] = useState<FileSystemNode | null>(null);
 
+    // Fetch collections on mount
     useEffect(() => {
         fetchCollections();
-    }, []);
+    }, [fetchCollections]);
 
+    // --- Handlers ---
     const handleImport = useCallback(async () => {
         try {
             const selected = await open({ directory: true, title: "Select Folder to Import" });
             if (selected && typeof selected === 'string') {
-                 const separator = selected.includes('\\') ? '\\' : '/';
-                 const name = selected.split(separator).pop() || 'Imported';
-                 await importFolder(selected, name);
+                const separator = selected.includes('\\') ? '\\' : '/';
+                const name = selected.split(separator).pop() || 'Imported';
+                await importFolder(selected, name);
             }
         } catch (e) {
             console.error("Import failed", e);
@@ -179,7 +112,7 @@ export const DatabaseSidebar = () => {
     }, [toggleCollectionLoaded]);
 
     const handleDeleteClick = useCallback((name: string, e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevent toggling the collection
+        e.stopPropagation();
         setCollectionToDelete(name);
         setDeleteModalOpen(true);
     }, []);
@@ -197,22 +130,14 @@ export const DatabaseSidebar = () => {
         setCollectionToDelete(null);
     }, []);
 
+    // --- Collections filtering ---
     const filteredCollections = useMemo(() => {
         if (!searchQuery) return collections;
         return collections.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
     }, [collections, searchQuery]);
 
-    const handleToggleExpand = useCallback(() => {
-        if (isToggleExpanded) {
-            setCollapseAllSignal(prev => prev + 1);
-        } else {
-            setExpandAllSignal(prev => prev + 1);
-        }
-        setIsToggleExpanded(prev => !prev);
-    }, [isToggleExpanded]);
-
-    // Build file tree from resources
-    const fileTree = useMemo(() => {
+    // --- Build file tree from resources ---
+    const fileTree = useMemo((): TreeNode[] => {
         // Filter resources by allowed extensions
         let filteredResources = allLoadedResources.filter(r => {
             const ext = r.path.split('.').pop()?.toLowerCase() || '';
@@ -229,9 +154,6 @@ export const DatabaseSidebar = () => {
 
         if (filteredResources.length === 0) return [];
 
-        // Group files by collection and build tree structure
-        const collectionTrees: FileTreeNode[] = [];
-
         // Group resources by collection
         const byCollection = new Map<string, typeof filteredResources>();
         filteredResources.forEach(r => {
@@ -240,16 +162,15 @@ export const DatabaseSidebar = () => {
             byCollection.set(r.collection, existing);
         });
 
+        const collectionTrees: TreeNode[] = [];
+
         // Build tree for each collection
         byCollection.forEach((resources, collectionName) => {
-            // Find common root path for this collection
             const paths = resources.map(r => r.path);
             const separator = paths[0]?.includes('\\') ? '\\' : '/';
             
-            // Get all path parts
-            const allParts = paths.map(p => p.split(separator));
-            
             // Find common prefix
+            const allParts = paths.map(p => p.split(separator));
             let commonPrefix: string[] = [];
             if (allParts.length > 0) {
                 commonPrefix = [...allParts[0]];
@@ -264,13 +185,14 @@ export const DatabaseSidebar = () => {
             const commonRoot = commonPrefix.join(separator);
 
             // Build tree structure - collection as root
-            const rootNode: FileTreeNode = {
+            const rootNode: TreeNode = {
                 id: collectionName,
                 name: collectionName,
                 type: 'folder',
                 path: commonRoot,
                 children: [],
-                isCollectionRoot: true
+                isRoot: true,
+                metadata: { collectionName }
             };
 
             // Add files to tree
@@ -283,7 +205,7 @@ export const DatabaseSidebar = () => {
                 // Navigate/create folder structure
                 for (let i = 0; i < parts.length - 1; i++) {
                     const folderName = parts[i];
-                    let folderNode = currentNode.children.find(c => c.name === folderName && c.type === 'folder');
+                    let folderNode = currentNode.children?.find(c => c.name === folderName && c.type === 'folder');
                     
                     if (!folderNode) {
                         folderNode = {
@@ -293,6 +215,7 @@ export const DatabaseSidebar = () => {
                             path: `${currentNode.path}${separator}${folderName}`,
                             children: []
                         };
+                        currentNode.children = currentNode.children || [];
                         currentNode.children.push(folderNode);
                     }
                     currentNode = folderNode;
@@ -300,24 +223,26 @@ export const DatabaseSidebar = () => {
 
                 // Add file node
                 const fileName = parts[parts.length - 1] || r.path.split(/[/\\]/).pop() || 'unknown';
+                currentNode.children = currentNode.children || [];
                 currentNode.children.push({
                     id: r.id,
                     name: fileName,
                     type: 'file',
-                    path: r.path,
-                    children: []
+                    path: r.path
                 });
             });
 
             // Sort children: folders first, then files, alphabetically
-            const sortChildren = (node: FileTreeNode) => {
-                node.children.sort((a, b) => {
-                    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
-                    return a.name.localeCompare(b.name);
-                });
-                node.children.forEach(child => {
-                    if (child.type === 'folder') sortChildren(child);
-                });
+            const sortChildren = (node: TreeNode) => {
+                if (node.children) {
+                    node.children.sort((a, b) => {
+                        if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+                        return a.name.localeCompare(b.name);
+                    });
+                    node.children.forEach(child => {
+                        if (child.type === 'folder') sortChildren(child);
+                    });
+                }
             };
             sortChildren(rootNode);
 
@@ -327,91 +252,99 @@ export const DatabaseSidebar = () => {
         return collectionTrees;
     }, [allLoadedResources, fileTreeSearch]);
 
-    const handleFileClick = useCallback((path: string) => {
-        const resource = allLoadedResources.find(r => r.path === path);
+    // --- File click handler ---
+    const handleFileClick = useCallback((node: TreeNode) => {
+        const resource = allLoadedResources.find(r => r.path === node.path);
         if (resource) {
             selectResource(resource.id);
         }
     }, [allLoadedResources, selectResource]);
 
+    // --- Selected path for highlighting ---
     const selectedPath = useMemo(() => {
         const activeResource = allLoadedResources.find(r => r.id === activeResourceId);
         return activeResource?.path || null;
     }, [allLoadedResources, activeResourceId]);
 
+    // --- Tree item config (enables context menu for file operations) ---
+    const treeConfig: TreeItemConfig = useMemo(() => ({
+        enableDragDrop: false,  // Will enable in Phase 4
+        enableContextMenu: true,  // NEW: Context menu for Database tree
+        enableRename: false,  // Database files aren't renamed through this UI
+        enableCheckbox: false
+    }), []);
+
+    // --- Tree item callbacks ---
+    const treeCallbacks: TreeItemCallbacks = useMemo(() => ({
+        onFileClick: handleFileClick,
+        onFolderToggle: undefined,
+        onContextMenu: undefined,  // Use default context menu from UnifiedTreeItem
+        onRename: undefined,
+        onDelete: undefined,
+        onCreate: undefined,
+        onDrop: undefined
+    }), [handleFileClick]);
+
+    // --- Toolbar actions ---
+    const fileTreeToolbarActions: ToolbarAction[] = useMemo(() => [
+        {
+            icon: faDatabase,
+            tooltip: 'Back to Collections',
+            onClick: () => setActiveView('collections'),
+            variant: 'light' as const,
+            color: 'blue'
+        }
+    ], []);
+
+    const collectionsToolbarActions: ToolbarAction[] = useMemo(() => [
+        {
+            icon: faSync,
+            tooltip: 'Refresh',
+            onClick: () => fetchCollections()
+        },
+        {
+            icon: faPlus,
+            tooltip: 'Import Folder',
+            onClick: handleImport
+        },
+        {
+            icon: faFolderTree,
+            tooltip: 'Show File Tree',
+            onClick: () => setActiveView('dbFiles'),
+            disabled: loadedCollections.length === 0
+        },
+        {
+            icon: faFolder,
+            tooltip: 'Project Folders',
+            onClick: () => setActiveView('projects'),
+            variant: 'subtle' as const,
+            color: 'orange'
+        }
+    ], [fetchCollections, handleImport, loadedCollections.length]);
+
+    // Get current view title and actions
+    const currentTitle = activeView === 'collections' ? 'COLLECTIONS' : activeView === 'dbFiles' ? 'FILE TREE' : 'PROJECT FOLDERS';
+    const currentActions = activeView === 'collections' ? collectionsToolbarActions : fileTreeToolbarActions;
+    const showExpandToggle = activeView !== 'collections';
+
     return (
         <Stack p="xs" gap="xs" h="100%" style={{ overflow: 'hidden' }}>
-            {/* Header - changes based on mode */}
-            <Group justify="space-between" px={4}>
-                <Text size="xs" fw={700} c="dimmed">
-                    {showFileTree ? 'FILE TREE' : 'COLLECTIONS'}
-                </Text>
-                <Group gap={2}>
-                    {showFileTree ? (
-                        // File tree mode toolbar
-                        <>
-                            <Tooltip label={isToggleExpanded ? "Collapse All" : "Expand All"}>
-                                <ActionIcon variant="subtle" size="xs" color="gray" onClick={handleToggleExpand}>
-                                    <FontAwesomeIcon icon={isToggleExpanded ? faCompress : faExpand} style={{ width: 12, height: 12 }} />
-                                </ActionIcon>
-                            </Tooltip>
-                            <Tooltip label="Back to Collections">
-                                <ActionIcon 
-                                    size="xs" 
-                                    variant="light" 
-                                    color="blue" 
-                                    onClick={() => setShowFileTree(false)}
-                                >
-                                    <FontAwesomeIcon icon={faDatabase} style={{ width: 12, height: 12 }} />
-                                </ActionIcon>
-                            </Tooltip>
-                        </>
-                    ) : (
-                        // Collections mode toolbar
-                        <>
-                            <Tooltip label="Refresh">
-                                <ActionIcon size="xs" variant="subtle" color="gray" onClick={() => fetchCollections()}>
-                                    <FontAwesomeIcon icon={faSync} style={{ width: 12, height: 12 }} />
-                                </ActionIcon>
-                            </Tooltip>
-                            <Tooltip label="Import Folder">
-                                <ActionIcon size="xs" variant="subtle" color="gray" onClick={handleImport}>
-                                    <FontAwesomeIcon icon={faPlus} style={{ width: 12, height: 12 }} />
-                                </ActionIcon>
-                            </Tooltip>
-                            <Tooltip label="Show File Tree">
-                                <ActionIcon 
-                                    size="xs" 
-                                    variant="subtle" 
-                                    color="gray" 
-                                    onClick={() => setShowFileTree(true)}
-                                    disabled={loadedCollections.length === 0}
-                                >
-                                    <FontAwesomeIcon icon={faFolderTree} style={{ width: 12, height: 12 }} />
-                                </ActionIcon>
-                            </Tooltip>
-                        </>
-                    )}
-                </Group>
-            </Group>
+            {/* Header Toolbar */}
+            <TreeToolbar
+                title={currentTitle}
+                actions={currentActions}
+                showExpandToggle={showExpandToggle}
+                isExpanded={isToggleExpanded}
+                onToggleExpand={toggleExpandState}
+            />
 
             {/* Search box */}
             <Box px={4}>
-                <TextInput 
-                    placeholder={showFileTree ? "Filter files..." : "Search collections..."} 
-                    size="xs" 
-                    value={showFileTree ? fileTreeSearch : searchQuery}
-                    onChange={(e) => showFileTree 
-                        ? setFileTreeSearch(e.currentTarget.value) 
-                        : setSearchQuery(e.currentTarget.value)
-                    }
-                    rightSection={
-                        (showFileTree ? fileTreeSearch : searchQuery) 
-                            ? <ActionIcon size="xs" variant="transparent" onClick={() => showFileTree ? setFileTreeSearch('') : setSearchQuery('')}>
-                                <FontAwesomeIcon icon={faTimes} />
-                              </ActionIcon> 
-                            : <FontAwesomeIcon icon={faSearch} style={{ width: 12, height: 12, color: 'var(--mantine-color-dimmed)' }} />
-                    }
+                <TreeSearchInput
+                    value={activeView === 'dbFiles' ? fileTreeSearch : activeView === 'projects' ? projectSearch : searchQuery}
+                    onChange={activeView === 'dbFiles' ? setFileTreeSearch : activeView === 'projects' ? setProjectSearch : setSearchQuery}
+                    onClear={() => activeView === 'dbFiles' ? setFileTreeSearch('') : activeView === 'projects' ? setProjectSearch('') : setSearchQuery('')}
+                    placeholder={activeView === 'collections' ? "Search collections..." : "Filter files..."}
                 />
             </Box>
 
@@ -419,7 +352,7 @@ export const DatabaseSidebar = () => {
             {isLoading && collections.length === 0 && <Loader size="xs" mx="auto" />}
 
             {/* FILE TREE VIEW */}
-            {showFileTree ? (
+            {activeView === 'dbFiles' ? (
                 <ScrollArea style={{ flex: 1 }}>
                     {loadedCollections.length === 0 ? (
                         <Text size="xs" c="dimmed" ta="center" py="md">
@@ -430,16 +363,98 @@ export const DatabaseSidebar = () => {
                     ) : (
                         <Box>
                             {fileTree.map(node => (
-                                <DatabaseFileTreeItem
+                                <UnifiedTreeItem
                                     key={node.id}
                                     node={node}
                                     level={0}
-                                    onFileClick={handleFileClick}
+                                    config={treeConfig}
+                                    callbacks={treeCallbacks}
                                     selectedPath={selectedPath}
                                     expandSignal={expandAllSignal}
                                     collapseSignal={collapseAllSignal}
                                 />
                             ))}
+                        </Box>
+                    )}
+                </ScrollArea>
+            ) : activeView === 'projects' ? (
+                /* PROJECT FOLDERS VIEW */
+                <ScrollArea style={{ flex: 1 }}>
+                    {/* Quick Tools */}
+                    <Box p="xs">
+                        <Text size="xs" fw={700} c="dimmed" mb={4}>QUICK TOOLS</Text>
+                        <Group gap={4}>
+                            {onNavigate && (
+                                <>
+                                    <ActionIcon variant="light" size="sm" color="violet" onClick={() => onNavigate("wizard-preamble")}>
+                                        <FontAwesomeIcon icon={faWandMagicSparkles} style={{ width: 14, height: 14 }} />
+                                    </ActionIcon>
+                                    <ActionIcon variant="light" size="sm" color="green" onClick={() => onNavigate("wizard-table")}>
+                                        <FontAwesomeIcon icon={faTable} style={{ width: 14, height: 14 }} />
+                                    </ActionIcon>
+                                    <ActionIcon variant="light" size="sm" color="orange" onClick={() => onNavigate("wizard-tikz")}>
+                                        <FontAwesomeIcon icon={faPenNib} style={{ width: 14, height: 14 }} />
+                                    </ActionIcon>
+                                </>
+                            )}
+                        </Group>
+                    </Box>
+                    <Divider my={4} color="default-border" />
+
+                    {/* Project Folders Tree */}
+                    {projectData.length === 0 ? (
+                        <Box p="md" ta="center">
+                            <Text size="xs" c="dimmed" mb="xs">No folder opened</Text>
+                            {onOpenFolder && (
+                                <Group justify="center">
+                                    <Button size="xs" variant="default" onClick={onOpenFolder}>Open Folder</Button>
+                                </Group>
+                            )}
+                        </Box>
+                    ) : (
+                        <Box>
+                            {projectData.map(node => {
+                                const treeNode: TreeNode = {
+                                    ...node,
+                                    isRoot: true,
+                                    children: node.children as TreeNode[] | undefined
+                                };
+                                
+                                const projectConfig: TreeItemConfig = {
+                                    enableDragDrop: true,
+                                    enableContextMenu: true,
+                                    enableRename: true
+                                };
+                                
+                                const projectCallbacks: TreeItemCallbacks = {
+                                    onFileClick: (n) => onOpenFileNode && onOpenFileNode(n as FileSystemNode),
+                                    onRename: onRenameItem ? (n, newName) => onRenameItem(n as FileSystemNode, newName) : undefined,
+                                    onDelete: onDeleteItem ? (n) => onDeleteItem(n as FileSystemNode) : undefined,
+                                    onCreate: (type, parentNode) => {
+                                        setCreatingItem({ type, parentId: parentNode.id });
+                                    },
+                                    onRemoveFolder: onRemoveFolder ? (n) => onRemoveFolder(n.path) : undefined
+                                };
+                                
+                                return (
+                                    <UnifiedTreeItem
+                                        key={node.id}
+                                        node={treeNode}
+                                        level={0}
+                                        config={projectConfig}
+                                        callbacks={projectCallbacks}
+                                        selectedPath={selectedProjectNode?.path || null}
+                                        expandSignal={expandAllSignal}
+                                        collapseSignal={collapseAllSignal}
+                                        creatingState={creatingItem}
+                                        onCommitCreation={(name, type, parentPath) => {
+                                            if (onCreateItem) onCreateItem(name, type, parentPath);
+                                            setCreatingItem(null);
+                                        }}
+                                        onCancelCreation={() => setCreatingItem(null)}
+                                    />
+                                );
+                            })}
                         </Box>
                     )}
                 </ScrollArea>
@@ -535,6 +550,7 @@ export const DatabaseSidebar = () => {
                 </>
             )}
 
+            {/* Delete Confirmation Modal */}
             <Modal
                 opened={deleteModalOpen}
                 onClose={cancelDelete}

@@ -9,6 +9,22 @@ export interface Collection {
     created_at?: string;
 }
 
+export interface LatexFileMetadata {
+    description?: string;
+    difficulty?: number; // 1-5
+    field?: string;
+    chapters?: string[];
+    sections?: string[];
+    solved_prooved?: boolean;
+    bibliography?: string[]; // Citation keys
+    label?: string; // LaTeX Label
+    requiredPackages?: string[];
+    requiredImages?: string[];
+    contentType?: string;
+    preamble?: string; // Reference to preamble resource ID or 'builtin:...'
+    buildCommand?: 'pdflatex' | 'xelatex' | 'lualatex';
+}
+
 export interface Resource {
     id: string;
     path: string;
@@ -16,9 +32,14 @@ export interface Resource {
     collection: string;
     title?: string;
     content_hash?: string;
-    metadata?: any;
+    metadata?: LatexFileMetadata | any; // Use specific type for LaTeX files
     created_at?: string;
     updated_at?: string;
+}
+
+export interface LatexFileResource extends Resource {
+    kind: 'file';
+    metadata: LatexFileMetadata;
 }
 
 interface DatabaseState {
@@ -42,8 +63,13 @@ interface DatabaseState {
     fetchResourcesForLoadedCollections: () => Promise<void>;
     deleteCollection: (name: string) => Promise<void>;
     deleteResource: (id: string) => Promise<void>;
-    createResource: (path: string, collection: string, content: string) => Promise<void>;
+    createResource: (path: string, collection: string, content: string, metadata?: LatexFileMetadata) => Promise<void>;
     importFile: (path: string, collection: string) => Promise<void>;
+    updateResourceMetadata: (id: string, metadata: LatexFileMetadata) => Promise<void>;
+    linkResources: (sourceId: string, targetId: string, relationType: string) => Promise<void>;
+    getLinkedResources: (sourceId: string, relationType?: string) => Promise<Resource[]>;
+    updateResourceKind: (id: string, kind: string) => Promise<void>;
+    compileResource: (id: string) => Promise<string>; // Returns PDF path
 }
 
 export const useDatabaseStore = create<DatabaseState>((set, get) => ({
@@ -185,10 +211,10 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
         }
     },
 
-    createResource: async (path: string, collection: string, content: string) => {
+    createResource: async (path: string, collection: string, content: string, metadata?: LatexFileMetadata) => {
         set({ isLoading: true, error: null });
         try {
-            await invoke('create_resource_cmd', { path, collectionName: collection, content });
+            await invoke('create_resource_cmd', { path, collectionName: collection, content, metadata });
             // Refresh to show new file
             await get().fetchResourcesForLoadedCollections();
             set({ isLoading: false });
@@ -206,6 +232,83 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
             set({ isLoading: false });
         } catch (err: any) {
             set({ error: err.toString(), isLoading: false });
+        }
+    },
+
+    updateResourceMetadata: async (id: string, metadata: LatexFileMetadata) => {
+        set({ isLoading: true, error: null });
+        try {
+            await invoke('update_cell_cmd', { 
+                tableName: 'resources', 
+                id, 
+                column: 'metadata', 
+                value: JSON.stringify(metadata) 
+            });
+            
+            // Update local state to reflect changes immediately without refetching everything
+            const { resources, allLoadedResources } = get();
+            
+            const updateResource = (r: Resource) => r.id === id ? { ...r, metadata } : r;
+            
+            set({
+                resources: resources.map(updateResource),
+                allLoadedResources: allLoadedResources.map(updateResource),
+                isLoading: false
+            });
+            
+        } catch (err: any) {
+            set({ error: err.toString(), isLoading: false });
+        }
+    },
+
+
+
+    linkResources: async (sourceId: string, targetId: string, relationType: string) => {
+        try {
+            await invoke('link_resources_cmd', { sourceId, targetId, relationType });
+        } catch (err: any) {
+            console.error("Failed to link resources", err);
+            throw err;
+        }
+    },
+
+    getLinkedResources: async (sourceId: string, relationType?: string) => {
+         try {
+            return await invoke('get_linked_resources_cmd', { sourceId, relationType });
+        } catch (err: any) {
+            console.error("Failed to get linked resources", err);
+            console.error("Failed to get linked resources", err);
+            return [];
+        }
+    },
+
+    updateResourceKind: async (id: string, kind: string) => {
+        try {
+             await invoke('update_cell_cmd', { 
+                tableName: 'resources', 
+                id, 
+                column: 'type', // DB column is 'type', struct field is 'kind'
+                value: kind 
+            });
+            
+            // Update local state
+            const { resources, allLoadedResources } = get();
+            const update = (r: Resource) => r.id === id ? { ...r, kind } : r;
+             set({
+                resources: resources.map(update),
+                allLoadedResources: allLoadedResources.map(update)
+            });
+        } catch (err: any) {
+             set({ error: err.toString() });
+        }
+    },
+
+    compileResource: async (id: string) => {
+        try {
+            return await invoke('compile_resource_cmd', { id });
+        } catch (err: any) {
+            console.error("Failed to compile resource", err);
+            throw err;
         }
     },
 

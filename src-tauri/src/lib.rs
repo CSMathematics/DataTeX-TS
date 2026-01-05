@@ -59,6 +59,118 @@ fn run_texcount_command(args: Vec<String>, cwd: String) -> Result<String, String
 }
 
 #[tauri::command]
+async fn compile_resource_cmd(id: String, state: State<'_, AppState>) -> Result<String, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    let resource_opt = db.get_resource_by_id(&id).await?;
+    let resource = resource_opt.ok_or("Resource not found")?;
+
+    // Parse metadata
+    let metadata_json = resource.metadata.as_ref().ok_or("No metadata found")?;
+    let preamble_id_opt = metadata_json.get("preamble").and_then(|v| v.as_str());
+    let build_command = metadata_json
+        .get("buildCommand")
+        .and_then(|v| v.as_str())
+        .unwrap_or("pdflatex");
+
+    if let Some(preamble_id) = preamble_id_opt {
+        // Need to wrap content
+        let mut preamble_content = String::new();
+
+        if preamble_id.starts_with("builtin:") {
+            // Simple built-in defaults
+            if preamble_id == "builtin:beamer" {
+                preamble_content =
+                    "\\documentclass{beamer}\n\\usepackage[utf8]{inputenc}\n".to_string();
+            } else {
+                preamble_content = "\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amsmath}\n".to_string();
+            }
+        } else {
+            // Fetch preamble resource
+            let preamble_res = db
+                .get_resource_by_id(preamble_id)
+                .await?
+                .ok_or("Preamble resource not found")?;
+
+            // If preamble resource is physically on disk, read it?
+            // Or assumes resource.path points to it.
+            // But we want the CONTENT. If it's a file resource, we should read the file.
+            // resource.path should be valid.
+            preamble_content = fs::read_to_string(&preamble_res.path)
+                .map_err(|e| format!("Failed to read preamble file: {}", e))?;
+        }
+
+        // Read the actual resource content
+        // Assuming resource.path is valid
+        let body_content = fs::read_to_string(&resource.path)
+            .map_err(|e| format!("Failed to read resource file: {}", e))?;
+
+        // Construct full document
+        let full_doc = format!(
+            "{}\n\\begin{{document}}\n{}\n\\end{{document}}",
+            preamble_content, body_content
+        );
+
+        // Save to temporary file in same directory?
+        // Or in a temp folder. Same directory is safer for relative image paths.
+        let original_path = std::path::Path::new(&resource.path);
+        let parent_dir = original_path.parent().unwrap_or(std::path::Path::new("."));
+        let file_stem = original_path.file_stem().unwrap().to_str().unwrap();
+        let temp_filename = format!("{}_preview.tex", file_stem);
+        let temp_path = parent_dir.join(&temp_filename);
+
+        fs::write(&temp_path, full_doc).map_err(|e| format!("Failed to write temp file: {}", e))?;
+
+        // Compile
+        let output_dir = parent_dir.to_string_lossy().to_string();
+
+        // Use -jobname to output the PDF with the original filename (overwriting any previous build)
+        // This ensures that the main editor's PDF viewer (which looks for filename.pdf) picks it up automatically.
+        let jobname_arg = format!("-jobname={}", file_stem);
+
+        let result = compiler::compile(
+            &temp_path.to_string_lossy(),
+            build_command,
+            vec![jobname_arg],
+            &output_dir,
+        );
+
+        // Clean up temp tex file (optional? maybe keep for debugging or user inspection?)
+        // Let's keep it for now as '_preview.tex'
+
+        // Output path logic (compiler usually replaces extension)
+        match result {
+            Ok(_) => {
+                // Since we used -jobname=file_stem, the output is file_stem.pdf
+                let pdf_name = format!("{}.pdf", file_stem);
+                let pdf_path = parent_dir.join(pdf_name);
+                Ok(pdf_path.to_string_lossy().to_string())
+            }
+            Err(e) => Err(e),
+        }
+    } else {
+        // Normal compilation
+        let parent_dir = std::path::Path::new(&resource.path)
+            .parent()
+            .unwrap_or(std::path::Path::new("."));
+        let output_dir = parent_dir.to_string_lossy().to_string();
+
+        match compiler::compile(&resource.path, build_command, vec![], &output_dir) {
+            Ok(_) => {
+                // Assume PDF is [filename].pdf
+                let original_path = std::path::Path::new(&resource.path);
+                let file_stem = original_path.file_stem().unwrap().to_str().unwrap();
+                let pdf_name = format!("{}.pdf", file_stem);
+                let pdf_path = original_path.with_file_name(pdf_name);
+                Ok(pdf_path.to_string_lossy().to_string())
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
+
+#[tauri::command]
 fn get_system_fonts() -> Vec<String> {
     use std::process::Command;
     let output = if cfg!(target_os = "linux") {
@@ -253,6 +365,7 @@ async fn create_resource_cmd(
     path: String,
     collection_name: String,
     content: String,
+    metadata: Option<serde_json::Value>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let db_guard = state.db_manager.lock().await;
@@ -281,7 +394,7 @@ async fn create_resource_cmd(
         collection: collection_name,
         title: Some(file_name),
         content_hash: None,
-        metadata: Some(serde_json::json!({})),
+        metadata: Some(metadata.unwrap_or(serde_json::json!({}))),
         created_at: None,
         updated_at: None,
     };
@@ -360,6 +473,33 @@ fn reveal_path_cmd(path: String) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[tauri::command]
+async fn link_resources_cmd(
+    source_id: String,
+    target_id: String,
+    relation_type: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    db.add_dependency(&source_id, &target_id, &relation_type)
+        .await
+}
+
+#[tauri::command]
+async fn get_linked_resources_cmd(
+    source_id: String,
+    relation_type: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<Resource>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    db.get_dependencies(&source_id, relation_type.as_deref())
+        .await
 }
 
 // ===== LSP Commands =====
@@ -607,6 +747,7 @@ pub fn run() {
             compile_tex,
             run_synctex_command,
             run_texcount_command,
+            compile_resource_cmd,
             get_system_fonts,
             get_table_data_cmd,
             update_cell_cmd,
@@ -619,6 +760,8 @@ pub fn run() {
             create_resource_cmd,
             import_file_cmd,
             reveal_path_cmd,
+            link_resources_cmd,
+            get_linked_resources_cmd,
             // LSP Commands
             lsp_initialize,
             lsp_completion,

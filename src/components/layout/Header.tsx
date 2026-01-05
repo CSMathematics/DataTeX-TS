@@ -17,7 +17,8 @@ import {
   faFolderOpen,
   faFileCirclePlus,
   faFilePdf,
-  faTableList
+  faTableList,
+  faBars
 } from "@fortawesome/free-solid-svg-icons";
 
 interface HeaderProps {
@@ -27,7 +28,9 @@ interface HeaderProps {
   // Database panel props
   showDatabasePanel?: boolean;
   onToggleDatabasePanel?: () => void;
-  isDatabaseView?: boolean;
+  // Sidebar props
+  showSidebar?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export const HeaderContent: React.FC<HeaderProps> = ({ 
@@ -36,7 +39,8 @@ export const HeaderContent: React.FC<HeaderProps> = ({
   onSaveFile,
   showDatabasePanel,
   onToggleDatabasePanel,
-  isDatabaseView
+  showSidebar,
+  onToggleSidebar
 }) => (
   <Group h="100%" px="md" justify="space-between" style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }} data-tauri-drag-region>
     <Group data-tauri-drag-region>
@@ -97,12 +101,27 @@ export const HeaderContent: React.FC<HeaderProps> = ({
       />
     </Box>
     <Group gap="xs">
-      {/* Database Panel Toggle - only visible in database view */}
-      {isDatabaseView && onToggleDatabasePanel && (
+      {/* Sidebar Toggle */}
+      {onToggleSidebar && (
+        <Tooltip label={showSidebar ? "Hide sidebar" : "Show sidebar"}>
+          <ActionIcon 
+            variant="subtle"
+            size="sm"
+            color={showSidebar ? "blue" : "gray"}
+            onClick={onToggleSidebar}
+          >
+            <FontAwesomeIcon icon={faBars} style={{ width: 14, height: 14 }} />
+          </ActionIcon>
+        </Tooltip>
+      )}
+      
+      {/* Database Table Toggle - always visible */}
+      {onToggleDatabasePanel && (
         <Tooltip label={showDatabasePanel ? "Hide database table" : "Show database table"}>
           <ActionIcon 
-            variant={showDatabasePanel ? "filled" : "subtle"} 
+            variant="subtle"
             size="sm"
+            color={showDatabasePanel ? "blue" : "gray"}
             onClick={onToggleDatabasePanel}
           >
             <FontAwesomeIcon icon={faTableList} style={{ width: 14, height: 14 }} />

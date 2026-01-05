@@ -252,7 +252,7 @@ export const DatabaseView = React.memo(({ onOpenFile }: DatabaseViewProps) => {
     }
 
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--mantine-color-gray-8)' }}>
 
 
             <Modal opened={templateSelectorOpen} onClose={() => setTemplateSelectorOpen(false)} title="Select Template" size="lg">
@@ -283,24 +283,24 @@ export const DatabaseView = React.memo(({ onOpenFile }: DatabaseViewProps) => {
                     
                     {/* Action Toolbar - Only visible when a resource is selected */}
                     {activeResourceId && (
-                         <Group gap="xs" style={{ backgroundColor: 'var(--mantine-color-dark-7)', padding: '4px 8px', borderRadius: '4px' }}>
+                         <Group gap= '2px' style={{ backgroundColor: 'var(--mantine-color-dark-7)', padding: '4px 8px', borderRadius: '4px' }}>
                         <Menu shadow="md" width={200}>
                             <Tooltip label="Create new">
                             <Menu.Target>
                                 <ActionIcon size="xs" color='gray.7' variant='subtle'>
-                                    <FontAwesomeIcon icon={faPlus} style={{width: 12}}/>
+                                    <FontAwesomeIcon icon={faPlus} style={{height: 12}}/>
                                 </ActionIcon>
                             </Menu.Target>
                             </Tooltip>
                             <Menu.Dropdown>
                                 <Menu.Label>Create new</Menu.Label>
-                                <Menu.Item onClick={() => handleCreateFile('empty')} leftSection={<FontAwesomeIcon icon={faFile} style={{ width: 14 }} />}>
+                                <Menu.Item onClick={() => handleCreateFile('empty')} leftSection={<FontAwesomeIcon icon={faFile} style={{ height: 14 }} />}>
                                     Empty LaTeX File
                                 </Menu.Item>
-                                <Menu.Item onClick={() => handleCreateFile('template')} leftSection={<FontAwesomeIcon icon={faFileAlt} style={{ width: 14 }} />}>
+                                <Menu.Item onClick={() => handleCreateFile('template')} leftSection={<FontAwesomeIcon icon={faFileAlt} style={{ height: 14 }} />}>
                                     From Template...
                                 </Menu.Item>
-                                <Menu.Item onClick={() => handleCreateFile('wizard')} leftSection={<FontAwesomeIcon icon={faMagic} style={{ width: 14 }} />}>
+                                <Menu.Item onClick={() => handleCreateFile('wizard')} leftSection={<FontAwesomeIcon icon={faMagic} style={{ height: 14 }} />}>
                                     Preamble Wizard...
                                 </Menu.Item>
                             </Menu.Dropdown>
@@ -308,17 +308,17 @@ export const DatabaseView = React.memo(({ onOpenFile }: DatabaseViewProps) => {
 
                         <Tooltip label="Add existing file">
                         <ActionIcon size="xs" variant="subtle" color='gray.7' onClick={handleAddExistingFile}>
-                            <FontAwesomeIcon icon={faFolderOpen} style={{width: 12}}/>
+                            <FontAwesomeIcon icon={faFolderOpen} style={{height: 12}}/>
                         </ActionIcon>
                         </Tooltip>
                         <Tooltip label="Open in Main Editor">
                         <ActionIcon variant="subtle" size="xs" onClick={handleOpenInEditor} color="gray.7">
-                            <FontAwesomeIcon icon={faExternalLinkAlt} style={{ width: 12 }} />
+                            <FontAwesomeIcon icon={faExternalLinkAlt} style={{ height: 12 }} />
                         </ActionIcon>
                         </Tooltip>
                         <Tooltip label="Reveal in Explorer">
                         <ActionIcon variant="subtle" size="xs" onClick={handleRevealInFileExplorer} color="gray.7">
-                            <FontAwesomeIcon icon={faFolderOpen} style={{ width: 12 }} />
+                            <FontAwesomeIcon icon={faFolderOpen} style={{ height: 12 }} />
                         </ActionIcon>
                         </Tooltip>
                         <Tooltip label="Remove from Database">
@@ -329,16 +329,6 @@ export const DatabaseView = React.memo(({ onOpenFile }: DatabaseViewProps) => {
                         </Group>
                     )}
 
-                    <Group>
-                        <TextInput 
-                            placeholder="Global Search..." 
-                            leftSection={<FontAwesomeIcon icon={faSearch} style={{ width: 12, height: 12 }} />}
-                            value={globalSearch}
-                            onChange={(e) => setGlobalSearch(e.currentTarget.value)}
-                            size="xs"
-                            styles={{ input: { height: 28 } }}
-                        />
-                    </Group>
                 </Group>
              </Paper>
 
@@ -382,10 +372,10 @@ export const DatabaseView = React.memo(({ onOpenFile }: DatabaseViewProps) => {
                             
                             return (
                                 <Table.Tr 
-                                    key={row.id} 
-                                    onClick={() => handleRowClick(row.id, row.path)}
-                                    bg={isSelected ? 'var(--mantine-primary-color-light)' : undefined}
-                                    style={{ cursor: 'pointer' }}
+                                key={row.id} 
+                                onClick={() => handleRowClick(row.id, row.path)}
+                                bg={isSelected ? 'var(--mantine-primary-color-light)' : undefined}
+                                style={{ cursor: 'pointer' }}
                                 >
                                     {columns.map(col => {
                                         let val = '';
@@ -406,6 +396,18 @@ export const DatabaseView = React.memo(({ onOpenFile }: DatabaseViewProps) => {
                     </Table.Tbody>
                 </Table>
             </ScrollArea>
+                                <Group style={{ position: 'sticky', bottom: 0, zIndex: 10 }}>
+                                    <TextInput 
+                                    flex={1}
+                                    style={{padding:4}}
+                                        placeholder="Global Search..." 
+                                        leftSection={<FontAwesomeIcon icon={faSearch} style={{ width: 12, height: 12 }} />}
+                                        value={globalSearch}
+                                        onChange={(e) => setGlobalSearch(e.currentTarget.value)}
+                                        size="xs"
+                                        styles={{ input: { height: 28 } }}
+                                    />
+                                </Group>
         </div>
     );
 });

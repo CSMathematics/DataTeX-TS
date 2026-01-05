@@ -1,6 +1,5 @@
 use crate::database::entities::{Collection, Resource};
 use sqlx::{migrate::MigrateDatabase, sqlite::SqlitePoolOptions, Pool, Row, Sqlite};
-use std::path::Path;
 
 pub struct DatabaseManager {
     pub pool: Pool<Sqlite>,
@@ -273,5 +272,56 @@ impl DatabaseManager {
             .await
             .map_err(|e| e.to_string())?;
         Ok(())
+    }
+
+    // --- Dependency Management ---
+
+    pub async fn add_dependency(
+        &self,
+        source_id: &str,
+        target_id: &str,
+        relation_type: &str,
+    ) -> Result<(), String> {
+        sqlx::query("INSERT OR REPLACE INTO dependencies (source_id, target_id, relation_type) VALUES (?, ?, ?)")
+            .bind(source_id)
+            .bind(target_id)
+            .bind(relation_type)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub async fn get_dependencies(
+        &self,
+        source_id: &str,
+        relation_type: Option<&str>,
+    ) -> Result<Vec<Resource>, String> {
+        let query = if relation_type.is_some() {
+            "SELECT r.* FROM resources r
+             JOIN dependencies d ON r.id = d.target_id
+             WHERE d.source_id = ? AND d.relation_type = ?"
+        } else {
+            "SELECT r.* FROM resources r
+             JOIN dependencies d ON r.id = d.target_id
+             WHERE d.source_id = ?"
+        };
+
+        let mut q = sqlx::query_as::<_, Resource>(query).bind(source_id);
+
+        if let Some(rt) = relation_type {
+            q = q.bind(rt);
+        }
+
+        q.fetch_all(&self.pool).await.map_err(|e| e.to_string())
+    }
+
+    pub async fn get_resource_by_id(&self, id: &str) -> Result<Option<Resource>, String> {
+        let r = sqlx::query_as::<_, Resource>("SELECT * FROM resources WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(r)
     }
 }
