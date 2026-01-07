@@ -23,41 +23,58 @@ impl DatabaseManager {
     }
 
     async fn init_schema(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
-        let init_script = include_str!("../../migrations/init.sql");
+        // Load all schema files in numeric order
+        // New migrations should be added at the end with incrementing numbers
+        let schemas = [
+            include_str!("../../migrations/init.sql"), // Base schema
+            include_str!("../../migrations/002_common_infrastructure.sql"), // Fields, chapters, sections, etc
+            include_str!("../../migrations/003_resource_files.sql"),        // File resources
+            include_str!("../../migrations/004_resource_documents.sql"),    // Document resources
+            include_str!("../../migrations/005_resource_tables.sql"),       // Table resources
+            include_str!("../../migrations/006_resource_figures.sql"),      // Figure resources
+            include_str!("../../migrations/007_resource_commands.sql"), // Command/macro resources
+            include_str!("../../migrations/008_resource_packages.sql"), // Package resources
+            include_str!("../../migrations/009_resource_preambles.sql"), // Preamble resources
+            include_str!("../../migrations/010_resource_classes.sql"),  // Class resources
+            include_str!("../../migrations/011_migrate_json_to_typed.sql"), // Migration from JSON to typed
+            include_str!("../../migrations/012_subsections.sql"), // Subsections (4th hierarchy level)
+        ];
 
-        let mut statements = Vec::new();
-        let mut current_stmt = String::new();
-        let mut in_block = 0;
+        for init_script in schemas {
+            let mut statements = Vec::new();
+            let mut current_stmt = String::new();
+            let mut in_block = 0;
 
-        for line in init_script.lines() {
-            let trimmed = line.trim();
-            if trimmed.is_empty() || trimmed.starts_with("--") {
-                continue;
+            for line in init_script.lines() {
+                let trimmed = line.trim();
+                if trimmed.is_empty() || trimmed.starts_with("--") {
+                    continue;
+                }
+
+                current_stmt.push_str(line);
+                current_stmt.push('\n');
+
+                let upper = trimmed.to_uppercase();
+                if upper.contains("BEGIN") {
+                    in_block += 1;
+                }
+                if upper.ends_with("END;") {
+                    in_block -= 1;
+                }
+
+                if in_block <= 0 && trimmed.ends_with(';') {
+                    statements.push(current_stmt.clone());
+                    current_stmt.clear();
+                    in_block = 0;
+                }
             }
 
-            current_stmt.push_str(line);
-            current_stmt.push('\n');
-
-            let upper = trimmed.to_uppercase();
-            if upper.contains("BEGIN") {
-                in_block += 1;
-            }
-            if upper.ends_with("END;") {
-                in_block -= 1;
-            }
-
-            if in_block <= 0 && trimmed.ends_with(';') {
-                statements.push(current_stmt.clone());
-                current_stmt.clear();
-                in_block = 0;
-            }
-        }
-
-        for stmt in statements {
-            let stmt = stmt.trim();
-            if !stmt.is_empty() {
-                if let Err(e) = sqlx::query(stmt).execute(pool).await {
-                    eprintln!("SQL Warning: {}", e);
+            for stmt in statements {
+                let stmt = stmt.trim();
+                if !stmt.is_empty() {
+                    if let Err(e) = sqlx::query(stmt).execute(pool).await {
+                        eprintln!("SQL Warning: {}", e);
+                    }
                 }
             }
         }

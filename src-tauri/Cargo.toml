@@ -35,4 +35,5 @@ directories = "5.0"
 walkdir = "2.5.0"
 uuid = { version = "1.19.0", features = ["v4"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
+regex = "1"
 

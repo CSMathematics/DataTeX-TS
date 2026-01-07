@@ -3,6 +3,8 @@
 // Rust definitions for strongly-typed resource metadata
 // ============================================================================
 
+#![allow(dead_code)]
+
 use serde::{Deserialize, Serialize};
 
 // ============================================================================

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useCallback, useState } from "react";
+import React, { useEffect, useMemo, useCallback, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import {
   Stack,
   Text,
@@ -43,20 +44,6 @@ import {
   ToolbarAction,
 } from "../shared/tree";
 import { FileSystemNode } from "../layout/Sidebar";
-
-// Allowed file extensions for the file tree view
-const ALLOWED_EXTENSIONS = [
-  "tex",
-  "pdf",
-  "bib",
-  "sty",
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "svg",
-  "webp",
-];
 
 // View types for the sidebar
 type SidebarViewType = "collections" | "projects";
@@ -227,148 +214,30 @@ export const DatabaseSidebar = ({
     );
   }, [collections, searchQuery]);
 
-  // --- Build file tree from resources ---
-  const fileTree = useMemo((): TreeNode[] => {
-    // Filter resources by allowed extensions and exclude hidden files
-    let filteredResources = allLoadedResources.filter((r) => {
-      // Exclude hidden files/folders (starting with dot)
-      if (r.path.includes("/.") || r.path.includes("\\.")) return false;
-      const ext = r.path.split(".").pop()?.toLowerCase() || "";
-      return ALLOWED_EXTENSIONS.includes(ext);
-    });
+  // --- Build file tree from resources (FETCH FROM RUST) ---
+  const [fileTree, setFileTree] = useState<TreeNode[]>([]);
 
-    if (filteredResources.length === 0) return [];
-
-    // Group resources by collection
-    const byCollection = new Map<string, typeof filteredResources>();
-    filteredResources.forEach((r) => {
-      const existing = byCollection.get(r.collection) || [];
-      existing.push(r);
-      byCollection.set(r.collection, existing);
-    });
-
-    const collectionTrees: TreeNode[] = [];
-
-    // Build tree for each collection
-    byCollection.forEach((resources, collectionName) => {
-      const paths = resources.map((r) => r.path);
-      const separator = paths[0]?.includes("\\") ? "\\" : "/";
-
-      // Find common prefix
-      const allParts = paths.map((p) => p.split(separator));
-      let commonPrefix: string[] = [];
-      if (allParts.length > 0) {
-        commonPrefix = [...allParts[0]];
-        for (let i = 1; i < allParts.length; i++) {
-          let j = 0;
-          while (
-            j < commonPrefix.length &&
-            j < allParts[i].length &&
-            commonPrefix[j] === allParts[i][j]
-          ) {
-            j++;
-          }
-          commonPrefix = commonPrefix.slice(0, j);
-        }
+  useEffect(() => {
+    let active = true;
+    const fetchTree = async () => {
+      if (loadedCollections.length === 0) {
+        setFileTree([]);
+        return;
       }
-      const commonRoot = commonPrefix.join(separator);
-
-      // Build tree structure - collection as root
-      const rootNode: TreeNode = {
-        id: collectionName,
-        name: collectionName,
-        type: "folder",
-        path: commonRoot,
-        children: [],
-        isRoot: true,
-        metadata: { collectionName },
-      };
-
-      // Add files to tree
-      resources.forEach((r) => {
-        const relativePath = r.path
-          .substring(commonRoot.length)
-          .replace(/^[/\\]/, "");
-        const parts = relativePath.split(/[/\\]/).filter(Boolean);
-
-        let currentNode = rootNode;
-
-        // Navigate/create folder structure
-        for (let i = 0; i < parts.length - 1; i++) {
-          const folderName = parts[i];
-          let folderNode = currentNode.children?.find(
-            (c) => c.name === folderName && c.type === "folder"
-          );
-
-          if (!folderNode) {
-            folderNode = {
-              id: `${currentNode.id}/${folderName}`,
-              name: folderName,
-              type: "folder",
-              path: `${currentNode.path}${separator}${folderName}`,
-              children: [],
-            };
-            currentNode.children = currentNode.children || [];
-            currentNode.children.push(folderNode);
-          }
-          currentNode = folderNode;
-        }
-
-        // Add file node
-        const fileName =
-          parts[parts.length - 1] || r.path.split(/[/\\]/).pop() || "unknown";
-        currentNode.children = currentNode.children || [];
-        currentNode.children.push({
-          id: r.id,
-          name: fileName,
-          type: "file",
-          path: r.path,
+      try {
+        const tree = await invoke<TreeNode[]>("get_file_tree_cmd", {
+          collections: loadedCollections,
         });
-      });
-
-      // Sort children: folders first, then files, alphabetically
-      const sortChildren = (node: TreeNode) => {
-        if (node.children) {
-          node.children.sort((a, b) => {
-            if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
-            return a.name.localeCompare(b.name);
-          });
-          node.children.forEach((child) => {
-            if (child.type === "folder") sortChildren(child);
-          });
-        }
-      };
-      sortChildren(rootNode);
-
-      // Simplify tree: flatten single-child directory chains at the root
-      // This fixes the issue where the tree shows many levels of parent directories.
-      // We recursively peel off "wrapper" folders (folders that contain only one subfolder).
-      // We STOP when we hit a folder that contains files or multiple folders (the "Content Root").
-      let currentChildren = rootNode.children || [];
-      while (
-        currentChildren.length === 1 &&
-        currentChildren[0].type === "folder"
-      ) {
-        const child = currentChildren[0];
-        const grandChildren = child.children || [];
-        // Check if the child is just a wrapper for another single folder
-        // If so, we peel it. If it contains files or multiple folders, we keep it.
-        const isWrapper =
-          grandChildren.length === 1 && grandChildren[0].type === "folder";
-
-        if (isWrapper) {
-          currentChildren = grandChildren;
-        } else {
-          break;
-        }
+        if (active) setFileTree(tree);
+      } catch (err) {
+        console.error("Failed to fetch file tree", err);
       }
-      rootNode.children = currentChildren;
-
-      collectionTrees.push(rootNode);
-    });
-
-    return collectionTrees;
-  }, [allLoadedResources]);
+    };
+    fetchTree();
+    return () => {
+      active = false;
+    };
+  }, [loadedCollections, allLoadedResources.length]); // Re-fetch when collections change or resources count changes (e.g. added file)
 
   // --- File click handler ---
   const handleFileClick = useCallback(
@@ -624,9 +493,8 @@ export const DatabaseSidebar = ({
               {filteredCollections.map((col) => {
                 const isLoaded = loadedCollections.includes(col.name);
                 return (
-                  <>
+                  <React.Fragment key={col.name}>
                     <Group
-                      key={col.name}
                       gap={0}
                       wrap="nowrap"
                       onMouseEnter={() => setHoveredCollection(col.name)}
@@ -771,7 +639,7 @@ export const DatabaseSidebar = ({
                         })()}
                       </Box>
                     )}
-                  </>
+                  </React.Fragment>
                 );
               })}
             </Stack>

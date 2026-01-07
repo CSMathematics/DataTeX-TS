@@ -1,11 +1,16 @@
-use std::process::Command;
-use std::path::{Path, PathBuf};
+#![allow(dead_code)]
+
 use std::env;
+use std::path::Path;
+use std::process::Command;
 
 fn is_allowed_engine(engine: &str) -> bool {
-    let allowed_engines = ["pdflatex", "xelatex", "lualatex", "latexmk", "synctex", "texcount"];
+    let allowed_engines = [
+        "pdflatex", "xelatex", "lualatex", "latexmk", "synctex", "texcount",
+    ];
     let path = Path::new(engine);
-    let name = path.file_stem()
+    let name = path
+        .file_stem()
         .and_then(|s| s.to_str())
         .map(|s| s.to_lowercase())
         .unwrap_or_default();
@@ -17,29 +22,22 @@ fn is_allowed_engine(engine: &str) -> bool {
 fn get_augmented_path() -> String {
     let current_path = env::var("PATH").unwrap_or_default();
     let delimiter = if cfg!(windows) { ";" } else { ":" };
-    
+
     // Λίστα με πιθανά paths όπου κρύβεται το LaTeX
     let common_paths = if cfg!(target_os = "macos") {
-        vec![
-            "/Library/TeX/texbin",
-            "/usr/local/bin",
-            "/opt/homebrew/bin"
-        ]
+        vec!["/Library/TeX/texbin", "/usr/local/bin", "/opt/homebrew/bin"]
     } else if cfg!(target_os = "linux") {
-        vec![
-            "/usr/bin",
-            "/usr/local/bin",
-            "/usr/texbin"
-        ]
+        vec!["/usr/bin", "/usr/local/bin", "/usr/texbin"]
     } else {
         // Στα Windows συνήθως το PATH είναι σωστό, αλλά μπορούμε να προσθέσουμε αν χρειαστεί
-        vec![] 
+        vec![]
     };
 
     // Φτιάχνουμε το νέο PATH: "OLD_PATH:/Library/TeX/texbin:/usr/local/bin"
     let mut new_path = current_path;
     for p in common_paths {
-        if !new_path.contains(p) { // Απλή ρηχή επιβεβαίωση
+        if !new_path.contains(p) {
+            // Απλή ρηχή επιβεβαίωση
             new_path.push_str(delimiter);
             new_path.push_str(p);
         }
@@ -47,9 +45,13 @@ fn get_augmented_path() -> String {
     new_path
 }
 
-fn run_command_generic(command: &str, args: Vec<String>, cwd: Option<&Path>) -> Result<String, String> {
+fn run_command_generic(
+    command: &str,
+    args: Vec<String>,
+    cwd: Option<&Path>,
+) -> Result<String, String> {
     if !is_allowed_engine(command) {
-         return Err(format!("Command not allowed: {}", command));
+        return Err(format!("Command not allowed: {}", command));
     }
 
     let mut cmd = Command::new(command);
@@ -65,9 +67,9 @@ fn run_command_generic(command: &str, args: Vec<String>, cwd: Option<&Path>) -> 
         cmd.arg(arg);
     }
 
-    let output = cmd.output().map_err(|e| {
-         format!("Failed to execute '{}': {}", command, e)
-    })?;
+    let output = cmd
+        .output()
+        .map_err(|e| format!("Failed to execute '{}': {}", command, e))?;
 
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
@@ -79,14 +81,26 @@ fn run_command_generic(command: &str, args: Vec<String>, cwd: Option<&Path>) -> 
         // Sometimes stdout has the info even on "failure" or specialized exit codes.
         // But let's assume standard behavior.
         // Actually texcount returns 0.
-        Err(format!("Command failed: {}\nStderr: {}", String::from_utf8_lossy(&output.stdout), stderr))
+        Err(format!(
+            "Command failed: {}\nStderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            stderr
+        ))
     }
 }
 
-pub fn compile(file_path: &str, engine: &str, args: Vec<String>, output_dir: &str) -> Result<String, String> {
+pub fn compile(
+    file_path: &str,
+    engine: &str,
+    args: Vec<String>,
+    output_dir: &str,
+) -> Result<String, String> {
     // 1. Validate engine
     if !is_allowed_engine(engine) {
-        return Err(format!("Invalid engine: {}. Allowed engines are: pdflatex, xelatex, lualatex, latexmk", engine));
+        return Err(format!(
+            "Invalid engine: {}. Allowed engines are: pdflatex, xelatex, lualatex, latexmk",
+            engine
+        ));
     }
 
     let path = Path::new(file_path);
@@ -116,8 +130,8 @@ pub fn compile(file_path: &str, engine: &str, args: Vec<String>, output_dir: &st
 
     // Handle output directory
     if !output_dir.is_empty() {
-        // Σημείωση: Αν χρησιμοποιείς latexmk ή xelatex, το flag για output directory 
-        // ίσως διαφέρει (π.χ. -output-directory vs -outdir). 
+        // Σημείωση: Αν χρησιμοποιείς latexmk ή xelatex, το flag για output directory
+        // ίσως διαφέρει (π.χ. -output-directory vs -outdir).
         // Εδώ υποθέτουμε ότι τα args τα έχεις περάσει σωστά από το frontend.
         // Αν θες να το χειρίζεσαι εδώ, πρέπει να προσθέσεις cmd.arg(format!("-output-directory={}", output_dir));
     }
@@ -129,7 +143,7 @@ pub fn compile(file_path: &str, engine: &str, args: Vec<String>, output_dir: &st
     // Χρησιμοποιούμε map_err για να πιάσουμε το λάθος αν ΔΕΝ βρεθεί καν η εντολή
     let output = cmd.output().map_err(|e| {
         format!(
-            "Failed to execute command '{}'. \nSystem Error: {} \nDebug Path: {}", 
+            "Failed to execute command '{}'. \nSystem Error: {} \nDebug Path: {}",
             engine, e, new_path_env
         )
     })?;
@@ -139,18 +153,31 @@ pub fn compile(file_path: &str, engine: &str, args: Vec<String>, output_dir: &st
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
-        Err(format!("Compilation failed with status code: {:?}\n\nSTDOUT:\n{}\n\nSTDERR:\n{}", output.status.code(), stdout, stderr))
+        Err(format!(
+            "Compilation failed with status code: {:?}\n\nSTDOUT:\n{}\n\nSTDERR:\n{}",
+            output.status.code(),
+            stdout,
+            stderr
+        ))
     }
 }
 
 pub fn run_synctex(args: Vec<String>, cwd_path: &str) -> Result<String, String> {
     // Determine CWD
-    let cwd = if cwd_path.is_empty() { None } else { Some(Path::new(cwd_path)) };
+    let cwd = if cwd_path.is_empty() {
+        None
+    } else {
+        Some(Path::new(cwd_path))
+    };
     run_command_generic("synctex", args, cwd)
 }
 
 pub fn run_texcount(args: Vec<String>, cwd_path: &str) -> Result<String, String> {
-    let cwd = if cwd_path.is_empty() { None } else { Some(Path::new(cwd_path)) };
+    let cwd = if cwd_path.is_empty() {
+        None
+    } else {
+        Some(Path::new(cwd_path))
+    };
     run_command_generic("texcount", args, cwd)
 }
 

@@ -11,6 +11,9 @@ mod database;
 mod lsp;
 
 // Legacy rusqlite modules - kept for future typed metadata implementation
+mod graph_processor;
+mod log_parser;
+mod tree_builder;
 mod types;
 
 use database::entities::{Collection, Resource};
@@ -82,15 +85,13 @@ async fn compile_resource_cmd(id: String, state: State<'_, AppState>) -> Result<
 
     if let Some(preamble_id) = preamble_id_opt {
         // Need to wrap content
-        let mut preamble_content = String::new();
-
-        if preamble_id.starts_with("builtin:") {
+        let preamble_content = if preamble_id.starts_with("builtin:") {
             // Simple built-in defaults
             if preamble_id == "builtin:beamer" {
-                preamble_content =
-                    "\\documentclass{beamer}\n\\usepackage[utf8]{inputenc}\n".to_string();
+                "\\documentclass{beamer}\n\\usepackage[utf8]{inputenc}\n".to_string()
             } else {
-                preamble_content = "\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amsmath}\n".to_string();
+                "\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amsmath}\n"
+                    .to_string()
             }
         } else {
             // Fetch preamble resource
@@ -99,13 +100,10 @@ async fn compile_resource_cmd(id: String, state: State<'_, AppState>) -> Result<
                 .await?
                 .ok_or("Preamble resource not found")?;
 
-            // If preamble resource is physically on disk, read it?
-            // Or assumes resource.path points to it.
-            // But we want the CONTENT. If it's a file resource, we should read the file.
-            // resource.path should be valid.
-            preamble_content = fs::read_to_string(&preamble_res.path)
-                .map_err(|e| format!("Failed to read preamble file: {}", e))?;
-        }
+            // If preamble resource is physically on disk, read it
+            fs::read_to_string(&preamble_res.path)
+                .map_err(|e| format!("Failed to read preamble file: {}", e))?
+        };
 
         // Read the actual resource content
         // Assuming resource.path is valid
@@ -639,6 +637,28 @@ async fn lsp_hover(
 }
 
 #[tauri::command]
+fn parse_log_cmd(content: String) -> Vec<log_parser::LogEntry> {
+    log_parser::parse_log(&content)
+}
+
+#[tauri::command]
+async fn get_file_tree_cmd(
+    collections: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<tree_builder::TreeNode>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    let mut all_resources = Vec::new();
+    for col in collections {
+        let resources = db.get_resources_by_collection(&col).await?;
+        all_resources.extend(resources);
+    }
+
+    Ok(tree_builder::build_file_tree(all_resources))
+}
+
+#[tauri::command]
 async fn lsp_definition(
     uri: String,
     line: u32,
@@ -799,6 +819,214 @@ async fn create_section_cmd(
         .map_err(|e| e.to_string())?;
 
     Ok(serde_json::json!({"id": id, "name": name, "chapterId": chapter_id}))
+}
+
+// ============================================================================
+// Subsection Commands
+// ============================================================================
+
+#[tauri::command]
+async fn get_subsections_cmd(
+    state: State<'_, AppState>,
+    section_id: Option<String>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let manager = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    let mut subsections = Vec::new();
+
+    if let Some(sid) = section_id {
+        let rows = sqlx::query(
+            "SELECT id, name, section_id FROM subsections WHERE section_id = ? ORDER BY name",
+        )
+        .bind(&sid)
+        .fetch_all(&manager.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        for row in rows {
+            let id: String = row.get("id");
+            let name: String = row.get("name");
+            let section_id: String = row.get("section_id");
+            subsections.push(serde_json::json!({"id": id, "name": name, "sectionId": section_id}));
+        }
+    } else {
+        let rows = sqlx::query("SELECT id, name, section_id FROM subsections ORDER BY name")
+            .fetch_all(&manager.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        for row in rows {
+            let id: String = row.get("id");
+            let name: String = row.get("name");
+            let section_id: String = row.get("section_id");
+            subsections.push(serde_json::json!({"id": id, "name": name, "sectionId": section_id}));
+        }
+    }
+
+    Ok(subsections)
+}
+
+#[tauri::command]
+async fn create_subsection_cmd(
+    state: State<'_, AppState>,
+    name: String,
+    section_id: String,
+) -> Result<serde_json::Value, String> {
+    let db_guard = state.db_manager.lock().await;
+    let manager = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    let id = uuid::Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO subsections (id, name, section_id) VALUES (?, ?, ?)")
+        .bind(&id)
+        .bind(&name)
+        .bind(&section_id)
+        .execute(&manager.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(serde_json::json!({"id": id, "name": name, "sectionId": section_id}))
+}
+
+// ============================================================================
+// Delete Hierarchy Commands
+// ============================================================================
+
+#[tauri::command]
+async fn delete_field_cmd(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let manager = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    // Cascade delete is handled by SQLite foreign keys
+    sqlx::query("DELETE FROM fields WHERE id = ?")
+        .bind(&id)
+        .execute(&manager.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_chapter_cmd(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let manager = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    sqlx::query("DELETE FROM chapters WHERE id = ?")
+        .bind(&id)
+        .execute(&manager.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_section_cmd(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let manager = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    sqlx::query("DELETE FROM sections WHERE id = ?")
+        .bind(&id)
+        .execute(&manager.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn delete_subsection_cmd(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let manager = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    sqlx::query("DELETE FROM subsections WHERE id = ?")
+        .bind(&id)
+        .execute(&manager.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+// ============================================================================
+// Rename Hierarchy Commands
+// ============================================================================
+
+#[tauri::command]
+async fn rename_field_cmd(
+    state: State<'_, AppState>,
+    id: String,
+    name: String,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let manager = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    sqlx::query("UPDATE fields SET name = ? WHERE id = ?")
+        .bind(&name)
+        .bind(&id)
+        .execute(&manager.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn rename_chapter_cmd(
+    state: State<'_, AppState>,
+    id: String,
+    name: String,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let manager = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    sqlx::query("UPDATE chapters SET name = ? WHERE id = ?")
+        .bind(&name)
+        .bind(&id)
+        .execute(&manager.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn rename_section_cmd(
+    state: State<'_, AppState>,
+    id: String,
+    name: String,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let manager = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    sqlx::query("UPDATE sections SET name = ? WHERE id = ?")
+        .bind(&name)
+        .bind(&id)
+        .execute(&manager.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn rename_subsection_cmd(
+    state: State<'_, AppState>,
+    id: String,
+    name: String,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let manager = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    sqlx::query("UPDATE subsections SET name = ? WHERE id = ?")
+        .bind(&name)
+        .bind(&id)
+        .execute(&manager.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -1153,6 +1381,26 @@ async fn save_typed_metadata_cmd(
                 }
             }
 
+            // Save subsections
+            if let Some(subsections) = metadata.get("subsections").and_then(|v| v.as_array()) {
+                sqlx::query("DELETE FROM resource_file_subsections WHERE resource_id = ?")
+                    .bind(&resource_id)
+                    .execute(&manager.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                for subsection in subsections {
+                    if let Some(subsection_id) = subsection.as_str() {
+                        sqlx::query("INSERT OR IGNORE INTO resource_file_subsections (resource_id, subsection_id) VALUES (?, ?)")
+                            .bind(&resource_id)
+                            .bind(subsection_id)
+                            .execute(&manager.pool)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                }
+            }
+
             // Save exercise types
             if let Some(exercise_types) = metadata.get("exerciseTypes").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_file_exercise_types WHERE resource_id = ?")
@@ -1350,6 +1598,19 @@ async fn load_typed_metadata_cmd(
                 let sections: Vec<String> =
                     section_rows.iter().map(|r| r.get("section_id")).collect();
 
+                // Load subsections
+                let subsection_rows = sqlx::query(
+                    "SELECT subsection_id FROM resource_file_subsections WHERE resource_id = ?",
+                )
+                .bind(&resource_id)
+                .fetch_all(&manager.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+                let subsections: Vec<String> = subsection_rows
+                    .iter()
+                    .map(|r| r.get("subsection_id"))
+                    .collect();
+
                 // Load exercise types
                 let et_rows = sqlx::query("SELECT exercise_type_id FROM resource_file_exercise_types WHERE resource_id = ?")
                     .bind(&resource_id)
@@ -1377,6 +1638,7 @@ async fn load_typed_metadata_cmd(
                     "fileDescription": file_description,
                     "chapters": if chapters.is_empty() { None } else { Some(chapters) },
                     "sections": if sections.is_empty() { None } else { Some(sections) },
+                    "subsections": if subsections.is_empty() { None } else { Some(subsections) },
                     "exerciseTypes": if exercise_types.is_empty() { None } else { Some(exercise_types) },
                     "customTags": if custom_tags.is_empty() { None } else { Some(custom_tags) }
                 })));
@@ -1539,16 +1801,30 @@ pub fn run() {
             lsp_did_open,
             lsp_did_change,
             lsp_shutdown,
+            parse_log_cmd,
+            get_file_tree_cmd,
             // Typed Metadata Lookup Commands (sqlx-based)
             get_fields_cmd,
             get_chapters_cmd,
             get_sections_cmd,
+            get_subsections_cmd,
             get_file_types_cmd,
             get_exercise_types_cmd,
             // Create Lookup Commands (for creatable dropdowns)
             create_field_cmd,
             create_chapter_cmd,
             create_section_cmd,
+            create_subsection_cmd,
+            // Delete Hierarchy Commands
+            delete_field_cmd,
+            delete_chapter_cmd,
+            delete_section_cmd,
+            delete_subsection_cmd,
+            // Rename Hierarchy Commands
+            rename_field_cmd,
+            rename_chapter_cmd,
+            rename_section_cmd,
+            rename_subsection_cmd,
             create_file_type_cmd,
             create_exercise_type_cmd,
             // Typed Metadata CRUD Commands (sqlx-based)
@@ -1558,7 +1834,9 @@ pub fn run() {
             get_package_topics_cmd,
             get_macro_command_types_cmd,
             create_package_topic_cmd,
-            create_macro_command_type_cmd
+            create_macro_command_type_cmd,
+            // Graph Processing
+            graph_processor::get_graph_data_cmd
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

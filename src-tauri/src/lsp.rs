@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
@@ -275,7 +277,7 @@ impl TexlabManager {
 impl Drop for TexlabManager {
     fn drop(&mut self) {
         // Sync drop - just kill the process
-        if let Some(mut child) = self.process.take() {
+        if let Some(child) = self.process.take() {
             let _ = std::process::Command::new("kill")
                 .arg("-9")
                 .arg(child.id().unwrap().to_string())

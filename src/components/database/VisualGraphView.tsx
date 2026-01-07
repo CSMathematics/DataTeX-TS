@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useRef, useEffect } from "react";
+import React, { useCallback, useRef, useEffect } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import {
@@ -38,14 +38,8 @@ interface VisualGraphViewProps {
 
 export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
   const theme = useMantineTheme();
-  const {
-    allLoadedResources,
-    graphLinks,
-    fetchGraphLinks,
-    selectResource,
-    activeResourceId,
-    compileResource,
-  } = useDatabaseStore();
+  const { fetchGraphLinks, selectResource, activeResourceId, compileResource } =
+    useDatabaseStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<any>(null);
   const [dimensions, setDimensions] = React.useState({
@@ -116,108 +110,57 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
     }
   }, [physics, graphRef.current]);
 
-  const graphData = useMemo(() => {
-    // Base resources
-    // Strict Filtering: Only allowed source files
-    const allowedExtensions = [".tex", ".bib", ".sty", ".cls"];
-    const excludedExtensions = [
-      ".aux",
-      ".log",
-      ".out",
-      ".toc",
-      ".synctex.gz",
-      ".fls",
-      ".fdb_latexmk",
-      ".bbl",
-      ".blg",
-      ".xdv",
-      ".jpg",
-      ".jpeg",
-      ".png",
-      ".pdf",
-      ".svg", // Images excluded per user request
-    ];
+  // Graph Data State (fetched from Rust backend)
+  const [graphData, setGraphData] = React.useState<{
+    nodes: any[];
+    links: any[];
+  }>({ nodes: [], links: [] });
 
-    let activeResources = allLoadedResources.filter((r) => {
-      const lowerPath = r.path.toLowerCase();
+  // Fetch graph data from Rust backend when filters or loaded collections change
+  const { loadedCollections } = useDatabaseStore();
 
-      // 1. Check strict allowed list first
-      if (allowedExtensions.some((ext) => lowerPath.endsWith(ext))) return true;
+  useEffect(() => {
+    let active = true;
 
-      // 2. Explicitly exclude known artifacts/images
-      if (excludedExtensions.some((ext) => lowerPath.endsWith(ext)))
-        return false;
+    const fetchGraphData = async () => {
+      if (loadedCollections.length === 0) {
+        setGraphData({ nodes: [], links: [] });
+        return;
+      }
 
-      // 3. Fallback: If it's a known "source" kind, allow it, otherwise default to false ?
-      // User said "9 types". If we strictly allow only the above, we might miss some.
-      // But "no images" and "no build artifacts" is the main constraint.
-      // Let's rely on the allowed list for now to be safe and clean.
-      return false;
-    });
+      try {
+        const data = await invoke<{ nodes: any[]; links: any[] }>(
+          "get_graph_data_cmd",
+          {
+            collections: loadedCollections,
+            filters: {
+              showPackages: filters.showPackages,
+              showBibliographies: filters.showBibliographies,
+              showImages: filters.showImages,
+              showClasses: filters.showClasses,
+            },
+          }
+        );
+        console.log(
+          "Graph data from Rust:",
+          data,
+          "collections:",
+          loadedCollections
+        );
+        if (active) {
+          setGraphData(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch graph data:", err);
+      }
+    };
 
-    // 1. First pass: Filter nodes based on type/filter settings (UI Toggles)
-    let filteredResources = activeResources.filter((n) => {
-      const kind = n.kind || "document";
-      const lowerPath = n.path.toLowerCase();
+    fetchGraphData();
 
-      // Always show .tex files (documents) unless filtered? usually we want to see them.
-      if (lowerPath.endsWith(".tex")) return true;
-
-      if (kind === "package" && !filters.showPackages) return false; // .sty
-      if (kind === "bibliography" && !filters.showBibliographies) return false; // .bib
-      // Images are globally excluded now, so this check is redundant but harmless
-      if (kind === "image" && !filters.showImages) return false;
-      if (kind === "class" && !filters.showClasses) return false; // .cls
-
-      return true;
-    });
-
-    // 2. Map to Initial Nodes
-    let nodes = filteredResources.map((r) => {
-      let kind = r.kind || "document";
-      // if (r.path.toLowerCase().endsWith('.tex')) kind = 'document'; // REMOVED: Respect DB kind (e.g. preamble)
-      return {
-        id: r.id,
-        name: r.title || r.path.split(/[/\\]/).pop() || r.id,
-        group: r.collection, // Use for color
-        kind: kind,
-        collection: r.collection,
-        path: r.path,
-        val: 1, // default size, will be updated
-      };
-    });
-
-    // 3. Filter Links
-    const nodeIds = new Set(nodes.map((n) => n.id));
-    const links = graphLinks
-      .filter((l) => nodeIds.has(l.source) && nodeIds.has(l.target))
-      .map((l) => ({
-        source: l.source,
-        target: l.target,
-        type: l.type,
-      }));
-
-    // 4. Calculate Centrality (Node Sizing)
-    const connectionCount: Record<string, number> = {};
-    links.forEach((link) => {
-      // Source and Target can be strings or objects depending on force-graph state,
-      // but here in reconstruction they are strings.
-      const s =
-        typeof link.source === "object" ? (link.source as any).id : link.source;
-      const t =
-        typeof link.target === "object" ? (link.target as any).id : link.target;
-
-      connectionCount[s] = (connectionCount[s] || 0) + 1;
-      connectionCount[t] = (connectionCount[t] || 0) + 1;
-    });
-
-    nodes = nodes.map((n) => ({
-      ...n,
-      val: Math.min(10, 1 + (connectionCount[n.id] || 0) * 0.5), // Cap size to avoid monsters
-    }));
-
-    return { nodes, links };
-  }, [allLoadedResources, graphLinks, filters]);
+    return () => {
+      active = false;
+    };
+  }, [loadedCollections, filters]);
 
   // Helper: Get connected nodes for focus mode
   const getNeighbors = useCallback((nodeId: string, links: any[]) => {
@@ -548,8 +491,8 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
           withBorder
           style={{
             position: "absolute",
-            bottom: 10,
-            right: 10,
+            top: 60,
+            left: 10,
             zIndex: 100,
             backgroundColor: "rgba(25, 25, 25, 0.95)",
             pointerEvents: "none", // Allow clicking through if needed, but usually legend is info only

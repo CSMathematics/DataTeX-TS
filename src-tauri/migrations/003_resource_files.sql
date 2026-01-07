@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS resource_files (
     resource_id TEXT PRIMARY KEY NOT NULL,
     file_type_id TEXT,
     field_id TEXT,
-    difficulty INTEGER CHECK(difficulty BETWEEN 1 AND 5),
+    difficulty INTEGER CHECK(difficulty IS NULL OR difficulty BETWEEN 1 AND 5),
     date DATE,
     solved_prooved BOOLEAN DEFAULT FALSE,
     solution_id TEXT,  -- FK to resources.id
