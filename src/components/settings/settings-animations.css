@@ -1,0 +1,119 @@
+/* Settings Panel Animations and Transitions */
+
+/* Smooth transitions for nav links */
+.settings-nav-link {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.settings-nav-link:hover {
+  transform: translateX(4px);
+}
+
+/* Content area fade-in animation */
+.settings-content {
+  animation: fadeSlideIn 0.3s ease-out;
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Setting item hover effect */
+.setting-item {
+  transition: all 0.2s ease;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.setting-item:hover {
+  background-color: var(--mantine-color-gray-1);
+  transform: translateX(2px);
+}
+
+/* Toggle switch smooth animation */
+.mantine-Switch-track {
+  transition: background-color 0.3s ease;
+}
+
+.mantine-Switch-thumb {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Select dropdown animation */
+.mantine-Select-dropdown {
+  animation: dropdownSlide 0.2s ease-out;
+}
+
+@keyframes dropdownSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Number input focus effect */
+.mantine-NumberInput-input:focus {
+  box-shadow: 0 0 0 2px var(--mantine-primary-color-light);
+  transition: box-shadow 0.2s ease;
+}
+
+/* Setting group subtle entrance */
+.setting-group {
+  animation: groupFadeIn 0.4s ease-out;
+}
+
+@keyframes groupFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Smooth scroll behavior */
+.settings-scroll-area {
+  scroll-behavior: smooth;
+}
+
+/* Focus visible for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .settings-nav-link:hover {
+    transform: none; /* Disable hover transform on mobile */
+  }
+
+  .setting-item:hover {
+    transform: none;
+  }
+}
+
+/* Reduced motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
