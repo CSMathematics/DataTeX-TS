@@ -79,20 +79,27 @@ export const DatabaseSidebar = ({
   onDeleteItem,
   onNavigate,
 }: DatabaseSidebarProps) => {
-  const {
-    collections,
-    fetchCollections,
-    loadedCollections,
-    toggleCollectionLoaded,
-    isLoading,
-    importFolder,
-    deleteCollection,
-    allLoadedResources,
-    selectResource,
-    activeResourceId,
-    createCollection,
-    addFolderToCollection,
-  } = useDatabaseStore();
+  // Granular selectors - prevents re-renders when unrelated state changes
+  const collections = useDatabaseStore((state) => state.collections);
+  const fetchCollections = useDatabaseStore((state) => state.fetchCollections);
+  const loadedCollections = useDatabaseStore(
+    (state) => state.loadedCollections
+  );
+  const toggleCollectionLoaded = useDatabaseStore(
+    (state) => state.toggleCollectionLoaded
+  );
+  const isLoading = useDatabaseStore((state) => state.isLoading);
+  const importFolder = useDatabaseStore((state) => state.importFolder);
+  const deleteCollection = useDatabaseStore((state) => state.deleteCollection);
+  const allLoadedResources = useDatabaseStore(
+    (state) => state.allLoadedResources
+  );
+  const selectResource = useDatabaseStore((state) => state.selectResource);
+  const activeResourceId = useDatabaseStore((state) => state.activeResourceId);
+  const createCollection = useDatabaseStore((state) => state.createCollection);
+  const addFolderToCollection = useDatabaseStore(
+    (state) => state.addFolderToCollection
+  );
 
   // Project folder state from store
   const { projectData } = useProjectStore();

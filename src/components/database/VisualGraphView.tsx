@@ -38,8 +38,11 @@ interface VisualGraphViewProps {
 
 export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
   const theme = useMantineTheme();
-  const { fetchGraphLinks, selectResource, activeResourceId, compileResource } =
-    useDatabaseStore();
+  // Granular selectors - prevents re-renders when unrelated state changes
+  const fetchGraphLinks = useDatabaseStore((state) => state.fetchGraphLinks);
+  const selectResource = useDatabaseStore((state) => state.selectResource);
+  const activeResourceId = useDatabaseStore((state) => state.activeResourceId);
+  const compileResource = useDatabaseStore((state) => state.compileResource);
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<any>(null);
   const [dimensions, setDimensions] = React.useState({
@@ -117,7 +120,9 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
   }>({ nodes: [], links: [] });
 
   // Fetch graph data from Rust backend when filters or loaded collections change
-  const { loadedCollections } = useDatabaseStore();
+  const loadedCollections = useDatabaseStore(
+    (state) => state.loadedCollections
+  );
 
   useEffect(() => {
     let active = true;

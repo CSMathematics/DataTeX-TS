@@ -148,16 +148,14 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
 
     set({ loadedCollections: newLoadedCollections, isLoading: true });
 
-    // Fetch resources for all loaded collections
+    // Fetch resources for all loaded collections using batch command (single IPC call)
     try {
-      const allResources: Resource[] = [];
-      for (const collectionName of newLoadedCollections) {
-        const resources = await invoke<Resource[]>(
-          "get_resources_by_collection_cmd",
-          { collection: collectionName }
-        );
-        allResources.push(...resources);
-      }
+      const allResources = await invoke<Resource[]>(
+        "get_resources_by_collections_cmd",
+        {
+          collections: newLoadedCollections,
+        }
+      );
 
       set({ allLoadedResources: allResources, isLoading: false });
     } catch (err: any) {
@@ -174,14 +172,13 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      const allResources: Resource[] = [];
-      for (const collectionName of loadedCollections) {
-        const resources = await invoke<Resource[]>(
-          "get_resources_by_collection_cmd",
-          { collection: collectionName }
-        );
-        allResources.push(...resources);
-      }
+      // Fetch all collections using batch command (single IPC call)
+      const allResources = await invoke<Resource[]>(
+        "get_resources_by_collections_cmd",
+        {
+          collections: loadedCollections,
+        }
+      );
 
       set({ allLoadedResources: allResources, isLoading: false });
     } catch (err: any) {

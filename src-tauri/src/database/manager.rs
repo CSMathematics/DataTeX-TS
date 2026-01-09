@@ -101,6 +101,31 @@ impl DatabaseManager {
             .map_err(|e| e.to_string())
     }
 
+    /// Batch fetch resources for multiple collections in a single query
+    /// More efficient than calling get_resources_by_collection multiple times
+    pub async fn get_resources_by_collections(
+        &self,
+        collections: &[String],
+    ) -> Result<Vec<Resource>, String> {
+        if collections.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Build parameterized query with IN clause
+        let placeholders: Vec<&str> = collections.iter().map(|_| "?").collect();
+        let query = format!(
+            "SELECT * FROM resources WHERE collection IN ({})",
+            placeholders.join(", ")
+        );
+
+        let mut q = sqlx::query_as::<_, Resource>(&query);
+        for collection in collections {
+            q = q.bind(collection);
+        }
+
+        q.fetch_all(&self.pool).await.map_err(|e| e.to_string())
+    }
+
     pub async fn create_collection(&self, collection: &Collection) -> Result<(), String> {
         sqlx::query(
             "INSERT OR IGNORE INTO collections (name, description, icon, type) VALUES (?, ?, ?, ?)",

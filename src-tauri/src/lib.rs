@@ -294,6 +294,21 @@ async fn get_resources_by_collection_cmd(
     }
 }
 
+/// Batch command: fetch resources for multiple collections in single IPC call
+/// More efficient than multiple get_resources_by_collection_cmd calls
+#[tauri::command]
+async fn get_resources_by_collections_cmd(
+    collections: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<Resource>, String> {
+    let db_guard = state.db_manager.lock().await;
+    if let Some(db) = &*db_guard {
+        db.get_resources_by_collections(&collections).await
+    } else {
+        Err("Database not initialized".to_string())
+    }
+}
+
 #[tauri::command]
 async fn import_folder_cmd(
     path: String,
@@ -1784,6 +1799,7 @@ pub fn run() {
             get_collections_cmd,
             create_collection_cmd,
             get_resources_by_collection_cmd,
+            get_resources_by_collections_cmd, // Batch version for performance
             import_folder_cmd,
             delete_collection_cmd,
             delete_resource_cmd,

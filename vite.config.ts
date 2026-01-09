@@ -29,4 +29,40 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+
+  // Build optimizations for production
+  build: {
+    // Use Rollup's code splitting
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core React libraries
+          "vendor-react": ["react", "react-dom"],
+          // Mantine UI framework
+          "vendor-mantine": [
+            "@mantine/core",
+            "@mantine/hooks",
+            "@mantine/notifications",
+          ],
+          // Monaco editor (large bundle)
+          "vendor-monaco": ["monaco-editor", "@monaco-editor/react"],
+          // PDF libraries
+          "vendor-pdf": ["react-pdf", "pdfjs-dist"],
+          // Graph visualization
+          "vendor-graph": ["react-force-graph-2d"],
+          // Utilities
+          "vendor-utils": ["lodash", "zustand"],
+        },
+      },
+    },
+    // Target modern browsers for smaller output
+    target: "esnext",
+    // Increase chunk size warning limit (Monaco is large)
+    chunkSizeWarningLimit: 1500,
+  },
+
+  // Pre-bundle dependencies for faster dev server startup
+  optimizeDeps: {
+    include: ["react", "react-dom", "lodash", "zustand", "@mantine/core"],
+  },
 }));

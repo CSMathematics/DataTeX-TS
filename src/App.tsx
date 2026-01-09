@@ -56,15 +56,19 @@ import { dataTexDarkTheme } from "./themes/monaco-theme";
 import { dataTexLightTheme } from "./themes/monaco-light";
 import { dataTexHCTheme } from "./themes/monaco-hc";
 import { useSettings } from "./hooks/useSettings";
-import { parseLatexLog, LogEntry } from "./utils/logParser";
+
 import { TexlabLspClient } from "./services/lspClient";
 import {
   useTabsStore,
   useActiveTab,
   useIsTexFile,
 } from "./stores/useTabsStore";
-import { useDatabaseStore } from "./stores/databaseStore";
+
 import { useProjectStore } from "./stores/projectStore";
+import { useAppPanelResize } from "./hooks/useAppPanelResize";
+import { useProjectFiles } from "./hooks/useProjectFiles";
+import { useCompilation } from "./hooks/useCompilation";
+import { usePdfState } from "./hooks/usePdfState";
 
 // --- CSS Variables Resolver ---
 const resolver: CSSVariablesResolver = (theme) => ({
@@ -106,17 +110,18 @@ export default function App() {
     useState<SidebarSection>("database");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeView, setActiveView] = useState<ViewType>("editor");
-  const [sidebarWidth, setSidebarWidth] = useState(300);
-  const [rightPanelWidth, setRightPanelWidth] = useState(600);
   const [activePackageId, setActivePackageId] = useState<string>("amsmath");
 
-  // --- Resizing State ---
-  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
-  const [isResizingRightPanel, setIsResizingRightPanel] = useState(false);
-  const [isResizingDatabase, setIsResizingDatabase] = useState(false);
-  const [databasePanelWidth, setDatabasePanelWidth] = useState(400);
-  const rafRef = useRef<number | null>(null);
-  const ghostRef = useRef<HTMLDivElement>(null);
+  // --- Resizing State (from custom hook) ---
+  // Note: sidebarWidth/rightPanelWidth are applied via CSS variables in the hook
+  const {
+    databasePanelWidth,
+    isResizing,
+    ghostRef,
+    startResizeSidebar,
+    startResizeRightPanel,
+    startResizeDatabase,
+  } = useAppPanelResize();
 
   // --- Editor State (from Zustand) ---
   const tabs = useTabsStore((state) => state.tabs);
@@ -140,52 +145,125 @@ export default function App() {
   const lspClientRef = useRef<TexlabLspClient | null>(null);
 
   // --- Compilation State ---
-  const [isCompiling, setIsCompiling] = useState(false);
+
   const [compileError, setCompileError] = useState<string | null>(null);
-  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
-  const [showLogPanel, setShowLogPanel] = useState(false);
 
   // --- Word Count State ---
   const [showWordCount, setShowWordCount] = useState(false);
   const [wordCountResult, setWordCountResult] = useState<string>("");
 
   // --- File System & DB State ---
-  const [projectData, setProjectData] = useState<FileSystemNode[]>([]);
-  // @ts-ignore
-  const [projectRoots, setProjectRoots] = useState<string[]>([]);
-  const [rootPath, setRootPath] = useState<string | null>(null);
-  const [loadingFiles, setLoadingFiles] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
   const [dbTables, setDbTables] = useState<string[]>([]);
 
   // --- Recent Projects State ---
   const [recentProjects, setRecentProjects] = useState<string[]>([]);
+  const addToRecent = useCallback((path: string) => {
+    setRecentProjects((prev) => {
+      const newRecent = [path, ...prev.filter((p) => p !== path)].slice(0, 10);
+      localStorage.setItem("recentProjects", JSON.stringify(newRecent));
+      return newRecent;
+    });
+  }, []);
 
-  // --- PDF State ---
-  const [showPdf, setShowPdf] = useState(true);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [pdfRefreshTrigger, setPdfRefreshTrigger] = useState(0);
-  // @ts-ignore - syncTexCoords may be used for SyncTeX in future
-  const [_syncTexCoords, setSyncTexCoords] = useState<{
-    page: number;
-    x: number;
-    y: number;
-  } | null>(null);
+  // --- Project Files Hook ---
+  const {
+    projectData,
+    rootPath,
+    loadingFiles,
+    setRootPath,
+    reloadProjectFiles,
+    handleOpenFolder,
+    handleAddFolder,
+    handleRemoveFolder,
+    handleOpenRecent,
+    handleCreateItem,
+    handleRenameItem,
+    handleDeleteItem,
+    handleMoveItem,
+  } = useProjectFiles({
+    onSetCompileError: setCompileError,
+    onSetActiveActivity: (act) => setActiveActivity(act as SidebarSection),
+    onAddToRecent: addToRecent,
+    openTab,
+    renameTab,
+    closeTab: closeTabStore,
+  });
 
   // --- Database Panel State ---
   const [showDatabasePanel, setShowDatabasePanel] = useState(true);
 
+  // --- Right Sidebar (ResourceInspector) State ---
+  const [showRightSidebar, setShowRightSidebar] = useState(true);
+
   // --- Derived State (from Zustand selectors) ---
   const activeTab = useActiveTab();
   const isTexFile = useIsTexFile();
+
+  // --- Helper: Save File ---
+  const handleSave = useCallback(
+    async (tabId?: string) => {
+      const targetId = tabId || activeTabId;
+      const tab = tabs.find((t) => t.id === targetId);
+
+      if (!tab || !tab.id) return;
+
+      // Use current content from ref if it's the active tab, otherwise use stored content
+      let contentToSave = tab.content || "";
+      if (tab.id === activeTabId && editorRef.current) {
+        contentToSave = editorRef.current.getValue();
+      }
+
+      try {
+        // @ts-ignore
+        const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+        await writeTextFile(tab.id, contentToSave);
+
+        // Update tab dirty state and content
+        markDirty(targetId, false);
+        updateTabContent(targetId, contentToSave);
+      } catch (e) {
+        console.error("Failed to save file:", e);
+        setCompileError("Failed to save file: " + String(e));
+      }
+    },
+    [tabs, activeTabId, markDirty, updateTabContent]
+  );
+
+  // --- Compilation Hook ---
+  const {
+    isCompiling,
+    logEntries,
+    showLogPanel,
+    pdfRefreshTrigger,
+    handleCompile,
+    handleStopCompile,
+    handleCloseLogPanel,
+  } = useCompilation({
+    activeTab,
+    isTexFile,
+    onSave: handleSave,
+    setCompileError,
+  });
+
+  // --- PDF Hook ---
+  const { showPdf, pdfUrl, handleTogglePdf, handleSyncTexForward } =
+    usePdfState({
+      activeTab,
+      isTexFile,
+      pdfRefreshTrigger,
+      setCompileError,
+    });
 
   const isWizardActive = useMemo(
     () => activeView.startsWith("wizard-") || activeView === "gallery",
     [activeView]
   );
   const showRightPanel = useMemo(
-    () => isWizardActive || (activeView === "editor" && showPdf && isTexFile),
-    [isWizardActive, activeView, showPdf, isTexFile]
+    () =>
+      showRightSidebar &&
+      (isWizardActive || (activeView === "editor" && showPdf && isTexFile)),
+    [showRightSidebar, isWizardActive, activeView, showPdf, isTexFile]
   );
 
   // --- Sync projectData to projectStore for DatabaseSidebar ---
@@ -235,145 +313,38 @@ export default function App() {
     };
   }, [rootPath]);
 
-  const addToRecent = useCallback((path: string) => {
-    setRecentProjects((prev) => {
-      const newRecent = [path, ...prev.filter((p) => p !== path)].slice(0, 10);
-      localStorage.setItem("recentProjects", JSON.stringify(newRecent));
-      return newRecent;
-    });
-  }, []);
-
-  const handleToggleSidebar = useCallback((section: SidebarSection) => {
-    if (section === "settings") {
-      setActiveActivity("settings");
-      setActiveView("settings");
-      setIsSidebarOpen(false);
-    } else {
-      if (section === "database") {
-        setActiveView("database");
+  const handleToggleSidebar = useCallback(
+    (section: SidebarSection) => {
+      if (section === "settings") {
+        setActiveActivity("settings");
+        setActiveView("settings");
+        setIsSidebarOpen(false);
       } else {
-        setActiveView((currentView) =>
-          currentView === "settings" || currentView === "database"
-            ? "editor"
-            : currentView
-        );
-      }
-
-      setActiveActivity((currentActivity) => {
-        setIsSidebarOpen((isOpen) => {
-          if (currentActivity === section) return !isOpen;
-          return true;
-        });
-        return section;
-      });
-    }
-  }, []);
-
-  // --- HELPER: Load Project Files ---
-  const loadFolderNode = async (rootPath: string): Promise<FileSystemNode> => {
-    // @ts-ignore
-    const { readDir } = await import("@tauri-apps/plugin-fs");
-    const ignoredExtensions = [
-      "aux",
-      "log",
-      "out",
-      "toc",
-      "synctex.gz",
-      "fdb_latexmk",
-      "fls",
-      "bbl",
-      "blg",
-      "xdv",
-      "lof",
-      "lot",
-      "nav",
-      "snm",
-      "vrb",
-    ];
-
-    const processDir = async (dirPath: string): Promise<FileSystemNode[]> => {
-      const entries = await readDir(dirPath);
-      const nodes: FileSystemNode[] = [];
-      for (const entry of entries) {
-        const name = entry.name;
-        if (name.startsWith(".")) continue;
-        if (name === "node_modules" || name === ".git") continue;
-
-        const separator =
-          dirPath.endsWith("/") || dirPath.endsWith("\\")
-            ? ""
-            : dirPath.includes("\\")
-            ? "\\"
-            : "/";
-        const fullPath = `${dirPath}${separator}${name}`;
-
-        if (entry.isDirectory) {
-          const children = await processDir(fullPath);
-          nodes.push({
-            id: fullPath,
-            name: name,
-            type: "folder",
-            path: fullPath,
-            children: children,
-          });
+        if (section === "database") {
+          setActiveView("database");
         } else {
-          const ext = name.split(".").pop()?.toLowerCase();
-          if (ext && ignoredExtensions.includes(ext)) continue;
-          nodes.push({
-            id: fullPath,
-            name: name,
-            type: "file",
-            path: fullPath,
-            children: [],
-          });
+          setActiveView((currentView) =>
+            currentView === "settings" || currentView === "database"
+              ? "editor"
+              : currentView
+          );
+        }
+
+        // If clicking the same section, toggle sidebar visibility
+        // If clicking a different section, open sidebar and switch to that section
+        if (activeActivity === section) {
+          setIsSidebarOpen((prev) => !prev);
+        } else {
+          setActiveActivity(section);
+          setIsSidebarOpen(true);
         }
       }
-      return nodes.sort((a, b) =>
-        a.type === b.type
-          ? a.name.localeCompare(b.name)
-          : a.type === "folder"
-          ? -1
-          : 1
-      );
-    };
+    },
+    [activeActivity]
+  );
 
-    const children = await processDir(rootPath);
-    const separator = rootPath.includes("\\") ? "\\" : "/";
-    const cleanPath = rootPath.endsWith(separator)
-      ? rootPath.slice(0, -1)
-      : rootPath;
-    const folderName = cleanPath.split(separator).pop() || rootPath;
-
-    return {
-      id: rootPath,
-      name: folderName.toUpperCase(),
-      type: "folder",
-      path: rootPath,
-      children: children,
-    };
-  };
-
-  const reloadProjectFiles = async (roots: string[]) => {
-    if (roots.length === 0) {
-      setProjectData([]);
-      return;
-    }
-    setLoadingFiles(true);
-    try {
-      const promises = roots.map((root) => loadFolderNode(root));
-      const rootNodes = await Promise.all(promises);
-      setProjectData(rootNodes);
-    } catch (e) {
-      console.error("Failed to load project database", e);
-    } finally {
-      setLoadingFiles(false);
-    }
-  };
-
-  // @ts-ignore
-  const loadProjectFiles = useCallback(async (path: string) => {
-    await reloadProjectFiles([path]);
-  }, []);
+  // --- HELPER: Load Project Files ---
+  // --- HELPER: Load Project Files (Moved to useProjectFiles) ---
 
   // --- CORE: Create Tab Logic ---
   const debouncedOutlineUpdate = useCallback(
@@ -494,146 +465,7 @@ export default function App() {
     []
   );
 
-  const handleOpenFolder = useCallback(async () => {
-    try {
-      // @ts-ignore
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const selectedPath = await open({
-        directory: true,
-        multiple: false,
-        title: "Select Project Folder",
-      });
-
-      if (selectedPath && typeof selectedPath === "string") {
-        setRootPath(selectedPath);
-        const newRoots = [selectedPath];
-        setProjectRoots(newRoots);
-        await reloadProjectFiles(newRoots);
-        setActiveActivity("database");
-        addToRecent(selectedPath);
-      }
-    } catch (e) {
-      setCompileError("Failed to open folder: " + String(e));
-    }
-  }, [addToRecent]);
-
-  const handleAddFolder = useCallback(async () => {
-    try {
-      // @ts-ignore
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const selectedPath = await open({
-        directory: true,
-        multiple: false,
-        title: "Add Folder to Workspace",
-      });
-
-      if (selectedPath && typeof selectedPath === "string") {
-        setProjectRoots((prev) => {
-          if (prev.includes(selectedPath)) return prev;
-          const newRoots = [...prev, selectedPath];
-          reloadProjectFiles(newRoots);
-          return newRoots;
-        });
-        setActiveActivity("database");
-      }
-    } catch (e) {
-      setCompileError("Failed to add folder: " + String(e));
-    }
-  }, []);
-
-  const handleRemoveFolder = useCallback(
-    async (folderPath: string) => {
-      setProjectRoots((prev) => {
-        const newRoots = prev.filter((r) => r !== folderPath);
-        reloadProjectFiles(newRoots);
-        return newRoots;
-      });
-      if (rootPath === folderPath) setRootPath(null); // Simplified
-    },
-    [rootPath]
-  );
-
-  const handleOpenRecent = useCallback(
-    async (path: string) => {
-      try {
-        setRootPath(path);
-        const newRoots = [path];
-        setProjectRoots(newRoots);
-        await reloadProjectFiles(newRoots);
-        setActiveActivity("database");
-        addToRecent(path);
-      } catch (e) {
-        setCompileError("Failed to open recent project: " + String(e));
-      }
-    },
-    [addToRecent]
-  );
-
-  const handleCreateItem = useCallback(
-    async (name: string, type: "file" | "folder", parentPath: string) => {
-      try {
-        const basePath = parentPath === "root" ? rootPath : parentPath;
-        if (!basePath) {
-          console.error("No project root defined");
-          return;
-        }
-        const separator = basePath.includes("\\") ? "\\" : "/";
-        const fullPath = `${basePath}${separator}${name}`;
-        // @ts-ignore
-        const { writeTextFile, mkdir } = await import("@tauri-apps/plugin-fs");
-        if (type === "file") {
-          await writeTextFile(fullPath, "");
-          openTab({
-            id: fullPath,
-            title: name,
-            type: "editor",
-            content: "",
-            language: "latex",
-          });
-        } else {
-          await mkdir(fullPath);
-        }
-
-        setProjectRoots((currentRoots) => {
-          reloadProjectFiles(currentRoots);
-          return currentRoots;
-        });
-      } catch (e) {
-        setCompileError(`Failed to create ${type}: ${String(e)}`);
-      }
-    },
-    [rootPath, handleTabChange]
-  );
-
-  const handleRenameItem = useCallback(
-    async (node: FileSystemNode, newName: string) => {
-      try {
-        // @ts-ignore
-        const { rename: renameFs } = await import("@tauri-apps/plugin-fs");
-
-        const lastSlashIndex = node.path.lastIndexOf(
-          node.path.includes("\\") ? "\\" : "/"
-        );
-        const parentDir = node.path.substring(0, lastSlashIndex);
-        const separator = node.path.includes("\\") ? "\\" : "/";
-        const newPath = `${parentDir}${separator}${newName}`;
-
-        await renameFs(node.path, newPath);
-
-        if (node.type === "file") {
-          renameTab(node.path, newPath, newName);
-        }
-
-        setProjectRoots((currentRoots) => {
-          reloadProjectFiles(currentRoots);
-          return currentRoots;
-        });
-      } catch (e) {
-        setCompileError(`Failed to rename: ${String(e)}`);
-      }
-    },
-    [renameTab]
-  );
+  // --- File Handlers (Moved to useProjectFiles) ---
 
   const handleCloseTab = useCallback(
     async (id: string, e?: React.MouseEvent) => {
@@ -662,71 +494,6 @@ export default function App() {
       }
     },
     [tabs, closeTabStore]
-  );
-
-  const handleDeleteItem = useCallback(
-    async (node: FileSystemNode) => {
-      try {
-        // @ts-ignore
-        const { remove, exists } = await import("@tauri-apps/plugin-fs");
-        // @ts-ignore
-        const { confirm } = await import("@tauri-apps/plugin-dialog");
-
-        const confirmed = await confirm(
-          `Are you sure you want to delete '${node.name}'?`,
-          { title: "Delete Item", kind: "warning" }
-        );
-        if (!confirmed) return;
-
-        await remove(node.path, { recursive: node.type === "folder" });
-
-        if (node.type === "file") {
-          handleCloseTab(node.path, {
-            stopPropagation: () => {},
-          } as React.MouseEvent);
-        }
-
-        setProjectRoots((currentRoots) => {
-          reloadProjectFiles(currentRoots);
-          return currentRoots;
-        });
-      } catch (e) {
-        setCompileError(`Failed to delete: ${String(e)}`);
-      }
-    },
-    [handleCloseTab]
-  );
-
-  const handleMoveItem = useCallback(
-    async (sourcePath: string, targetPath: string) => {
-      try {
-        // @ts-ignore
-        const { rename: renameFs } = await import("@tauri-apps/plugin-fs");
-
-        const sourceName = sourcePath.split(/[/\\]/).pop();
-        if (!sourceName) return;
-
-        const separator = targetPath.includes("\\") ? "\\" : "/";
-        const newPath = `${targetPath}${separator}${sourceName}`;
-
-        if (sourcePath === newPath) return;
-
-        await renameFs(sourcePath, newPath);
-
-        // Update tabs if open
-        if (tabs.some((t) => t.id === sourcePath)) {
-          renameTab(sourcePath, newPath, sourceName);
-        }
-
-        setProjectRoots((currentRoots) => {
-          reloadProjectFiles(currentRoots);
-          return currentRoots;
-        });
-      } catch (e) {
-        setCompileError(`Failed to move item: ${String(e)}`);
-      }
-    },
-    [tabs, renameTab]
   );
 
   const handleOpenFileNode = useCallback(
@@ -862,153 +629,6 @@ export default function App() {
     [settings.editor.theme]
   );
 
-  // --- PDF Logic ---
-  useEffect(() => {
-    console.log(
-      "[App.tsx PDF Logic] activeTab:",
-      activeTab?.id,
-      "type:",
-      activeTab?.type,
-      "title:",
-      activeTab?.title
-    );
-    let activeBlobUrl: string | null = null;
-    const loadPdf = async () => {
-      if (activeTab && activeTab.type === "editor" && activeTab.id) {
-        const isRealFile =
-          activeTab.id.includes("/") || activeTab.id.includes("\\");
-        const isTex = activeTab.title.toLowerCase().endsWith(".tex");
-
-        if (isRealFile && isTex) {
-          try {
-            // @ts-ignore
-            const { exists, readFile } = await import("@tauri-apps/plugin-fs");
-            const pdfPath = activeTab.id.replace(/\.tex$/i, ".pdf");
-            const doesExist = await exists(pdfPath);
-
-            if (doesExist) {
-              const fileContents = await readFile(pdfPath);
-              const blob = new Blob([fileContents], {
-                type: "application/pdf",
-              });
-              activeBlobUrl = URL.createObjectURL(blob);
-              console.log(
-                "[App.tsx PDF Logic] Setting pdfUrl to:",
-                activeBlobUrl
-              );
-              setPdfUrl(activeBlobUrl);
-            } else {
-              console.log(
-                "[App.tsx PDF Logic] PDF does not exist at:",
-                pdfPath
-              );
-              setPdfUrl(null);
-            }
-          } catch (e) {
-            console.warn("PDF check failed", e);
-            setPdfUrl(null);
-          }
-        } else {
-          console.log("[App.tsx PDF Logic] Not a real file or not .tex");
-          setPdfUrl(null);
-        }
-      } else {
-        console.log("[App.tsx PDF Logic] No active tab or not editor type");
-        setPdfUrl(null);
-      }
-    };
-    loadPdf();
-    return () => {
-      if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
-    };
-  }, [activeTab?.id, activeTab?.title, activeTab?.type, pdfRefreshTrigger]);
-
-  const handleTogglePdf = useCallback(() => {
-    setShowPdf((prev) => !prev);
-  }, []);
-
-  const handleCloseLogPanel = useCallback(() => {
-    setShowLogPanel(false);
-  }, []);
-
-  // --- SyncTeX Logic ---
-
-  // Editor -> PDF (Forward)
-  const handleSyncTexForward = useCallback(
-    async (line: number, column: number) => {
-      if (!activeTab || !activeTab.id || !isTexFile) return;
-
-      try {
-        const texPath = activeTab.id;
-        const pdfPath = texPath.replace(/\.tex$/i, ".pdf");
-        const lastSlash = texPath.lastIndexOf(
-          texPath.includes("\\") ? "\\" : "/"
-        );
-        const cwd = texPath.substring(0, lastSlash);
-
-        // Check if PDF file actually exists on disk
-        // @ts-ignore
-        const { exists } = await import("@tauri-apps/plugin-fs");
-        const pdfExists = await exists(pdfPath);
-
-        if (!pdfExists) {
-          setCompileError(
-            "PDF not available. Please compile your document first."
-          );
-          return;
-        }
-
-        const args = [
-          "view",
-          "-i",
-          `${line}:${column}:${texPath}`,
-          "-o",
-          pdfPath,
-        ];
-
-        const result = await invoke<string>("run_synctex_command", {
-          args,
-          cwd,
-        });
-        console.log("SyncTeX View Result:", result);
-
-        // Validate regex matches
-        const pageMatch = result.match(/Page:(\d+)/);
-        const xMatch = result.match(/x:([\d\.]+)/);
-        const yMatch = result.match(/y:([\d\.]+)/);
-
-        if (pageMatch) {
-          const page = parseInt(pageMatch[1], 10);
-          const x = xMatch ? parseFloat(xMatch[1]) : 0;
-          const y = yMatch ? parseFloat(yMatch[1]) : 0;
-
-          if (isNaN(page) || page < 1) {
-            setCompileError("SyncTeX returned invalid page number.");
-            return;
-          }
-
-          setSyncTexCoords({ page, x, y });
-          setShowPdf(true);
-        } else {
-          setCompileError(
-            "SyncTeX forward sync failed. Make sure you compiled with -synctex=1 flag."
-          );
-        }
-      } catch (e) {
-        console.error("SyncTeX Forward Failed:", e);
-        const errorMsg = String(e);
-        if (errorMsg.includes("synctex.gz")) {
-          setCompileError(
-            "SyncTeX file not found. Please recompile your document with SyncTeX enabled."
-          );
-        } else {
-          setCompileError("SyncTeX forward search failed: " + errorMsg);
-        }
-      }
-    },
-    [activeTab, isTexFile]
-  );
-
   /* PDF -> Editor (Inverse) - commented out, SyncTeX integration moved to ResourceInspector
   const _handleSyncTexInverse = useCallback(async (page: number, x: number, y: number) => {
       if (!activeTab || !activeTab.id || !isTexFile) return;
@@ -1079,146 +699,6 @@ export default function App() {
     }
   }, [activeTab, isTexFile]);
 
-  // --- Helper: Save File ---
-  const handleSave = useCallback(
-    async (tabId?: string) => {
-      const targetId = tabId || activeTabId;
-      const tab = tabs.find((t) => t.id === targetId);
-
-      if (!tab || !tab.id) return;
-
-      // Use current content from ref if it's the active tab, otherwise use stored content
-      let contentToSave = tab.content || "";
-      if (tab.id === activeTabId && editorRef.current) {
-        contentToSave = editorRef.current.getValue();
-      }
-
-      try {
-        // @ts-ignore
-        const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-        await writeTextFile(tab.id, contentToSave);
-
-        // Update tab dirty state and content
-        markDirty(targetId, false);
-        updateTabContent(targetId, contentToSave);
-      } catch (e) {
-        console.error("Failed to save file:", e);
-        setCompileError("Failed to save file: " + String(e));
-      }
-    },
-    [tabs, activeTabId, markDirty, updateTabContent]
-  );
-
-  // --- Compilation ---
-  const handleCompile = useCallback(
-    async (engine?: string) => {
-      if (!activeTab || !activeTab.id || !isTexFile) {
-        console.warn(
-          "[COMPILER DEBUG] Compile aborted: No active tab or not a tex file."
-        );
-        return;
-      }
-
-      // Save before compiling
-      await handleSave(activeTab.id);
-
-      const filePath = activeTab.id;
-      console.log(
-        `[COMPILER DEBUG] Starting compilation for: ${filePath} with engine: ${
-          engine || "default"
-        }`
-      );
-
-      try {
-        setIsCompiling(true);
-        setCompileError(null);
-
-        let selectedEngine = engine || "pdflatex";
-        let args = ["-interaction=nonstopmode", "-synctex=1"];
-        const outputDir = "";
-
-        // If no engine explicitly passed, check config
-        if (!engine) {
-          const savedConfig = localStorage.getItem("tex-engine-config");
-          if (savedConfig) {
-            try {
-              const config = JSON.parse(savedConfig);
-              const engineKey = config.defaultEngine || "pdflatex";
-              if (engineKey === "xelatex")
-                selectedEngine = config.xelatexPath || "xelatex";
-              else if (engineKey === "lualatex")
-                selectedEngine = config.lualatexPath || "lualatex";
-              else selectedEngine = config.pdflatexPath || "pdflatex";
-
-              args = ["-interaction=nonstopmode"];
-              if (config.synctex) args.push("-synctex=1");
-              if (config.shellEscape) args.push("-shell-escape");
-            } catch (e) {
-              console.warn(
-                "[COMPILER DEBUG] Failed to parse config, using defaults",
-                e
-              );
-            }
-          }
-        }
-
-        // --- DYNAMIC COMPILATION CHECK ---
-        const allResources = useDatabaseStore.getState().allLoadedResources;
-        // Normalize paths for comparison if needed (though usually identical)
-        const resource = allResources.find((r) => r.path === filePath);
-
-        if (resource && resource.metadata && resource.metadata.preamble) {
-          console.log(
-            `[COMPILER DEBUG] Modular resource detected (Preamble: ${resource.metadata.preamble}). Using compile_resource_cmd.`
-          );
-          // Use the specific command that handles wrapping
-          // We can ignore the returned path since we forced it to be standard filename.pdf
-          await invoke("compile_resource_cmd", { id: resource.id });
-        } else {
-          // Standard Compilation
-          await invoke("compile_tex", {
-            filePath,
-            engine: selectedEngine,
-            args,
-            outputDir,
-          });
-        }
-
-        setPdfRefreshTrigger((prev) => prev + 1);
-      } catch (error: any) {
-        console.error(
-          "[COMPILER DEBUG] Compilation Failed (Rust Error):",
-          error
-        );
-      } finally {
-        try {
-          // @ts-ignore
-          const { exists, readTextFile } = await import(
-            "@tauri-apps/plugin-fs"
-          );
-          const logPath = filePath.replace(/\.tex$/i, ".log");
-          const doesLogExist = await exists(logPath);
-          if (doesLogExist) {
-            const logContent = await readTextFile(logPath);
-            const entries = await parseLatexLog(logContent);
-            setLogEntries(entries);
-            const hasErrors = entries.some((e: LogEntry) => e.type === "error");
-            if (hasErrors) setShowLogPanel(true);
-          }
-        } catch (e) {
-          console.error("[COMPILER DEBUG] Failed to read/parse log file:", e);
-        }
-        setIsCompiling(false);
-      }
-    },
-    [activeTab, isTexFile, handleSave]
-  );
-
-  const handleStopCompile = useCallback(() => {
-    setIsCompiling(false);
-    setCompileError("Compilation stopped by user (UI reset).");
-  }, []);
-
   // --- Handlers (DB) ---
   const handleConnectDB = useCallback(() => {
     setDbConnected((prev) => {
@@ -1266,143 +746,7 @@ export default function App() {
     [handleOpenFileNode]
   );
 
-  // --- Resize Logic ---
-  // --- Resize Logic ---
-  const startResizeSidebar = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation(); // Stop DndKit from capturing
-    console.log("[Resize] Start Sidebar");
-    setIsResizingSidebar(true);
-    if (ghostRef.current) {
-      ghostRef.current.style.display = "block";
-      ghostRef.current.style.left = `${e.clientX}px`;
-    }
-  }, []);
-
-  const startResizeRightPanel = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation(); // Stop DndKit from capturing
-    console.log("[Resize] Start Right Panel");
-    setIsResizingRightPanel(true);
-    if (ghostRef.current) {
-      ghostRef.current.style.display = "block";
-      ghostRef.current.style.left = `${e.clientX}px`;
-    }
-  }, []);
-
-  const startResizeDatabase = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation(); // Stop DndKit from capturing
-    console.log("[Resize] Start Database");
-    setIsResizingDatabase(true);
-    if (ghostRef.current) {
-      ghostRef.current.style.display = "block";
-      ghostRef.current.style.left = `${e.clientX}px`;
-    }
-  }, []);
-
-  // Sync state with CSS variables
-  useEffect(() => {
-    document.documentElement.style.setProperty(
-      "--sidebar-width",
-      `${sidebarWidth}px`
-    );
-  }, [sidebarWidth]);
-
-  useEffect(() => {
-    document.documentElement.style.setProperty(
-      "--right-panel-width",
-      `${rightPanelWidth}px`
-    );
-  }, [rightPanelWidth]);
-
-  useEffect(() => {
-    const move = (e: MouseEvent) => {
-      if (rafRef.current) return;
-      rafRef.current = requestAnimationFrame(() => {
-        if (isResizingSidebar) {
-          const x = Math.max(200, Math.min(650, e.clientX));
-          if (ghostRef.current) ghostRef.current.style.left = `${x}px`;
-        }
-        if (isResizingRightPanel) {
-          const minX = window.innerWidth - 1200;
-          const maxX = window.innerWidth - 300;
-          const x = Math.max(minX, Math.min(maxX, e.clientX));
-          if (ghostRef.current) ghostRef.current.style.left = `${x}px`;
-        }
-        if (isResizingDatabase) {
-          const x = Math.max(250, Math.min(window.innerWidth * 0.6, e.clientX));
-          if (ghostRef.current) ghostRef.current.style.left = `${x}px`;
-        }
-        rafRef.current = null;
-      });
-    };
-
-    const up = () => {
-      if (isResizingSidebar) {
-        if (ghostRef.current) {
-          const x = parseInt(ghostRef.current.style.left || "0", 10);
-          if (x > 0) {
-            const w = Math.max(150, Math.min(600, x - 50));
-            setSidebarWidth(w);
-          }
-          ghostRef.current.style.display = "none";
-        }
-      }
-      if (isResizingRightPanel) {
-        if (ghostRef.current) {
-          const x = parseInt(ghostRef.current.style.left || "0", 10);
-          if (x > 0) {
-            const newWidth = window.innerWidth - x;
-            const w = Math.max(300, Math.min(1200, newWidth));
-            setRightPanelWidth(w);
-          }
-          ghostRef.current.style.display = "none";
-        }
-      }
-      if (isResizingDatabase) {
-        if (ghostRef.current) {
-          const x = parseInt(ghostRef.current.style.left || "0", 10);
-          if (x > 0) {
-            const w = Math.max(
-              250,
-              Math.min(
-                window.innerWidth * 0.6,
-                x - (isSidebarOpen ? sidebarWidth : 0) - 50
-              )
-            );
-            setDatabasePanelWidth(w);
-          }
-          ghostRef.current.style.display = "none";
-        }
-      }
-
-      setIsResizingSidebar(false);
-      setIsResizingRightPanel(false);
-      setIsResizingDatabase(false);
-
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    };
-
-    if (isResizingSidebar || isResizingRightPanel || isResizingDatabase) {
-      window.addEventListener("mousemove", move);
-      window.addEventListener("mouseup", up);
-      document.body.style.cursor = "col-resize";
-    } else {
-      document.body.style.cursor = "default";
-    }
-    return () => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
-    };
-  }, [
-    isResizingSidebar,
-    isResizingRightPanel,
-    isResizingDatabase,
-    isSidebarOpen,
-    sidebarWidth,
-  ]);
+  // --- Resize Logic moved to useAppPanelResize hook ---
 
   // --- DND Logic ---
   const sensors = useSensors(
@@ -1459,15 +803,15 @@ export default function App() {
               onToggleDatabasePanel={() =>
                 setShowDatabasePanel(!showDatabasePanel)
               }
-              showSidebar={isSidebarOpen}
-              onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+              showRightSidebar={showRightSidebar}
+              onToggleRightSidebar={() =>
+                setShowRightSidebar(!showRightSidebar)
+              }
             />
           </AppShell.Header>
 
           {/* Global Resize Overlay & Ghost Line - Placed here to avoid container clipping */}
-          {(isResizingSidebar ||
-            isResizingRightPanel ||
-            isResizingDatabase) && (
+          {isResizing && (
             <Box
               style={{
                 position: "fixed",
@@ -1602,7 +946,7 @@ export default function App() {
                     {/* Resize handle between Database and Editor */}
                     <ResizerHandle
                       onMouseDown={startResizeDatabase}
-                      isResizing={isResizingDatabase}
+                      isResizing={isResizing}
                     />
                   </>
                 )}
@@ -1670,32 +1014,27 @@ export default function App() {
               {/* 3. RIGHT PANEL WITH TRANSITION */}
 
               {/* Resizer for Right Panel */}
-              {(showRightPanel || showDatabasePanel) && (
+              {showRightPanel && (
                 <ResizerHandle
                   onMouseDown={startResizeRightPanel}
-                  isResizing={isResizingRightPanel}
+                  isResizing={isResizing}
                 />
               )}
 
               {/* Right Panel Content */}
               <Box
-                w={
-                  showRightPanel || showDatabasePanel
-                    ? "var(--right-panel-width)"
-                    : 0
-                }
+                w={showRightPanel ? "var(--right-panel-width)" : 0}
                 h="100%"
                 style={{
                   flexShrink: 0,
                   overflow: "hidden",
-                  display:
-                    showRightPanel || showDatabasePanel ? "flex" : "none",
+                  display: showRightPanel ? "flex" : "none",
                   flexDirection: "column",
                   minWidth: 0,
-                  transition: isResizingRightPanel
+                  transition: isResizing
                     ? "none"
                     : "width 300ms ease-in-out, opacity 200ms ease-in-out",
-                  opacity: showRightPanel || showDatabasePanel ? 1 : 0,
+                  opacity: showRightPanel ? 1 : 0,
                   whiteSpace: "nowrap",
                   backgroundColor: "var(--app-panel-bg)",
                   borderLeft: "1px solid var(--mantine-color-default-border)",
