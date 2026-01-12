@@ -206,6 +206,47 @@ export const COLUMN_SCHEMAS: Record<string, ColumnDef[]> = {
     },
     { key: "customTags", label: "Tags", priority: 20, formatType: "tags" },
   ],
+
+  dtx: [
+    ...STANDARD_COLUMNS,
+    { key: "baseName", label: "Base Name", priority: 10, formatType: "text" },
+    { key: "version", label: "Έκδοση", priority: 11, formatType: "badge" },
+    { key: "date", label: "Ημερομηνία", priority: 12, formatType: "date" },
+    {
+      key: "description",
+      label: "Περιγραφή",
+      priority: 13,
+      formatType: "text",
+    },
+    {
+      key: "providesClasses",
+      label: "Classes",
+      priority: 20,
+      formatType: "tags",
+    },
+    {
+      key: "providesPackages",
+      label: "Packages",
+      priority: 21,
+      formatType: "tags",
+    },
+  ],
+
+  ins: [
+    ...STANDARD_COLUMNS,
+    {
+      key: "targetDtxId",
+      label: "Target DTX",
+      priority: 10,
+      formatType: "text",
+    },
+    {
+      key: "generatedFiles",
+      label: "Generated Files",
+      priority: 11,
+      formatType: "tags",
+    },
+  ],
 };
 
 // Kind filter options for the UI
@@ -218,6 +259,8 @@ export const KIND_OPTIONS = [
   { value: "command", label: "Commands" },
   { value: "preamble", label: "Preambles" },
   { value: "class", label: "Classes" },
+  { value: "dtx", label: "DTX (Literate)" },
+  { value: "ins", label: "INS (Installer)" },
 ];
 
 // Get columns for a specific kind, with fallback to standard + discovered columns

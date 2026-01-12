@@ -10,6 +10,15 @@ CREATE TABLE IF NOT EXISTS resource_classes (
     date DATE,
     content TEXT,  -- .cls file content
     description TEXT,
+    
+    -- New Fields
+    engines TEXT, -- JSON array? or comma separated?
+    paper_size TEXT,
+    font_size INTEGER,
+    geometry TEXT,
+    options TEXT,
+    languages TEXT,
+
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(resource_id) REFERENCES resources(id) ON DELETE CASCADE,
@@ -29,6 +38,22 @@ CREATE TABLE IF NOT EXISTS resource_class_tags (
     PRIMARY KEY(resource_id, tag),
     FOREIGN KEY(resource_id) REFERENCES resource_classes(resource_id) ON DELETE CASCADE,
     FOREIGN KEY(tag) REFERENCES custom_tags(tag) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+-- Class Required Packages (Required Packages)
+CREATE TABLE IF NOT EXISTS resource_class_packages (
+    resource_id TEXT NOT NULL,
+    package_id TEXT NOT NULL,
+    PRIMARY KEY(resource_id, package_id),
+    FOREIGN KEY(resource_id) REFERENCES resource_classes(resource_id) ON DELETE CASCADE
+);
+
+-- Class Provided Commands
+CREATE TABLE IF NOT EXISTS resource_class_provided_commands (
+    resource_id TEXT NOT NULL,
+    command_name TEXT NOT NULL,
+    PRIMARY KEY(resource_id, command_name),
+    FOREIGN KEY(resource_id) REFERENCES resource_classes(resource_id) ON DELETE CASCADE
 );
 
 -- ============================================================================

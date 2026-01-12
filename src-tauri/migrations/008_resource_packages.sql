@@ -11,6 +11,13 @@ CREATE TABLE IF NOT EXISTS package_topics (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+INSERT OR IGNORE INTO package_topics (id, name, description) VALUES
+    ('math', 'Mathematics', 'Mathematical packages'),
+    ('graphics', 'Graphics', 'Graphics and drawing packages'),
+    ('fonts', 'Fonts', 'Font packages'),
+    ('formatting', 'Formatting', 'Document formatting'),
+    ('other', 'Other', 'Miscellaneous packages');
+
 CREATE TABLE IF NOT EXISTS resource_packages (
     resource_id TEXT PRIMARY KEY NOT NULL,
     name TEXT NOT NULL UNIQUE,  -- Package name
@@ -18,6 +25,13 @@ CREATE TABLE IF NOT EXISTS resource_packages (
     date DATE,
     content TEXT,  -- .sty file content
     description TEXT,
+    
+    -- New Fields
+    options TEXT, -- Package options (comma separated or JSON array)
+    built_in BOOLEAN DEFAULT 0,
+    documentation TEXT, -- Path or URL
+    example TEXT,
+
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(resource_id) REFERENCES resources(id) ON DELETE CASCADE,
@@ -49,6 +63,23 @@ CREATE TABLE IF NOT EXISTS resource_package_topics (
     FOREIGN KEY(topic_id) REFERENCES package_topics(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
+-- Package Provided Commands (Simple List)
+CREATE TABLE IF NOT EXISTS resource_package_provided_commands (
+    resource_id TEXT NOT NULL,
+    command_name TEXT NOT NULL,
+    PRIMARY KEY(resource_id, command_name),
+    FOREIGN KEY(resource_id) REFERENCES resource_packages(resource_id) ON DELETE CASCADE
+);
+
+-- Package Custom Tags
+CREATE TABLE IF NOT EXISTS resource_package_tags (
+    resource_id TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    PRIMARY KEY(resource_id, tag),
+    FOREIGN KEY(resource_id) REFERENCES resource_packages(resource_id) ON DELETE CASCADE,
+    FOREIGN KEY(tag) REFERENCES custom_tags(tag) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
 -- ============================================================================
 -- EDIT HISTORY for Packages
 -- ============================================================================
@@ -70,13 +101,3 @@ BEGIN
     UPDATE resource_packages SET updated_at = CURRENT_TIMESTAMP 
     WHERE resource_id = NEW.resource_id;
 END;
-
--- ============================================================================
--- Default Topics
--- ============================================================================
-INSERT OR IGNORE INTO package_topics (id, name, description) VALUES
-    ('math', 'Mathematics', 'Mathematical packages'),
-    ('graphics', 'Graphics', 'Graphics and drawing packages'),
-    ('fonts', 'Fonts', 'Font packages'),
-    ('formatting', 'Formatting', 'Document formatting'),
-    ('other', 'Other', 'Miscellaneous packages');

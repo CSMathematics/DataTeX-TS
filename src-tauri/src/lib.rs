@@ -340,11 +340,17 @@ async fn import_folder_cmd(
 
             // Simple type detection extension
             let kind = if file_name.ends_with(".tex") {
-                "file" // can be more specific like 'exercise' if we parse it, but 'file' is safe
+                "file"
             } else if file_name.ends_with(".bib") {
                 "bibliography"
-            } else if file_name.ends_with(".sty") || file_name.ends_with(".cls") {
+            } else if file_name.ends_with(".sty") {
                 "package"
+            } else if file_name.ends_with(".cls") {
+                "class"
+            } else if file_name.ends_with(".dtx") {
+                "dtx"
+            } else if file_name.ends_with(".ins") {
+                "ins"
             } else if file_name.ends_with(".png")
                 || file_name.ends_with(".jpg")
                 || file_name.ends_with(".pdf")
@@ -421,6 +427,16 @@ async fn create_resource_cmd(
 
     let kind = if file_name.ends_with(".tex") {
         "file"
+    } else if file_name.ends_with(".bib") {
+        "bibliography"
+    } else if file_name.ends_with(".sty") {
+        "package"
+    } else if file_name.ends_with(".cls") {
+        "class"
+    } else if file_name.ends_with(".dtx") {
+        "dtx"
+    } else if file_name.ends_with(".ins") {
+        "ins"
     } else {
         "file"
     };
@@ -460,8 +476,14 @@ async fn import_file_cmd(
         "file"
     } else if file_name.ends_with(".bib") {
         "bibliography"
-    } else if file_name.ends_with(".sty") || file_name.ends_with(".cls") {
+    } else if file_name.ends_with(".sty") {
         "package"
+    } else if file_name.ends_with(".cls") {
+        "class"
+    } else if file_name.ends_with(".dtx") {
+        "dtx"
+    } else if file_name.ends_with(".ins") {
+        "ins"
     } else if file_name.ends_with(".png")
         || file_name.ends_with(".jpg")
         || file_name.ends_with(".pdf")
@@ -2821,6 +2843,101 @@ async fn save_typed_metadata_cmd(
                 }
             }
         }
+        "dtx" => {
+            let get_str = |key: &str| -> Option<String> {
+                metadata
+                    .get(key)
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            };
+
+            let exists: bool = sqlx::query("SELECT 1 FROM resource_dtx WHERE resource_id = ?")
+                .bind(&resource_id)
+                .fetch_optional(&manager.pool)
+                .await
+                .map_err(|e| e.to_string())?
+                .is_some();
+
+            if exists {
+                sqlx::query(
+                    "UPDATE resource_dtx SET 
+                     base_name=?, version=?, date=?, description=?, 
+                     provides_classes=?, provides_packages=?, documentation_checksum=?
+                     WHERE resource_id=?",
+                )
+                .bind(get_str("baseName"))
+                .bind(get_str("version"))
+                .bind(get_str("date"))
+                .bind(get_str("description"))
+                .bind(metadata.get("providesClasses").map(|v| v.to_string()))
+                .bind(metadata.get("providesPackages").map(|v| v.to_string()))
+                .bind(get_str("documentationChecksum"))
+                .bind(&resource_id)
+                .execute(&manager.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+            } else {
+                sqlx::query(
+                    "INSERT INTO resource_dtx (
+                     base_name, version, date, description, 
+                     provides_classes, provides_packages, documentation_checksum,
+                     resource_id
+                     ) VALUES (?,?,?,?,?,?,?,?)",
+                )
+                .bind(get_str("baseName"))
+                .bind(get_str("version"))
+                .bind(get_str("date"))
+                .bind(get_str("description"))
+                .bind(metadata.get("providesClasses").map(|v| v.to_string()))
+                .bind(metadata.get("providesPackages").map(|v| v.to_string()))
+                .bind(get_str("documentationChecksum"))
+                .bind(&resource_id)
+                .execute(&manager.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+            }
+        }
+        "ins" => {
+            let get_str = |key: &str| -> Option<String> {
+                metadata
+                    .get(key)
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            };
+
+            let exists: bool = sqlx::query("SELECT 1 FROM resource_ins WHERE resource_id = ?")
+                .bind(&resource_id)
+                .fetch_optional(&manager.pool)
+                .await
+                .map_err(|e| e.to_string())?
+                .is_some();
+
+            if exists {
+                sqlx::query(
+                    "UPDATE resource_ins SET 
+                     target_dtx_id=?, generated_files=?
+                     WHERE resource_id=?",
+                )
+                .bind(get_str("targetDtxId"))
+                .bind(metadata.get("generatedFiles").map(|v| v.to_string()))
+                .bind(&resource_id)
+                .execute(&manager.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+            } else {
+                sqlx::query(
+                    "INSERT INTO resource_ins (
+                     target_dtx_id, generated_files, resource_id
+                     ) VALUES (?,?,?)",
+                )
+                .bind(get_str("targetDtxId"))
+                .bind(metadata.get("generatedFiles").map(|v| v.to_string()))
+                .bind(&resource_id)
+                .execute(&manager.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+            }
+        }
 
         _ => {}
     }
@@ -3502,6 +3619,44 @@ async fn load_typed_metadata_cmd(
                 })));
             } else {
                 return Ok(None);
+            }
+        }
+        "dtx" => {
+            let row = sqlx::query(
+                "SELECT base_name, version, date, description, provides_classes, provides_packages, documentation_checksum 
+                 FROM resource_dtx WHERE resource_id = ?",
+            )
+            .bind(&resource_id)
+            .fetch_optional(&manager.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+            if let Some(r) = row {
+                return Ok(Some(serde_json::json!({
+                    "baseName": r.try_get::<String, _>("base_name").ok(),
+                    "version": r.try_get::<String, _>("version").ok(),
+                    "date": r.try_get::<String, _>("date").ok(),
+                    "description": r.try_get::<String, _>("description").ok(),
+                    "providesClasses": r.try_get::<String, _>("provides_classes").ok(),
+                    "providesPackages": r.try_get::<String, _>("provides_packages").ok(),
+                    "documentationChecksum": r.try_get::<String, _>("documentation_checksum").ok()
+                })));
+            }
+        }
+        "ins" => {
+            let row = sqlx::query(
+                "SELECT target_dtx_id, generated_files FROM resource_ins WHERE resource_id = ?",
+            )
+            .bind(&resource_id)
+            .fetch_optional(&manager.pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+            if let Some(r) = row {
+                return Ok(Some(serde_json::json!({
+                    "targetDtxId": r.try_get::<String, _>("target_dtx_id").ok(),
+                    "generatedFiles": r.try_get::<String, _>("generated_files").ok()
+                })));
             }
         }
         _ => {}

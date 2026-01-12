@@ -288,19 +288,40 @@ export interface BibliographyMetadata {
 }
 
 // ============================================================================
+// DTX & INS Metadata (Literate Programming)
+// ============================================================================
+
+export interface DtxMetadata {
+  baseName?: string;
+  version?: string;
+  date?: string;
+  description?: string;
+  providesClasses?: string; // JSON string
+  providesPackages?: string; // JSON string
+  documentationChecksum?: string;
+}
+
+export interface InsMetadata {
+  targetDtxId?: string;
+  generatedFiles?: string; // JSON string
+}
+
+// ============================================================================
 // Unified TypedMetadata Union
 // ============================================================================
 
 export type TypedMetadata =
   | { type: "file"; data: FileMetadata }
   | { type: "document"; data: DocumentMetadata }
-  | { type: "bibliography"; data: BibliographyMetadata } // Added bibliography
+  | { type: "bibliography"; data: BibliographyMetadata }
   | { type: "table"; data: TableMetadata }
   | { type: "figure"; data: FigureMetadata }
   | { type: "command"; data: CommandMetadata }
   | { type: "package"; data: PackageMetadata }
   | { type: "preamble"; data: PreambleMetadata }
-  | { type: "class"; data: ClassMetadata };
+  | { type: "class"; data: ClassMetadata }
+  | { type: "dtx"; data: DtxMetadata }
+  | { type: "ins"; data: InsMetadata };
 
 // ============================================================================
 // Lookup Data Types
@@ -413,7 +434,9 @@ export type ResourceType =
   | "command"
   | "package"
   | "preamble"
-  | "class";
+  | "class"
+  | "dtx"
+  | "ins";
 
 export type MetadataByType<T extends ResourceType> = T extends "file"
   ? FileMetadata
@@ -433,4 +456,8 @@ export type MetadataByType<T extends ResourceType> = T extends "file"
   ? PreambleMetadata
   : T extends "class"
   ? ClassMetadata
+  : T extends "dtx"
+  ? DtxMetadata
+  : T extends "ins"
+  ? InsMetadata
   : never;

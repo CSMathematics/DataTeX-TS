@@ -17,6 +17,8 @@ import {
   PreambleMetadataForm,
   ClassMetadataForm,
   BibliographyMetadataForm,
+  DtxMetadataForm,
+  InsMetadataForm,
 } from "./AdditionalMetadataForms";
 import type { ResourceType } from "../../types/typedMetadata";
 
@@ -132,6 +134,10 @@ export const DynamicMetadataEditor: React.FC<DynamicMetadataEditorProps> = ({
         return <ClassMetadataForm {...formProps} />;
       case "bibliography":
         return <BibliographyMetadataForm {...formProps} />;
+      case "dtx":
+        return <DtxMetadataForm {...formProps} />;
+      case "ins":
+        return <InsMetadataForm {...formProps} />;
       default:
         return (
           <Alert color="red" title="Unsupported Resource Type">
@@ -220,6 +226,10 @@ export const SimpleMetadataEditor: React.FC<SimpleMetadataEditorProps> = ({
       return <PreambleMetadataForm {...formProps} />;
     case "class":
       return <ClassMetadataForm {...formProps} />;
+    case "dtx":
+      return <DtxMetadataForm {...formProps} />;
+    case "ins":
+      return <InsMetadataForm {...formProps} />;
     default:
       return <Text c="dimmed">Unsupported resource type: {resourceType}</Text>;
   }

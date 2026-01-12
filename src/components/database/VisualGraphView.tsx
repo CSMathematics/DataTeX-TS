@@ -63,6 +63,8 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
     showBibliographies: false,
     showImages: false,
     showClasses: false,
+    showDtx: false,
+    showIns: false,
   });
 
   // Physics State
@@ -143,6 +145,8 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
               showBibliographies: filters.showBibliographies,
               showImages: filters.showImages,
               showClasses: filters.showClasses,
+              showDtx: filters.showDtx,
+              showIns: filters.showIns,
             },
           }
         );
@@ -251,6 +255,10 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
         return theme.colors.yellow[7];
       case "image":
         return theme.colors.pink[7];
+      case "dtx":
+        return theme.colors.cyan[7];
+      case "ins":
+        return theme.colors.grape[7];
       default:
         return theme.colors.blue[7]; // Standard document
     }
@@ -263,6 +271,8 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
     { label: "Class", color: theme.colors.violet[7] },
     { label: "Bibliography", color: theme.colors.yellow[7] },
     { label: "Image", color: theme.colors.pink[7] },
+    { label: "DTX", color: theme.colors.cyan[7] },
+    { label: "INS", color: theme.colors.grape[7] },
   ];
 
   return (
@@ -424,6 +434,28 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
                 setFilters({
                   ...filters,
                   showClasses: event.currentTarget.checked,
+                })
+              }
+            />
+            <Checkbox
+              label="DTX Files"
+              size="xs"
+              checked={filters.showDtx}
+              onChange={(event) =>
+                setFilters({
+                  ...filters,
+                  showDtx: event.currentTarget.checked,
+                })
+              }
+            />
+            <Checkbox
+              label="INS Files"
+              size="xs"
+              checked={filters.showIns}
+              onChange={(event) =>
+                setFilters({
+                  ...filters,
+                  showIns: event.currentTarget.checked,
                 })
               }
             />

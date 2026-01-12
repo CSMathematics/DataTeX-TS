@@ -25,6 +25,8 @@ import type {
   PackageMetadata,
   PreambleMetadata,
   ClassMetadata,
+  DtxMetadata,
+  InsMetadata,
 } from "../../types/typedMetadata";
 import { CreatableSelect, CreatableMultiSelect } from "./TypedMetadataForms";
 import { HierarchyEditor } from "./HierarchyEditor";
@@ -1608,6 +1610,149 @@ export const ClassMetadataForm: React.FC<ClassMetadataFormProps> = ({
         }
         autosize
         minRows={2}
+      />
+    </Stack>
+  );
+};
+
+// DTX Metadata Form
+interface DtxMetadataFormProps {
+  resourceId: string;
+  initialMetadata?: DtxMetadata;
+  onChange?: (metadata: DtxMetadata) => void;
+}
+
+export const DtxMetadataForm: React.FC<DtxMetadataFormProps> = ({
+  initialMetadata = {},
+  onChange,
+}) => {
+  const [metadata, setMetadata] = useState<DtxMetadata>(initialMetadata);
+
+  const handleChange = <K extends keyof DtxMetadata>(
+    field: K,
+    value: DtxMetadata[K]
+  ) => {
+    const updated = { ...metadata, [field]: value };
+    setMetadata(updated);
+    onChange?.(updated);
+  };
+
+  return (
+    <Stack gap="md">
+      <Group grow>
+        <TextInput
+          label="Base Name"
+          placeholder="Package base name"
+          value={metadata.baseName || ""}
+          onChange={(e) =>
+            handleChange("baseName", e.currentTarget.value || undefined)
+          }
+        />
+        <TextInput
+          label="Version"
+          placeholder="v1.0"
+          value={metadata.version || ""}
+          onChange={(e) =>
+            handleChange("version", e.currentTarget.value || undefined)
+          }
+        />
+        <TextInput
+          label="Date"
+          placeholder="YYYY/MM/DD"
+          value={metadata.date || ""}
+          onChange={(e) =>
+            handleChange("date", e.currentTarget.value || undefined)
+          }
+        />
+      </Group>
+
+      <Textarea
+        label="Description"
+        placeholder="Extracted description..."
+        value={metadata.description || ""}
+        onChange={(e) =>
+          handleChange("description", e.currentTarget.value || undefined)
+        }
+        autosize
+        minRows={2}
+      />
+
+      <Group grow>
+        <TextInput
+          label="Provides Classes (JSON)"
+          placeholder='["myclass"]'
+          value={metadata.providesClasses || ""}
+          onChange={(e) =>
+            handleChange("providesClasses", e.currentTarget.value || undefined)
+          }
+        />
+        <TextInput
+          label="Provides Packages (JSON)"
+          placeholder='["mypackage"]'
+          value={metadata.providesPackages || ""}
+          onChange={(e) =>
+            handleChange("providesPackages", e.currentTarget.value || undefined)
+          }
+        />
+      </Group>
+
+      <TextInput
+        label="Docs Checksum"
+        placeholder="Checksum"
+        value={metadata.documentationChecksum || ""}
+        onChange={(e) =>
+          handleChange(
+            "documentationChecksum",
+            e.currentTarget.value || undefined
+          )
+        }
+      />
+    </Stack>
+  );
+};
+
+// INS Metadata Form
+interface InsMetadataFormProps {
+  resourceId: string;
+  initialMetadata?: InsMetadata;
+  onChange?: (metadata: InsMetadata) => void;
+}
+
+export const InsMetadataForm: React.FC<InsMetadataFormProps> = ({
+  initialMetadata = {},
+  onChange,
+}) => {
+  const [metadata, setMetadata] = useState<InsMetadata>(initialMetadata);
+
+  const handleChange = <K extends keyof InsMetadata>(
+    field: K,
+    value: InsMetadata[K]
+  ) => {
+    const updated = { ...metadata, [field]: value };
+    setMetadata(updated);
+    onChange?.(updated);
+  };
+
+  return (
+    <Stack gap="md">
+      <TextInput
+        label="Target DTX ID"
+        placeholder="Related .dtx file ID"
+        value={metadata.targetDtxId || ""}
+        onChange={(e) =>
+          handleChange("targetDtxId", e.currentTarget.value || undefined)
+        }
+      />
+
+      <Textarea
+        label="Generated Files (JSON)"
+        placeholder='["file1.sty", "file2.cls"]'
+        value={metadata.generatedFiles || ""}
+        onChange={(e) =>
+          handleChange("generatedFiles", e.currentTarget.value || undefined)
+        }
+        autosize
+        minRows={3}
       />
     </Stack>
   );

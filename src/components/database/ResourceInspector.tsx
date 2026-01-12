@@ -43,6 +43,8 @@ const RESOURCE_KINDS = [
   { value: "package", label: "LaTeX Package (.sty)" },
   { value: "class", label: "LaTeX Class (.cls)" },
   { value: "preamble", label: "Preamble" },
+  { value: "dtx", label: "LaTeX DTX (.dtx)" },
+  { value: "ins", label: "LaTeX INS (.ins)" },
 ];
 
 // CONTENT_TYPES and BUILD_COMMANDS commented out - only used in MetadataEditor

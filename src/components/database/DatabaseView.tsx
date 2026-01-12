@@ -127,7 +127,9 @@ export const DatabaseView = React.memo(
           r.path.toLowerCase().endsWith(".tex") ||
           r.path.toLowerCase().endsWith(".bib") ||
           r.path.toLowerCase().endsWith(".sty") ||
-          r.path.toLowerCase().endsWith(".cls")
+          r.path.toLowerCase().endsWith(".cls") ||
+          r.path.toLowerCase().endsWith(".dtx") ||
+          r.path.toLowerCase().endsWith(".ins")
       );
       if (kindFilter && kindFilter !== "all") {
         result = result.filter((r) => r.kind === kindFilter);
@@ -365,7 +367,17 @@ export const DatabaseView = React.memo(
               filters: [
                 {
                   name: "TeX/Bib/Images",
-                  extensions: ["tex", "bib", "sty", "cls", "png", "jpg", "pdf"],
+                  extensions: [
+                    "tex",
+                    "bib",
+                    "sty",
+                    "cls",
+                    "dtx",
+                    "ins",
+                    "png",
+                    "jpg",
+                    "pdf",
+                  ],
                 },
               ],
             })

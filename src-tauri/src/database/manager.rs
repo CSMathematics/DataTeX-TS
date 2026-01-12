@@ -37,15 +37,8 @@ impl DatabaseManager {
             include_str!("../../migrations/009_resource_preambles.sql"), // 8
             include_str!("../../migrations/010_resource_classes.sql"), // 9
             include_str!("../../migrations/011_migrate_json_to_typed.sql"), // 10
-            include_str!("../../migrations/017_resource_bibliographies.sql"), // 11
-            include_str!("../../migrations/018_enrich_resource_tables.sql"), // 12
-            include_str!("../../migrations/019_resource_table_types.sql"), // 13
-            include_str!("../../migrations/020_enrich_resource_figures.sql"), // 14
-            include_str!("../../migrations/021_enrich_resource_commands.sql"), // 15
-            include_str!("../../migrations/022_enrich_resource_packages.sql"), // 16
-            include_str!("../../migrations/023_enrich_resource_classes.sql"), // 17
-            include_str!("../../migrations/024_enrich_resource_preambles.sql"), // 18
-            include_str!("../../migrations/025_preamble_types.sql"), // 19
+            include_str!("../../migrations/012_resource_bibliographies.sql"), // 11
+            include_str!("../../migrations/013_resource_dtx_ins.sql"), // 12
         ];
 
         // Check current version

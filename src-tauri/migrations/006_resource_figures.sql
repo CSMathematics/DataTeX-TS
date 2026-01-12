@@ -3,20 +3,47 @@
 -- Γραφικά, εικόνες, TikZ διαγράμματα
 -- ============================================================================
 
+CREATE TABLE IF NOT EXISTS figure_types (
+    id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT
+);
+
+-- Insert Default Figure Types
+INSERT OR IGNORE INTO figure_types (id, name, description) VALUES 
+('2d_plot', '2D Plot', 'Two-dimensional plots'),
+('3d_plot', '3D Plot', 'Three-dimensional plots'),
+('geometric', 'Geometric Shape', 'Geometry shapes and constructions'),
+('statistical', 'Statistical Chart', 'Bar charts, pie charts, etc.'),
+('diagram', 'Diagram', 'Flowcharts, diagrams, etc.'),
+('image', 'Image', 'Raster or vector images');
+
 CREATE TABLE IF NOT EXISTS resource_figures (
     resource_id TEXT PRIMARY KEY NOT NULL,
-    figure_type_id TEXT,  -- FK to file_types
+    figure_type_id TEXT,  -- FK to figure_types
     environment TEXT,  -- tikzpicture, axis, includegraphics
     date DATE,
     content TEXT,  -- LaTeX/TikZ code
     caption TEXT,
+    description TEXT,
+    
+    -- Technical / Layout
+    options TEXT,     -- [scale=0.5]
+    tikz_style TEXT,
+    width TEXT,
+    height TEXT,
+    label TEXT,
+    placement TEXT,
+    alignment TEXT,
+
+    -- Build info
     preamble_id TEXT,  -- FK for standalone compilation
     build_command TEXT,
-    description TEXT,
+    
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(resource_id) REFERENCES resources(id) ON DELETE CASCADE,
-    FOREIGN KEY(figure_type_id) REFERENCES file_types(id) ON UPDATE CASCADE ON DELETE SET NULL,
+    FOREIGN KEY(figure_type_id) REFERENCES figure_types(id) ON UPDATE CASCADE ON DELETE SET NULL,
     FOREIGN KEY(preamble_id) REFERENCES resources(id) ON DELETE SET NULL
 );
 

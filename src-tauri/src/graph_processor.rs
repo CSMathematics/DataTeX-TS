@@ -16,6 +16,8 @@ pub struct GraphFilters {
     pub show_bibliographies: bool,
     pub show_images: bool,
     pub show_classes: bool,
+    pub show_dtx: bool,
+    pub show_ins: bool,
 }
 
 /// A node in the graph
@@ -50,7 +52,7 @@ pub struct GraphData {
 }
 
 // Extensions that are allowed in the graph
-const ALLOWED_EXTENSIONS: &[&str] = &[".tex", ".bib", ".sty", ".cls"];
+const ALLOWED_EXTENSIONS: &[&str] = &[".tex", ".bib", ".sty", ".cls", ".dtx", ".ins"];
 
 // Extensions that are explicitly excluded (build artifacts, images)
 const EXCLUDED_EXTENSIONS: &[&str] = &[
@@ -192,6 +194,12 @@ pub async fn process_graph_data(
                 return false;
             }
             if kind == "class" && !filters.show_classes {
+                return false;
+            }
+            if kind == "dtx" && !filters.show_dtx {
+                return false;
+            }
+            if kind == "ins" && !filters.show_ins {
                 return false;
             }
 
