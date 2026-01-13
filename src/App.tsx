@@ -42,10 +42,12 @@ import { ResizerHandle } from "./components/ui/ResizerHandle";
 // --- Wizards ---
 import { WizardWrapper } from "./components/wizards/WizardWrapper";
 import { PreambleWizard } from "./components/wizards/PreambleWizard";
-import { TableWizard } from "./components/wizards/TableWizard";
+import { UnifiedTableWizard } from "./components/wizards/UnifiedTableWizard";
 import { TikzWizard } from "./components/wizards/TikzWizard";
 import { FancyhdrWizard } from "./components/wizards/FancyhdrWizard";
 import { PstricksWizard } from "./components/wizards/PstricksWizard";
+import { MathWizard } from "./components/wizards/MathWizard";
+import { GraphicxWizard } from "./components/wizards/GraphicxWizard";
 import { PackageGallery } from "./components/wizards/PackageGallery";
 import { SettingsPanel } from "./components/settings/SettingsPanel";
 import { DatabaseView } from "./components/database/DatabaseView";
@@ -108,6 +110,7 @@ export default function App() {
     updateEditorBehaviorSetting,
     updatePdfViewerSetting,
     updateCompilationSetting,
+    updateTexEngineSetting,
     updateDatabaseSetting,
     updateAccessibilitySetting,
     updateGeneralSetting,
@@ -325,9 +328,7 @@ export default function App() {
   );
   const showRightPanel = useMemo(
     () =>
-      (showRightSidebar ||
-        activeView === "gallery" ||
-        activeView === "package-browser") &&
+      (showRightSidebar || isWizardActive) &&
       (isWizardActive || activeView === "editor" || activeView === "database"),
     [showRightSidebar, isWizardActive, activeView]
   );
@@ -1128,6 +1129,7 @@ export default function App() {
                     onUpdateEditorBehavior={updateEditorBehaviorSetting}
                     onUpdatePdfViewer={updatePdfViewerSetting}
                     onUpdateCompilation={updateCompilationSetting}
+                    onUpdateTexEngine={updateTexEngineSetting}
                     onUpdateDatabase={updateDatabaseSetting}
                     onUpdateAccessibility={updateAccessibilitySetting}
                     onUpdateGeneral={updateGeneralSetting}
@@ -1136,67 +1138,6 @@ export default function App() {
                     onAddCustomTheme={addCustomTheme}
                     onRemoveCustomTheme={removeCustomTheme}
                   />
-                ) : activeView === "wizard-preamble" ? (
-                  <WizardWrapper
-                    title="Preamble Wizard"
-                    onClose={() => setActiveView("editor")}
-                  >
-                    <PreambleWizard
-                      onInsert={(code) => {
-                        handleInsertSnippet(code);
-                        setActiveView("editor");
-                      }}
-                    />
-                  </WizardWrapper>
-                ) : activeView === "wizard-table" ? (
-                  <WizardWrapper
-                    title="Table Wizard"
-                    onClose={() => setActiveView("editor")}
-                  >
-                    <TableWizard
-                      onInsert={(code) => {
-                        handleInsertSnippet(code);
-                        setActiveView("editor");
-                      }}
-                    />
-                  </WizardWrapper>
-                ) : activeView === "wizard-tikz" ? (
-                  <WizardWrapper
-                    title="TikZ Wizard"
-                    onClose={() => setActiveView("editor")}
-                  >
-                    <TikzWizard
-                      onInsert={(code) => {
-                        handleInsertSnippet(code);
-                        setActiveView("editor");
-                      }}
-                    />
-                  </WizardWrapper>
-                ) : activeView === "wizard-fancyhdr" ? (
-                  <WizardWrapper
-                    title="Fancy Header Wizard"
-                    onClose={() => setActiveView("editor")}
-                  >
-                    <FancyhdrWizard
-                      onInsert={(code) => {
-                        handleInsertSnippet(code);
-                        setActiveView("editor");
-                      }}
-                    />
-                  </WizardWrapper>
-                ) : activeView === "wizard-pstricks" ? (
-                  <WizardWrapper
-                    title="PSTricks Wizard"
-                    onClose={() => setActiveView("editor")}
-                  >
-                    <PstricksWizard
-                      onInsert={(code) => {
-                        handleInsertSnippet(code);
-                        setActiveView("editor");
-                      }}
-                      onChange={() => {}}
-                    />
-                  </WizardWrapper>
                 ) : /* Default: EDITOR AREA with optional Database Panel */
                 databasePanelPosition === "left" && showDatabasePanel ? (
                   /* Horizontal layout: Database left, Editor right */
@@ -1377,31 +1318,94 @@ export default function App() {
                         onClose={() => setActiveView("editor")}
                         onInsertPackage={(code) => {
                           handleInsertSnippet(code);
-                          // Don't close immediately if bulk inserting?
-                          // User requested easy access. Maybe keep it open or close?
-                          // Let's keep existing behavior: close after insert.
-                          // Actually, bulk insert usually implies we might want to stay open?
-                          // But PackageBrowser onClose prop is tied to "X" button.
-                          // handleInsert call inside PackageBrowser closes it?
-                          // In PackageBrowser I wrote: onInsertPackage(code); setSelectedPkgs(new Set());
-                          // It does NOT call onClose automatically.
-                          // So here I don't need to setActiveView('editor') unless I want to auto-close.
-                          // Let's NOT auto-close for now to allow multiple inserts if needed,
-                          // OR follows standard pattern.
-                          // Previous code: setActiveView("editor").
-                          // Let's keep it to be safe, or remove it to keep panel open.
-                          // User said "always appear in right panel".
-                          // If I remove setActiveView("editor"), it stays open.
-                          // Let's try removing it for better UX?
-                          // But if I insert, focus goes to editor?
-                          // handleInsertSnippet focuses editor usually.
-                          // Let's stick to closing it for now to match other wizards,
-                          // or maybe just keep it open.
-                          // Let's keep it open! The user wants it as a "database browser".
-                          // So I will NOT call setActiveView("editor") here.
-                          handleInsertSnippet(code);
                         }}
                       />
+                    ) : activeView === "wizard-preamble" ? (
+                      <WizardWrapper
+                        title="Preamble Wizard"
+                        onClose={() => setActiveView("editor")}
+                      >
+                        <PreambleWizard
+                          onInsert={(code) => {
+                            handleInsertSnippet(code);
+                            setActiveView("editor");
+                          }}
+                        />
+                      </WizardWrapper>
+                    ) : activeView === "wizard-table" ||
+                      activeView === "wizard-tabularray" ? (
+                      <WizardWrapper
+                        title="Table Wizard"
+                        onClose={() => setActiveView("editor")}
+                      >
+                        <UnifiedTableWizard
+                          onInsert={(code) => {
+                            handleInsertSnippet(code);
+                            setActiveView("editor");
+                          }}
+                        />
+                      </WizardWrapper>
+                    ) : activeView === "wizard-math" ? (
+                      <WizardWrapper
+                        title="Math Wizard"
+                        onClose={() => setActiveView("editor")}
+                      >
+                        <MathWizard
+                          onInsert={(code) => {
+                            handleInsertSnippet(code);
+                            setActiveView("editor");
+                          }}
+                        />
+                      </WizardWrapper>
+                    ) : activeView === "wizard-graphicx" ? (
+                      <WizardWrapper
+                        title="Graphicx Wizard"
+                        onClose={() => setActiveView("editor")}
+                      >
+                        <GraphicxWizard
+                          onInsert={(code) => {
+                            handleInsertSnippet(code);
+                            setActiveView("editor");
+                          }}
+                        />
+                      </WizardWrapper>
+                    ) : activeView === "wizard-tikz" ? (
+                      <WizardWrapper
+                        title="TikZ Wizard"
+                        onClose={() => setActiveView("editor")}
+                      >
+                        <TikzWizard
+                          onInsert={(code) => {
+                            handleInsertSnippet(code);
+                            setActiveView("editor");
+                          }}
+                        />
+                      </WizardWrapper>
+                    ) : activeView === "wizard-fancyhdr" ? (
+                      <WizardWrapper
+                        title="Fancy Header Wizard"
+                        onClose={() => setActiveView("editor")}
+                      >
+                        <FancyhdrWizard
+                          onInsert={(code) => {
+                            handleInsertSnippet(code);
+                            setActiveView("editor");
+                          }}
+                        />
+                      </WizardWrapper>
+                    ) : activeView === "wizard-pstricks" ? (
+                      <WizardWrapper
+                        title="PSTricks Wizard"
+                        onClose={() => setActiveView("editor")}
+                      >
+                        <PstricksWizard
+                          onInsert={(code) => {
+                            handleInsertSnippet(code);
+                            setActiveView("editor");
+                          }}
+                          onChange={() => {}}
+                        />
+                      </WizardWrapper>
                     ) : (
                       <ResourceInspector
                         mainEditorPdfUrl={pdfUrl}

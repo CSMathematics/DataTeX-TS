@@ -55,6 +55,7 @@ import { LogPanel } from "../ui/LogPanel";
 import { LogEntry } from "../../utils/logParser";
 import { TexlabLspClient } from "../../services/lspClient";
 import { useDatabaseStore } from "../../stores/databaseStore";
+import { getMonacoKeyBinding } from "../../utils/ShortcutUtils";
 
 interface EditorAreaProps {
   files: AppTab[];
@@ -98,6 +99,7 @@ interface EditorAreaProps {
   onOpenTemplateModal?: () => void;
   onOpenFile?: (path: string) => void;
   lspClient?: TexlabLspClient | null;
+  shortcuts?: Record<string, string>;
 }
 
 const getFileIcon = (name: string, type: string) => {
@@ -329,6 +331,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
     onOpenFileFromTable,
     onOpenFile,
     lspClient: _lspClient, // Prefixed with underscore to indicate intentionally unused
+    shortcuts,
   }) => {
     const activeFile = files.find((f) => f.id === activeFileId);
     const [editorInstance, setEditorInstance] = React.useState<any>(null);
@@ -416,12 +419,17 @@ export const EditorArea = React.memo<EditorAreaProps>(
         }
       });
 
-      // Handle Ctrl+S for saving
-      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-        if (onSave) {
-          onSave();
-        }
-      });
+      // Handle Save Shortcut (Dynamic)
+      const saveShortcut = shortcuts?.["file.save"] || "Ctrl+S";
+      const saveBinding = getMonacoKeyBinding(saveShortcut);
+
+      if (saveBinding) {
+        editor.addCommand(saveBinding, () => {
+          if (onSave) {
+            onSave();
+          }
+        });
+      }
 
       if (onMount) onMount(editor, monaco);
     };

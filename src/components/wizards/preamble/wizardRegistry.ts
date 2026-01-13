@@ -79,20 +79,15 @@ export const WIZARD_REGISTRY: Record<string, WizardConfig> = {
   graphicx: {
     category: "graphics",
     displayName: "Graphicx",
+    wizardView: "wizard-graphicx",
   },
 
   // === TABLES ===
-  booktabs: {
+  tabularray: {
     category: "tables",
-    wizardView: "wizard-table",
+    wizardView: "wizard-tabularray",
     isEmbedded: true,
-    displayName: "Booktabs",
-  },
-  multirow: {
-    category: "tables",
-    wizardView: "wizard-table",
-    isEmbedded: true,
-    displayName: "Multirow",
+    displayName: "Table Wizard",
   },
 
   // === CODE ===
@@ -109,10 +104,12 @@ export const WIZARD_REGISTRY: Record<string, WizardConfig> = {
   amsmath: {
     category: "math",
     displayName: "AMS Math",
+    wizardView: "wizard-math",
   },
-  amssymb: {
+  mathtools: {
     category: "math",
-    displayName: "AMS Symbols",
+    displayName: "Mathtools",
+    wizardView: "wizard-math",
   },
   siunitx: {
     category: "math",

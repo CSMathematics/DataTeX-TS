@@ -37,6 +37,7 @@ import {
   EditorBehaviorSettings as IEditorBehaviorSettings,
   PdfViewerSettings as IPdfViewerSettings,
   CompilationSettings as ICompilationSettings,
+  TexEngineSettings as ITexEngineSettings,
   DatabaseSettings as IDatabaseSettings,
   AccessibilitySettings as IAccessibilitySettings,
   GeneralSettings as IGeneralSettings,
@@ -75,6 +76,10 @@ interface SettingsPanelProps {
     key: K,
     value: ICompilationSettings[K]
   ) => void;
+  onUpdateTexEngine: <K extends keyof ITexEngineSettings>(
+    key: K,
+    value: ITexEngineSettings[K]
+  ) => void;
   onUpdateDatabase: <K extends keyof IDatabaseSettings>(
     key: K,
     value: IDatabaseSettings[K]
@@ -102,6 +107,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onUpdateEditorBehavior,
   onUpdatePdfViewer,
   onUpdateCompilation,
+  onUpdateTexEngine,
   onUpdateDatabase,
   onUpdateAccessibility,
   onUpdateGeneral,
@@ -203,7 +209,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           />
         );
       case "tex":
-        return <TexEngineSettings />;
+        return (
+          <TexEngineSettings
+            settings={settings.texEngine}
+            onUpdate={onUpdateTexEngine}
+          />
+        );
       case "compilation":
         return (
           <CompilationSettings

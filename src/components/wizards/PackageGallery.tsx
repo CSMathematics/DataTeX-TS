@@ -396,6 +396,8 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({
         onOpenWizard("wizard-preamble");
       } else if (pkg.id === "fancyhdr") {
         onOpenWizard("wizard-fancyhdr");
+      } else if (pkg.id === "tabularray") {
+        onOpenWizard("wizard-tabularray");
       } else if (
         ![
           "tikz",

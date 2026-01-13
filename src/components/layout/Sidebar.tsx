@@ -34,6 +34,7 @@ import { SymbolSidebar } from "./SymbolSidebar";
 import { SymbolPanel } from "./SymbolPanel";
 import { SymbolCategory } from "../wizards/preamble/SymbolDB";
 import { PACKAGES_DB, Category } from "../wizards/preamble/packages";
+import { getWizardConfig } from "../wizards/preamble/wizardRegistry";
 import { DatabaseSidebar } from "../database/DatabaseSidebar";
 import { SearchPanel } from "../search/SearchPanel";
 
@@ -50,9 +51,12 @@ export type ViewType =
   | "editor"
   | "wizard-preamble"
   | "wizard-table"
+  | "wizard-tabularray"
   | "wizard-tikz"
   | "wizard-fancyhdr"
   | "wizard-pstricks"
+  | "wizard-graphicx"
+  | "wizard-math"
   | "gallery"
   | "settings"
   | "database"
@@ -537,7 +541,13 @@ export const Sidebar = React.memo<SidebarProps>(
                                 }
                                 onClick={() => {
                                   if (onSelectPackage) onSelectPackage(pkg.id);
-                                  onNavigate("gallery");
+                                  // Direct navigation if package has a wizard view
+                                  const wizardConfig = getWizardConfig(pkg.id);
+                                  if (wizardConfig?.wizardView) {
+                                    onNavigate(wizardConfig.wizardView);
+                                  } else {
+                                    onNavigate("gallery");
+                                  }
                                 }}
                                 active={pkg.id === activePackageId}
                                 variant="light"
