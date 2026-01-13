@@ -69,6 +69,24 @@ export interface GeneralSettings {
   confirmOnExit: boolean;
 }
 
+export interface CustomThemeOverrides {
+  appBg?: string;
+  sidebarBg?: string;
+  headerBg?: string;
+  statusBarBg?: string;
+  panelBg?: string;
+  primaryColor?: string;
+  accentColor?: string;
+  borderColor?: string;
+}
+
+export interface CustomTheme {
+  id: string;
+  label: string;
+  baseThemeId: string; // The theme this was based on
+  overrides: CustomThemeOverrides;
+}
+
 export interface AppSettings {
   editor: EditorSettings;
   editorBehavior: EditorBehaviorSettings;
@@ -78,6 +96,8 @@ export interface AppSettings {
   accessibility: AccessibilitySettings;
   general: GeneralSettings;
   uiTheme: string; // Theme ID (e.g. 'dark-blue', 'light-gray')
+  customThemeOverrides?: CustomThemeOverrides;
+  customThemes?: CustomTheme[];
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -144,6 +164,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     confirmOnExit: true,
   },
   uiTheme: "dark-blue",
+  customThemeOverrides: {},
+  customThemes: [],
 };
 
 export function useSettings() {
@@ -179,6 +201,8 @@ export function useSettings() {
           },
           general: { ...DEFAULT_SETTINGS.general, ...parsed.general },
           uiTheme: uiTheme,
+          customThemeOverrides: parsed.customThemeOverrides || {},
+          customThemes: parsed.customThemes || [],
         };
       } catch (e) {
         console.error("Failed to parse settings", e);
@@ -266,6 +290,26 @@ export function useSettings() {
     setSettings((prev) => ({ ...prev, uiTheme: theme }));
   };
 
+  const updateCustomThemeOverride = (
+    overrides: CustomThemeOverrides | undefined
+  ) => {
+    setSettings((prev) => ({ ...prev, customThemeOverrides: overrides }));
+  };
+
+  const addCustomTheme = (theme: CustomTheme) => {
+    setSettings((prev) => ({
+      ...prev,
+      customThemes: [...(prev.customThemes || []), theme],
+    }));
+  };
+
+  const removeCustomTheme = (id: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      customThemes: (prev.customThemes || []).filter((t) => t.id !== id),
+    }));
+  };
+
   return {
     settings,
     updateEditorSetting,
@@ -276,6 +320,9 @@ export function useSettings() {
     updateAccessibilitySetting,
     updateGeneralSetting,
     setUiTheme,
+    updateCustomThemeOverride,
+    addCustomTheme,
+    removeCustomTheme,
     resetSettings: () => setSettings(DEFAULT_SETTINGS),
   };
 }

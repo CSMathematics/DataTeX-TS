@@ -118,7 +118,7 @@ export const HeaderContent: React.FC<HeaderProps> = ({
       <Group gap={6} mr="lg" style={{ userSelect: "none" }}>
         <FontAwesomeIcon
           icon={faDatabase}
-          style={{ width: 18, height: 18, color: "#339af0" }}
+          style={{ width: 18, height: 18, color: "var(--app-accent-color)" }}
         />
         <Text fw={700} size="sm" c="dimmed">
           DataTex{" "}

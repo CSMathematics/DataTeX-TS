@@ -90,6 +90,12 @@ const resolver: CSSVariablesResolver = (theme) => ({
     "--app-status-bar-bg":
       theme.other?.statusBarBg || "var(--mantine-primary-color-filled)",
     "--app-panel-bg": theme.other?.panelBg || "var(--mantine-color-default)",
+    "--app-accent-color":
+      theme.other?.accentColor || "var(--mantine-primary-color-filled)",
+    "--app-accent-color-dimmed":
+      "color-mix(in srgb, var(--app-accent-color), transparent 90%)",
+    "--app-border-color":
+      theme.other?.borderColor || "var(--mantine-color-default-border)",
   },
   light: {},
   dark: {},
@@ -106,9 +112,16 @@ export default function App() {
     updateAccessibilitySetting,
     updateGeneralSetting,
     setUiTheme,
+    updateCustomThemeOverride,
+    addCustomTheme,
+    removeCustomTheme,
   } = useSettings();
 
-  const activeTheme = getTheme(settings.uiTheme);
+  const activeTheme = getTheme(
+    settings.uiTheme,
+    settings.customThemes,
+    settings.customThemeOverrides
+  );
 
   // --- PERFORMANCE OPTIMIZATION: Memoize settings to prevent EditorArea re-renders ---
   // This is crucial. Without this, every time App re-renders (e.g., cursor move),
@@ -820,6 +833,26 @@ export default function App() {
     [handleOpenFileNode]
   );
 
+  const handleOpenFileAtLine = useCallback(
+    (path: string, lineNumber: number) => {
+      // Open the file first
+      const node: FileSystemNode = {
+        id: path,
+        name: path.split(/[/\\]/).pop() || path,
+        type: "file",
+        path: path,
+        children: [],
+      };
+      handleOpenFileNode(node);
+
+      // Then scroll to the line after a short delay to ensure editor is ready
+      setTimeout(() => {
+        handleRevealLine(lineNumber);
+      }, 150);
+    },
+    [handleOpenFileNode, handleRevealLine]
+  );
+
   // --- Resize Logic moved to useAppPanelResize hook ---
 
   // --- DND Logic ---
@@ -1047,6 +1080,7 @@ export default function App() {
               height: "100vh",
               paddingTop: 35,
               paddingBottom: 24,
+              backgroundColor: "var(--app-bg)",
             }}
           >
             <Group gap={0} h="calc(100vh - 35px - 24px)" wrap="nowrap">
@@ -1063,6 +1097,7 @@ export default function App() {
                 onAddFolder={handleAddFolder}
                 onRemoveFolder={handleRemoveFolder}
                 onOpenFileNode={handleOpenFileNode}
+                onOpenFileAtLine={handleOpenFileAtLine}
                 onCreateItem={handleCreateItem}
                 onRenameItem={handleRenameItem}
                 onDeleteItem={handleDeleteItem}
@@ -1097,6 +1132,9 @@ export default function App() {
                     onUpdateAccessibility={updateAccessibilitySetting}
                     onUpdateGeneral={updateGeneralSetting}
                     onUpdateUi={setUiTheme}
+                    onUpdateCustomThemeOverride={updateCustomThemeOverride}
+                    onAddCustomTheme={addCustomTheme}
+                    onRemoveCustomTheme={removeCustomTheme}
                   />
                 ) : activeView === "wizard-preamble" ? (
                   <WizardWrapper

@@ -40,7 +40,7 @@ export const SymbolSidebar = React.memo<SymbolSidebarProps>(
         w={40}
         h="100%"
         gap={0}
-        bg="var(--mantine-color-body)"
+        bg="var(--app-sidebar-bg)"
         align="center"
         style={{
           borderRight: "1px solid var(--mantine-color-default-border)",
@@ -61,11 +61,11 @@ export const SymbolSidebar = React.memo<SymbolSidebarProps>(
                 justifyContent: "center",
                 backgroundColor:
                   activeCategory === cat.id
-                    ? "var(--mantine-color-default-hover)"
+                    ? "var(--app-accent-color-dimmed)"
                     : "transparent",
                 color:
                   activeCategory === cat.id
-                    ? "var(--mantine-color-blue-4)"
+                    ? "var(--app-accent-color)"
                     : "var(--mantine-color-gray-5)",
                 transition: "background-color 0.2s, color 0.2s",
               }}

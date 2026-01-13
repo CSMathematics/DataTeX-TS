@@ -243,6 +243,16 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
     [onOpenFile, selectResource]
   );
 
+  const getAccentColor = useCallback(() => {
+    // Custom accent color override
+    if (theme.other?.accentColor) {
+      return theme.other.accentColor;
+    }
+    // Fallback to primary color
+    const primary = theme.primaryColor;
+    return theme.colors[primary]?.[6] || theme.colors.blue[6];
+  }, [theme]);
+
   const getNodeColor = (kind: string) => {
     switch (kind.toLowerCase()) {
       case "preamble":
@@ -636,13 +646,14 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
             }
 
             // Fill with opacity
+            const accentColor = getAccentColor();
             ctx.globalAlpha = (isActive ? 0.8 : 0.5) * opacity;
-            ctx.fillStyle = isActive ? theme.colors.yellow[9] : color; // Highlight background if active
+            ctx.fillStyle = isActive ? accentColor : color; // Highlight background if active
             ctx.fill();
 
             // Border with full opacity
             ctx.globalAlpha = 1.0 * opacity;
-            ctx.strokeStyle = isActive ? theme.colors.yellow[4] : color;
+            ctx.strokeStyle = isActive ? accentColor : color;
             ctx.lineWidth = (isActive ? 3 : 1.5) / globalScale; // Thicker border if active
             ctx.stroke();
 

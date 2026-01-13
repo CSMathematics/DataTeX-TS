@@ -509,7 +509,7 @@ export const DatabaseSidebar = ({
                       style={{
                         borderRadius: 4,
                         backgroundColor: isLoaded
-                          ? "rgba(64, 192, 87, 0.1)"
+                          ? "var(--app-accent-color-dimmed)"
                           : "transparent",
                         transition: "background-color 0.15s ease",
                         paddingRight: 4,
@@ -539,7 +539,9 @@ export const DatabaseSidebar = ({
                           style={{
                             width: 14,
                             height: 14,
-                            color: isLoaded ? "#40c057" : "#868e96",
+                            color: isLoaded
+                              ? "var(--app-accent-color)"
+                              : "#868e96",
                             transition: "color 0.15s ease",
                           }}
                         />

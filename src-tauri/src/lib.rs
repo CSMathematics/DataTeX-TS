@@ -9,6 +9,7 @@ use walkdir::WalkDir; // For typed metadata queries
 mod compiler;
 mod database;
 mod lsp;
+mod search;
 
 // Legacy rusqlite modules - kept for future typed metadata implementation
 mod graph_processor;
@@ -570,6 +571,83 @@ async fn get_all_dependencies_cmd(
     let db = db_guard.as_ref().ok_or("Database not initialized")?;
 
     db.get_all_dependencies().await
+}
+
+// ===== Search Command =====
+
+#[tauri::command]
+async fn search_database_files(
+    query: String,
+    case_sensitive: bool,
+    use_regex: bool,
+    file_types: Vec<String>,
+    collections: Vec<String>,
+    max_results: usize,
+    state: State<'_, AppState>,
+) -> Result<search::SearchResult, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    // Get resources from the specified collections
+    let resources = if collections.is_empty() {
+        // If no collections specified, search all
+        let all_collections = db.get_collections().await?;
+        let collection_names: Vec<String> =
+            all_collections.iter().map(|c| c.name.clone()).collect();
+        db.get_resources_by_collections(&collection_names).await?
+    } else {
+        db.get_resources_by_collections(&collections).await?
+    };
+
+    // Build search query
+    let search_query = search::SearchQuery {
+        text: query,
+        case_sensitive,
+        use_regex,
+        file_types,
+        max_results,
+    };
+
+    // Perform search
+    search::search_in_files(&search_query, resources)
+}
+
+#[tauri::command]
+async fn replace_database_files(
+    query: String,
+    replace_with: String,
+    case_sensitive: bool,
+    use_regex: bool,
+    file_types: Vec<String>,
+    collections: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<search::ReplaceResult, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    // Get resources from the specified collections
+    let resources = if collections.is_empty() {
+        // If no collections specified, search all
+        let all_collections = db.get_collections().await?;
+        let collection_names: Vec<String> =
+            all_collections.iter().map(|c| c.name.clone()).collect();
+        db.get_resources_by_collections(&collection_names).await?
+    } else {
+        db.get_resources_by_collections(&collections).await?
+    };
+
+    let replace_query = search::ReplaceQuery {
+        search: search::SearchQuery {
+            text: query,
+            case_sensitive,
+            use_regex,
+            file_types,
+            max_results: usize::MAX, // Replace typically processes all matches
+        },
+        replace_with,
+    };
+
+    search::replace_in_files(&replace_query, resources)
 }
 
 // ===== LSP Commands =====
@@ -3823,6 +3901,8 @@ pub fn run() {
             create_preamble_type_cmd,
             rename_preamble_type_cmd,
             delete_preamble_type_cmd,
+            search_database_files,
+            replace_database_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

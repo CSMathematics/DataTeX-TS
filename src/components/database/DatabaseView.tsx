@@ -732,7 +732,7 @@ export const DatabaseView = React.memo(
                           onClick={() => handleRowClick(row.id, row.path)}
                           bg={
                             isSelected
-                              ? "var(--mantine-primary-color-light)"
+                              ? "var(--app-accent-color-dimmed)"
                               : undefined
                           }
                           style={{ cursor: "pointer" }}

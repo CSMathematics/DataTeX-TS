@@ -40,6 +40,8 @@ import {
   DatabaseSettings as IDatabaseSettings,
   AccessibilitySettings as IAccessibilitySettings,
   GeneralSettings as IGeneralSettings,
+  CustomThemeOverrides,
+  CustomTheme,
 } from "../../hooks/useSettings";
 
 type SettingsCategory =
@@ -86,6 +88,11 @@ interface SettingsPanelProps {
     value: IGeneralSettings[K]
   ) => void;
   onUpdateUi: (theme: string) => void;
+  onUpdateCustomThemeOverride: (
+    overrides: CustomThemeOverrides | undefined
+  ) => void;
+  onAddCustomTheme: (theme: CustomTheme) => void;
+  onRemoveCustomTheme: (id: string) => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -99,6 +106,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onUpdateAccessibility,
   onUpdateGeneral,
   onUpdateUi,
+  onUpdateCustomThemeOverride,
+  onAddCustomTheme,
+  onRemoveCustomTheme,
 }) => {
   const [activeCategory, setActiveCategory] =
     useState<SettingsCategory>(initialCategory);
@@ -239,7 +249,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       case "shortcuts":
         return <KeyboardShortcutsSettings />;
       case "theme":
-        return <ThemeSettings settings={settings} onUpdateUi={onUpdateUi} />;
+        return (
+          <ThemeSettings
+            settings={settings}
+            onUpdateUi={onUpdateUi}
+            onUpdateCustomThemeOverride={onUpdateCustomThemeOverride}
+            onAddCustomTheme={onAddCustomTheme}
+            onRemoveCustomTheme={onRemoveCustomTheme}
+          />
+        );
       default:
         return (
           <GeneralSettings

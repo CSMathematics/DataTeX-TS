@@ -105,7 +105,7 @@ const getFileIcon = (name: string, type: string) => {
     return (
       <FontAwesomeIcon
         icon={faHome}
-        style={{ width: 14, height: 14, color: "#1f8ee9ff" }}
+        style={{ width: 14, height: 14, color: "var(--app-accent-color)" }}
       />
     );
   const ext = name.split(".").pop()?.toLowerCase();
@@ -203,7 +203,7 @@ const TabItem = React.memo(
             style={{
               borderTop:
                 file.id === activeFileId
-                  ? "2px solid #339af0"
+                  ? "2px solid var(--app-accent-color)"
                   : "2px solid transparent",
               borderRight: "1px solid var(--mantine-color-default-border)",
               borderTopRightRadius: 1,

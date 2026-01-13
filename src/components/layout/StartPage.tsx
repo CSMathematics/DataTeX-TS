@@ -12,6 +12,7 @@ import {
   ScrollArea,
   Box,
   Badge,
+  useComputedColorScheme,
 } from "@mantine/core";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -49,6 +50,10 @@ export const StartPage: React.FC<StartPageProps> = ({
   onOpenPackageBrowser,
   onOpenTemplateModal,
 }) => {
+  const colorScheme = useComputedColorScheme("dark", {
+    getInitialValueInEffect: true,
+  });
+
   const ActionCard = ({ icon, color, title, description, onClick }: any) => (
     <UnstyledButton onClick={onClick} style={{ width: "100%" }}>
       <Card
@@ -122,7 +127,7 @@ export const StartPage: React.FC<StartPageProps> = ({
   );
 
   return (
-    <ScrollArea h="100%" bg="var(--mantine-color-body)">
+    <ScrollArea h="100%" bg="var(--app-bg)">
       <Container size="xl" py={50}>
         <Stack gap={40}>
           {/* Hero Section */}
@@ -140,7 +145,13 @@ export const StartPage: React.FC<StartPageProps> = ({
                   <img
                     src="./DatatexLogo.svg"
                     alt="DataTex Logo"
-                    style={{ width: "100%", height: 200, opacity: 0.2 }}
+                    style={{
+                      width: "100%",
+                      height: 200,
+                      opacity: colorScheme === "dark" ? 0.4 : 0.8,
+                      filter: colorScheme === "dark" ? "none" : "invert(1)",
+                      transition: "filter 0.3s ease, opacity 0.3s ease",
+                    }}
                   />
                   <UnstyledButton
                     onClick={() =>

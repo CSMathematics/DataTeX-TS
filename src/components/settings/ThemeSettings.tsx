@@ -1,16 +1,44 @@
 import React from "react";
-import { Stack, Title, Text, Select } from "@mantine/core";
-import { AppSettings } from "../../hooks/useSettings";
+import { ActionIcon, Group, Select, Stack, Text, Title } from "@mantine/core";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faTrash } from "@fortawesome/free-solid-svg-icons";
+import {
+  AppSettings,
+  CustomTheme,
+  CustomThemeOverrides,
+} from "../../hooks/useSettings";
+import { AdvancedThemeEditor } from "./AdvancedThemeEditor";
 
 interface ThemeSettingsProps {
   settings: AppSettings;
   onUpdateUi: (theme: string) => void;
+  onUpdateCustomThemeOverride: (
+    overrides: CustomThemeOverrides | undefined
+  ) => void;
+  onAddCustomTheme: (theme: CustomTheme) => void;
+  onRemoveCustomTheme: (id: string) => void;
 }
 
 export const ThemeSettings: React.FC<ThemeSettingsProps> = ({
   settings,
   onUpdateUi,
+  onUpdateCustomThemeOverride,
+  onAddCustomTheme,
+  onRemoveCustomTheme,
 }) => {
+  const customThemeItems = (settings.customThemes || []).map((t) => ({
+    value: t.id,
+    label: t.label,
+  }));
+
+  const handleDeleteTheme = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    onRemoveCustomTheme(id);
+    if (settings.uiTheme === id) {
+      onUpdateUi("dark-blue");
+    }
+  };
+
   return (
     <Stack gap="md" maw={600}>
       <Title order={4}>Theme Settings</Title>
@@ -22,6 +50,10 @@ export const ThemeSettings: React.FC<ThemeSettingsProps> = ({
         label="UI Theme"
         description="Color theme for the application interface."
         data={[
+          {
+            group: "Custom",
+            items: customThemeItems,
+          },
           {
             group: "Light",
             items: [
@@ -42,6 +74,32 @@ export const ThemeSettings: React.FC<ThemeSettingsProps> = ({
         ]}
         value={settings.uiTheme}
         onChange={(val) => val && onUpdateUi(val)}
+        renderOption={({ option }) => {
+          const isCustom = settings.customThemes?.some(
+            (t) => t.id === option.value
+          );
+          return (
+            <Group flex="1" justify="space-between" wrap="nowrap">
+              <Text size="sm">{option.label}</Text>
+              {isCustom && (
+                <ActionIcon
+                  size="sm"
+                  color="red"
+                  variant="subtle"
+                  onMouseDown={(e) => handleDeleteTheme(e, option.value)}
+                >
+                  <FontAwesomeIcon icon={faTrash} style={{ width: 12 }} />
+                </ActionIcon>
+              )}
+            </Group>
+          );
+        }}
+      />
+
+      <AdvancedThemeEditor
+        settings={settings}
+        onUpdateOverride={onUpdateCustomThemeOverride}
+        onSaveTheme={onAddCustomTheme}
       />
     </Stack>
   );

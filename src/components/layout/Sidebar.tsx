@@ -35,6 +35,7 @@ import { SymbolPanel } from "./SymbolPanel";
 import { SymbolCategory } from "../wizards/preamble/SymbolDB";
 import { PACKAGES_DB, Category } from "../wizards/preamble/packages";
 import { DatabaseSidebar } from "../database/DatabaseSidebar";
+import { SearchPanel } from "../search/SearchPanel";
 
 // --- Types ---
 export type SidebarSection =
@@ -88,6 +89,7 @@ interface SidebarProps {
   onAddFolder?: () => void;
   onRemoveFolder?: (path: string) => void;
   onOpenFileNode: (node: FileSystemNode) => void;
+  onOpenFileAtLine?: (path: string, lineNumber: number) => void;
 
   onCreateItem?: (
     name: string,
@@ -217,6 +219,7 @@ export const Sidebar = React.memo<SidebarProps>(
     onOpenFolder,
     onRemoveFolder,
     onOpenFileNode,
+    onOpenFileAtLine,
     onCreateItem,
     onRenameItem,
     onDeleteItem,
@@ -470,6 +473,25 @@ export const Sidebar = React.memo<SidebarProps>(
                     onRenameItem={onRenameItem}
                     onDeleteItem={onDeleteItem}
                     onNavigate={(view) => onNavigate(view as ViewType)}
+                  />
+                )}
+                {activeSection === "search" && (
+                  <SearchPanel
+                    onOpenFile={(path, lineNumber) => {
+                      if (onOpenFileAtLine) {
+                        onOpenFileAtLine(path, lineNumber);
+                      } else {
+                        // Fallback to normal file opening
+                        const node: FileSystemNode = {
+                          id: path,
+                          name: path.split(/[/\\]/).pop() || path,
+                          type: "file",
+                          path,
+                          children: [],
+                        };
+                        onOpenFileNode(node);
+                      }
+                    }}
                   />
                 )}
                 {activeSection === "gallery" && (
