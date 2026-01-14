@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS bibliography (
     citation_key TEXT PRIMARY KEY NOT NULL,
     entry_type TEXT NOT NULL, -- 'book', 'article', etc.
     data JSON NOT NULL, -- All fields: author, year, publisher, etc.
-    collection TEXT, -- Optional: if user wants to categorize bib entries, otherwise 'General'
+    collection TEXT, -- Optional
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(collection) REFERENCES collections(name) ON DELETE SET NULL

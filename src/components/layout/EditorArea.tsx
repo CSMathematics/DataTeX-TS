@@ -448,11 +448,8 @@ export const EditorArea = React.memo<EditorAreaProps>(
       }
     }, [editorInstance, editorSettings]);
 
-    // Handle Spell Check (Naive implementation via DOM)
+    // Enable spellcheck on Monaco's hidden textarea.
     React.useEffect(() => {
-      // Monaco renders lines in "view-lines" class.
-      // We can try to set spellcheck on the textarea or the contenteditable div if available.
-      // Monaco uses a hidden textarea for input.
       if (editorInstance) {
         const domNode = editorInstance.getDomNode();
         if (domNode) {
@@ -464,8 +461,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
               spellCheckEnabled ? "true" : "false"
             );
           }
-          // Also try the main container, though Monaco's custom rendering might ignore it.
-          // However, this signals "intent" and is the standard way to try to enable browser spellcheck in editors.
+          // Attempt to enable spellcheck on the container as well.
         }
       }
     }, [editorInstance, spellCheckEnabled]);

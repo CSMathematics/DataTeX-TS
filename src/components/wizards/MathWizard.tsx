@@ -350,12 +350,6 @@ export const MathWizard: React.FC<MathWizardProps> = ({
           ? `\\renewtagform{${tagName}}[${tagFormat}]{${tagLeft}}{${tagRight}}`
           : ""
       }`;
-      // Note: renewtagform is actually used to format, newtagform just defines delimiters.
-      // Let's stick to standard newtagform. If format provided, standard latex doesn't integrate seamlessly in one cmd?
-      // Mathtools: \newtagform{name}[inner_format]{left}{right} is NOT standard.
-      // Syntax: \newtagform{name}{inner_left}{inner_right}.
-      // To format: \usetagform{name}.
-      // Wait, mathtools manual: \newtagform{name}[format]{left}{right}. Yes optional format exists.
       let out = `\\newtagform{${tagName}}`;
       if (tagFormat) out += `[${tagFormat}]`;
       out += `{${tagLeft}}{${tagRight}}`;

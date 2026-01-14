@@ -132,8 +132,6 @@ pub fn build_file_tree(resources: Vec<Resource>) -> Vec<TreeNode> {
             let id = if is_file {
                 r.id.clone()
             } else {
-                // Deterministic ID for folders based on path hash could be better, but we use random for now or path string?
-                // Using path as ID is actually good for folders.
                 format!("{}-{}", collection_name, my_path)
             };
 

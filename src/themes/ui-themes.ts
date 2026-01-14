@@ -231,19 +231,7 @@ export const THEMES: Record<string, UITheme> = {
   "dark-nord": darkNord,
 };
 
-// Simple color generation utility to avoid extra dependencies
-// Returns a 10-shade palette based on a single color (naive implementation or approximation)
-// In a real app, use @mantine/colors-generator or similar
 const generateColorPalette = (hex: string): MantineColorsTuple => {
-  // Return the same color for all shades as a fallback/ MVP
-  // or use a simple loop to lighten/darken.
-  // For a reliable "WOW" effect, this should ideally be better,
-  // but to fix the crash immediately, we populate the tuple.
-  // A simple hack: use the hex as the middle value (6) and generating others is complex without a library.
-  // We will map all to the hex to prevent crash, but hover effects might be flat.
-  // Better: import { generateColors } from '@mantine/colors-generator'; if available.
-  // Checking package.json... it wasn't listed.
-  // Let's implement active logic if possible.
   return [hex, hex, hex, hex, hex, hex, hex, hex, hex, hex];
 };
 

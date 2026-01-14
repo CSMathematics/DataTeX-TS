@@ -262,10 +262,6 @@ fn replace_in_single_file(file_path: &str, query: &ReplaceQuery) -> Result<(bool
             if replaced != line {
                 replacements += line.match_indices(&query.search.text).count(); // Approximate count for regex
                 if query.search.use_regex {
-                    // Recalculate accurate replacement count for regex if needed, strictly speaking
-                    // replace_all returns Cow, we check if it is borrowed or owned.
-                    // But here we simply increment if line changed.
-                    // For exact count, we can count matches before replace.
                     replacements = regex_pattern.find_iter(&line).count();
                 }
                 new_lines.push(replaced.to_string());

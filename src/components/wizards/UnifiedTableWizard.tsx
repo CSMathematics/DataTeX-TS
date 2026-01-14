@@ -382,20 +382,7 @@ export const UnifiedTableWizard: React.FC<UnifiedTableWizardProps> = ({
         }
 
         lineCells.push(cellContent);
-
-        // If colSpan > 1, push empty cells for the skipped columns to maintain alignment?
-        // No, \multicolumn replaces N cells.
-        // But for our loop, we need to know we skipped them.
       });
-
-      // WAIT. My grid traversal above is `row.forEach`.
-      // If I use `cell.hidden` check, I only visit the visible ones.
-      // But standard latex expects `&` for every column unless multicolumn is used.
-      // E.g. 3 cols. Cell 1 spans 2. We need: `\multicolumn{2}{c}{...} & Cell 3 \\`
-      // My loop visits Cell 1 (visible), Cell 2 (hidden), Cell 3 (visible).
-      // So if I skip hidden, I get: `\multicolumn... & Cell 3`. Correct.
-      // Logic holds.
-
       code += `  ${lineCells.join(" & ")} \\\\\n`;
 
       if (isBooktabs) {

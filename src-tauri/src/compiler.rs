@@ -18,26 +18,25 @@ fn is_allowed_engine(engine: &str) -> bool {
     allowed_engines.contains(&name.as_str())
 }
 
-// Βοηθητική συνάρτηση για να προσθέσουμε τα κοινά μονοπάτια του LaTeX
+// Helper to add common LaTeX paths.
 fn get_augmented_path() -> String {
     let current_path = env::var("PATH").unwrap_or_default();
     let delimiter = if cfg!(windows) { ";" } else { ":" };
 
-    // Λίστα με πιθανά paths όπου κρύβεται το LaTeX
+    // List of potential LaTeX bin paths.
     let common_paths = if cfg!(target_os = "macos") {
         vec!["/Library/TeX/texbin", "/usr/local/bin", "/opt/homebrew/bin"]
     } else if cfg!(target_os = "linux") {
         vec!["/usr/bin", "/usr/local/bin", "/usr/texbin"]
     } else {
-        // Στα Windows συνήθως το PATH είναι σωστό, αλλά μπορούμε να προσθέσουμε αν χρειαστεί
         vec![]
     };
 
-    // Φτιάχνουμε το νέο PATH: "OLD_PATH:/Library/TeX/texbin:/usr/local/bin"
+    // Construct new PATH.
     let mut new_path = current_path;
     for p in common_paths {
         if !new_path.contains(p) {
-            // Απλή ρηχή επιβεβαίωση
+            // Simple validation.
             new_path.push_str(delimiter);
             new_path.push_str(p);
         }
@@ -74,13 +73,7 @@ fn run_command_generic(
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     } else {
-        // Some commands like synctex might return non-zero but still have useful output?
-        // Or if it fails we return error.
-        // Synctex view returns 0 on success.
         let stderr = String::from_utf8_lossy(&output.stderr);
-        // Sometimes stdout has the info even on "failure" or specialized exit codes.
-        // But let's assume standard behavior.
-        // Actually texcount returns 0.
         Err(format!(
             "Command failed: {}\nStderr: {}",
             String::from_utf8_lossy(&output.stdout),
@@ -117,11 +110,9 @@ pub fn compile(
     let mut cmd = Command::new(engine);
     cmd.current_dir(parent_dir);
 
-    // --- ΒΕΛΤΙΩΣΗ: Προσθήκη Paths ---
-    // Ενημερώνουμε το περιβάλλον της εντολής με το ενισχυμένο PATH
+    // Inject augmented PATH.
     let new_path_env = get_augmented_path();
     cmd.env("PATH", &new_path_env);
-    // -------------------------------
 
     // Add arguments
     for arg in args {
@@ -130,17 +121,13 @@ pub fn compile(
 
     // Handle output directory
     if !output_dir.is_empty() {
-        // Σημείωση: Αν χρησιμοποιείς latexmk ή xelatex, το flag για output directory
-        // ίσως διαφέρει (π.χ. -output-directory vs -outdir).
-        // Εδώ υποθέτουμε ότι τα args τα έχεις περάσει σωστά από το frontend.
-        // Αν θες να το χειρίζεσαι εδώ, πρέπει να προσθέσεις cmd.arg(format!("-output-directory={}", output_dir));
+        // Note: Output directory args should be handled by the caller/args.
     }
 
     // Always add the filename last
     cmd.arg(file_name);
 
-    // 4. Execute
-    // Χρησιμοποιούμε map_err για να πιάσουμε το λάθος αν ΔΕΝ βρεθεί καν η εντολή
+    // Execute command with enhanced error mapping.
     let output = cmd.output().map_err(|e| {
         format!(
             "Failed to execute command '{}'. \nSystem Error: {} \nDebug Path: {}",

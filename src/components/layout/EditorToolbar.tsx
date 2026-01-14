@@ -539,16 +539,6 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
       // This is correct behavior for very narrow screens.
     }
   } else {
-    // If not measured yet, render NOTHING (visibleCount = 0).
-    // The "More" button logic below checks hiddenGroups.length > 0.
-    // If visibleCount = 0, hiddenGroups = all. "More" button would show ALL items.
-    // This causes a flicker of "Just a menu button" before layout.
-    // To avoid this, we can set visibleCount to toolbarGroups.length (Show All) initially,
-    // but that causes "All items flash then collapse".
-    // A cleaner approach is to render NOTHING visible until measured.
-    // But 'hiddenGroups' would be ALL.
-    // Let's force visibleCount = length (All Visible) if !measurementsDone,
-    // AND ensure 'hiddenGroups' is empty so "More" doesn't show.
     if (!measurementsDone) {
       visibleCount = toolbarGroups.length;
     }

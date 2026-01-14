@@ -14,7 +14,7 @@ import {
   ScrollArea,
   Divider,
   TextInput,
-  Menu,
+  Tooltip,
 } from "@mantine/core";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -26,7 +26,10 @@ import {
   faWandMagicSparkles,
   faTable,
   faPenNib,
-  faEllipsisVertical, // New Icon
+  // faEllipsisVertical REMOVED
+  faFileCirclePlus,
+  faFolderPlus,
+  faFolderOpen,
 } from "@fortawesome/free-solid-svg-icons";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import { useProjectStore } from "../../stores/projectStore";
@@ -42,6 +45,7 @@ import {
   TreeSearchInput,
   useTreeState,
   ToolbarAction,
+  InlineInput,
 } from "../shared/tree";
 import { FileSystemNode } from "../layout/Sidebar";
 
@@ -90,6 +94,7 @@ export const DatabaseSidebar = ({
   );
   const isLoading = useDatabaseStore((state) => state.isLoading);
   const importFolder = useDatabaseStore((state) => state.importFolder);
+  const importFile = useDatabaseStore((state) => state.importFile);
   const deleteCollection = useDatabaseStore((state) => state.deleteCollection);
   const allLoadedResources = useDatabaseStore(
     (state) => state.allLoadedResources
@@ -175,11 +180,6 @@ export const DatabaseSidebar = ({
       if (selected && typeof selected === "string") {
         const separator = selected.includes("\\") ? "\\" : "/";
         const name = selected.split(separator).pop() || "Imported";
-        // Default to importing as a new collection if adding folder logic isn't used here.
-        // But wait, the user wants "Import Folder" to be "Add Folder to Collection" contextually?
-        // The previous "Import Folder" button creates a new collection.
-        // We will keep createCollection logic separate.
-        // For now, this global import creates a new collection.
         await importFolder(selected, name);
       }
     } catch (e) {
@@ -246,24 +246,207 @@ export const DatabaseSidebar = ({
     };
   }, [loadedCollections, allLoadedResources.length]); // Re-fetch when collections change or resources count changes (e.g. added file)
 
+  const [creatingCollectionItem, setCreatingCollectionItem] = useState<{
+    type: "file" | "folder";
+    parentId: string; // collection ID or collection Node ID
+    parentPath: string;
+  } | null>(null);
+
+  // Focus state for visual selection (files AND folders)
+  const [focusedPath, setFocusedPath] = useState<string | null>(null);
+
+  // Sync activeResource to focusedPath when it changes externally
+  useEffect(() => {
+    if (activeResourceId) {
+      const resource = allLoadedResources.find(
+        (r) => r.id === activeResourceId
+      );
+      if (resource) {
+        setFocusedPath(resource.path);
+      }
+    }
+  }, [activeResourceId, allLoadedResources]);
+
+  // Helper: Find a node by path in the tree
+  const findNodeByPath = useCallback(
+    (nodes: TreeNode[], path: string): TreeNode | null => {
+      for (const node of nodes) {
+        if (node.path === path) return node;
+        if (node.children) {
+          const found = findNodeByPath(node.children, path);
+          if (found) return found;
+        }
+      }
+      return null;
+    },
+    []
+  );
+
+  const handleStartCreation = useCallback(
+    (collectionName: string, type: "file" | "folder") => {
+      // Find collection root node
+      const collectionNode = fileTree.find((n) => n.name === collectionName);
+      if (!collectionNode) return;
+
+      let targetNode = collectionNode;
+
+      // Check if we have a focused path (file or folder) that belongs to this collection
+      if (focusedPath) {
+        // Verify the focused path belongs to this collection tree
+        const targetInCollection = findNodeByPath(
+          [collectionNode],
+          focusedPath
+        );
+
+        if (targetInCollection) {
+          const selectedNode = targetInCollection;
+          if (selectedNode.type === "folder") {
+            targetNode = selectedNode;
+          } else {
+            // If selected item is file, find its parent
+            const findParent = (
+              paramsNodes: TreeNode[],
+              targetPath: string
+            ): TreeNode | null => {
+              for (const node of paramsNodes) {
+                if (node.children) {
+                  if (node.children.some((c) => c.path === targetPath))
+                    return node;
+                  const found = findParent(node.children, targetPath);
+                  if (found) return found;
+                }
+              }
+              return null;
+            };
+
+            const parent = findParent([collectionNode], focusedPath);
+            if (parent) targetNode = parent;
+          }
+        }
+      }
+
+      // Delay setting state to allow Menu to close and restore focus
+      // otherwise default restoreFocus will blur the input immediately
+      setTimeout(() => {
+        setCreatingCollectionItem({
+          type,
+          parentId: targetNode.id,
+          parentPath: targetNode.path,
+        });
+      }, 100);
+    },
+    [fileTree, activeResourceId, allLoadedResources, findNodeByPath]
+  );
+
+  const handleCommitCreation = useCallback(
+    (name: string, type: "file" | "folder", parentPath: string) => {
+      if (!onCreateItem) return;
+      onCreateItem(name, type, parentPath);
+      setCreatingCollectionItem(null);
+    },
+    [onCreateItem]
+  );
+
+  const handleImportFileToCollection = useCallback(
+    async (collectionName: string) => {
+      try {
+        const selected = await open({
+          multiple: false,
+          title: `Import File to ${collectionName}`,
+        });
+        if (selected && typeof selected === "string") {
+          await importFile(selected, collectionName);
+        }
+      } catch (e) {
+        console.error("Import file failed", e);
+      }
+    },
+    [importFile]
+  );
+
+  // --- Folder click handler ---
+  const handleFolderClick = useCallback((node: TreeNode) => {
+    setFocusedPath(node.path);
+  }, []);
+
   // --- File click handler ---
   const handleFileClick = useCallback(
     (node: TreeNode) => {
+      // Visual select
+      setFocusedPath(node.path);
+
       const resource = allLoadedResources.find((r) => r.path === node.path);
       if (resource) {
         selectResource(resource.id);
       }
+      if (onOpenFileNode) {
+        onOpenFileNode(node as FileSystemNode);
+      }
     },
-    [allLoadedResources, selectResource]
+    [allLoadedResources, selectResource, onOpenFileNode]
   );
 
   // --- Selected path for highlighting ---
-  const selectedPath = useMemo(() => {
-    const activeResource = allLoadedResources.find(
-      (r) => r.id === activeResourceId
-    );
-    return activeResource?.path || null;
-  }, [allLoadedResources, activeResourceId]);
+  // We now use focusedPath directly for visual highlighting
+  const selectedPath = focusedPath;
+
+  // --- Active Context Folder (for highlighting target folder) ---
+  const activeContextPath = useMemo(() => {
+    if (!focusedPath) return null;
+
+    // Helper to find node by path
+    const findNode = (nodes: TreeNode[], path: string): TreeNode | null => {
+      for (const node of nodes) {
+        if (node.path === path) return node;
+        if (node.children) {
+          const found = findNode(node.children, path);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    // Helper to find parent
+    const findParent = (
+      paramsNodes: TreeNode[],
+      targetPath: string
+    ): TreeNode | null => {
+      for (const node of paramsNodes) {
+        if (node.children) {
+          if (node.children.some((c) => c.path === targetPath)) return node;
+          const found = findParent(node.children, targetPath);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    // Need to search across all collections
+    let targetNode: TreeNode | null = null;
+    let collectionRoot: TreeNode | null = null;
+
+    for (const col of fileTree) {
+      const found = findNode([col], focusedPath);
+      if (found) {
+        targetNode = found;
+        collectionRoot = col;
+        break;
+      }
+    }
+
+    if (targetNode && collectionRoot) {
+      if (targetNode.type === "folder" || targetNode.isRoot) {
+        return targetNode.path;
+      } else {
+        const parent = findParent([collectionRoot], focusedPath);
+        return parent ? parent.path : collectionRoot.path;
+      }
+    }
+
+    // Fallback: Check resources if focusedPath matches a known resource path roughly?
+    // Previously we used activeResourceId. Now we center on path.
+    return null;
+  }, [focusedPath, fileTree]);
 
   // --- Tree item config (enables context menu for file operations) ---
   const treeConfig: TreeItemConfig = useMemo(
@@ -301,10 +484,7 @@ export const DatabaseSidebar = ({
       },
       {
         icon: faPlus,
-        tooltip: "Create Collection", // Changed from "Import Folder" to "Create Collection" (Import is now adding folder)
-        // Wait, user still wants "Import Folder" as quick access?
-        // Plan said: "Create Empty Collection" button will be added.
-        // "Import Folder" button will continue to function...
+        tooltip: "Create Collection",
         onClick: () => setCreateModalOpen(true), // New button for Empty Collection
       },
       {
@@ -312,14 +492,6 @@ export const DatabaseSidebar = ({
         // Or maybe separate "New Collection" (faDatabase + plus) vs "Import Folder" (faFolder + plus)
         tooltip: "Import Folder as Collection",
         onClick: handleImport,
-      },
-
-      {
-        icon: faFolder,
-        tooltip: "Project Folders",
-        onClick: () => setActiveView("projects"),
-        variant: "subtle" as const,
-        color: "orange",
       },
     ],
     [fetchCollections, handleImport, loadedCollections.length]
@@ -330,7 +502,7 @@ export const DatabaseSidebar = ({
     activeView === "collections" ? "Collections" : "Project Folders";
   const currentActions =
     activeView === "collections" ? collectionsToolbarActions : [];
-  const showExpandToggle = activeView !== "collections";
+  const showExpandToggle = true;
 
   return (
     <Stack p="xs" gap="xs" h="100%" style={{ overflow: "hidden" }}>
@@ -556,56 +728,120 @@ export const DatabaseSidebar = ({
                         </Text>
                       </UnstyledButton>
 
-                      <Menu shadow="md" width={200} position="bottom-end">
-                        <Menu.Target>
+                      <Group
+                        gap={0}
+                        style={{
+                          opacity: hoveredCollection === col.name ? 1 : 0,
+                          transition: "opacity 0.2s",
+                          paddingRight: 4,
+                        }}
+                      >
+                        <Tooltip
+                          label="New File"
+                          withArrow
+                          position="top"
+                          openDelay={500}
+                        >
                           <ActionIcon
-                            size="sm"
+                            size="xs"
                             variant="subtle"
                             color="gray"
-                            style={{
-                              opacity: hoveredCollection === col.name ? 1 : 0,
-                              transition: "opacity 0.2s",
-                            }}
+                            onClick={() =>
+                              handleStartCreation(col.name, "file")
+                            }
                           >
                             <FontAwesomeIcon
-                              icon={faEllipsisVertical}
-                              style={{ width: 14, height: 14 }}
+                              icon={faFileCirclePlus}
+                              style={{ width: 12, height: 12 }}
                             />
                           </ActionIcon>
-                        </Menu.Target>
+                        </Tooltip>
 
-                        <Menu.Dropdown>
-                          <Menu.Label>Collection Options</Menu.Label>
-                          <Menu.Item
-                            leftSection={
-                              <FontAwesomeIcon
-                                icon={faPlus}
-                                style={{ width: 14 }}
-                              />
+                        <Tooltip
+                          label="Import File"
+                          withArrow
+                          position="top"
+                          openDelay={500}
+                        >
+                          <ActionIcon
+                            size="xs"
+                            variant="subtle"
+                            color="gray"
+                            onClick={() =>
+                              handleImportFileToCollection(col.name)
                             }
+                          >
+                            <FontAwesomeIcon
+                              icon={faPlus}
+                              style={{ width: 12, height: 12 }}
+                            />
+                          </ActionIcon>
+                        </Tooltip>
+
+                        <Tooltip
+                          label="New Folder"
+                          withArrow
+                          position="top"
+                          openDelay={500}
+                        >
+                          <ActionIcon
+                            size="xs"
+                            variant="subtle"
+                            color="gray"
+                            onClick={() =>
+                              handleStartCreation(col.name, "folder")
+                            }
+                          >
+                            <FontAwesomeIcon
+                              icon={faFolderPlus}
+                              style={{ width: 12, height: 12 }}
+                            />
+                          </ActionIcon>
+                        </Tooltip>
+
+                        <Tooltip
+                          label="Add Existing Folder"
+                          withArrow
+                          position="top"
+                          openDelay={500}
+                        >
+                          <ActionIcon
+                            size="xs"
+                            variant="subtle"
+                            color="gray"
                             onClick={() =>
                               handleAddFolderToCollection(col.name)
                             }
                           >
-                            Add Folder...
-                          </Menu.Item>
-                          <Divider my={4} />
-                          <Menu.Item
+                            <FontAwesomeIcon
+                              icon={faFolderOpen}
+                              style={{ width: 12, height: 12 }}
+                            />
+                          </ActionIcon>
+                        </Tooltip>
+
+                        <Tooltip
+                          label="Delete Collection"
+                          withArrow
+                          position="top"
+                          color="red"
+                          openDelay={500}
+                        >
+                          <ActionIcon
+                            size="xs"
+                            variant="subtle"
                             color="red"
-                            leftSection={
-                              <FontAwesomeIcon
-                                icon={faTrash}
-                                style={{ width: 14 }}
-                              />
-                            }
                             onClick={(e) =>
                               handleDeleteClick(col.name, e as any)
                             }
                           >
-                            Delete Collection
-                          </Menu.Item>
-                        </Menu.Dropdown>
-                      </Menu>
+                            <FontAwesomeIcon
+                              icon={faTrash}
+                              style={{ width: 12, height: 12 }}
+                            />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
                     </Group>
 
                     {/* Render Nested File Tree if Loaded */}
@@ -616,10 +852,17 @@ export const DatabaseSidebar = ({
                           const collectionNode = fileTree.find(
                             (n) => n.name === col.name
                           ); // Usually name matches id or we matched them in generation
+
+                          // Check if we are creating something AT THE ROOT of this collection
+                          const isCreatingAtRoot =
+                            creatingCollectionItem?.parentId ===
+                            collectionNode?.id;
+
                           if (
-                            !collectionNode ||
-                            !collectionNode.children ||
-                            collectionNode.children.length === 0
+                            (!collectionNode ||
+                              !collectionNode.children ||
+                              collectionNode.children.length === 0) &&
+                            !isCreatingAtRoot
                           ) {
                             return (
                               <Text
@@ -633,18 +876,68 @@ export const DatabaseSidebar = ({
                               </Text>
                             );
                           }
-                          return collectionNode.children.map((childNode) => (
-                            <UnifiedTreeItem
-                              key={childNode.id}
-                              node={childNode}
-                              level={1} // Indent level 1
-                              config={treeConfig}
-                              callbacks={treeCallbacks}
-                              selectedPath={selectedPath}
-                              expandSignal={expandAllSignal}
-                              collapseSignal={collapseAllSignal}
-                            />
-                          ));
+                          return (
+                            <>
+                              {isCreatingAtRoot && collectionNode && (
+                                <Box pl={20}>
+                                  {/* Indent for level 1 (children of collection) */}
+                                  <InlineInput
+                                    type={creatingCollectionItem!.type}
+                                    onCommit={(name) =>
+                                      handleCommitCreation(
+                                        name,
+                                        creatingCollectionItem!.type,
+                                        collectionNode.path
+                                      )
+                                    }
+                                    onCancel={() =>
+                                      setCreatingCollectionItem(null)
+                                    }
+                                  />
+                                </Box>
+                              )}
+                              {collectionNode?.children?.map((childNode) => (
+                                <UnifiedTreeItem
+                                  key={childNode.id}
+                                  node={childNode}
+                                  level={1} // Indent level 1
+                                  config={treeConfig}
+                                  callbacks={{
+                                    ...treeCallbacks,
+                                    onFileClick: handleFileClick,
+                                    onFolderClick: handleFolderClick,
+                                    onCreate: (type, parentNode) => {
+                                      // Delay setting state to allow Menu to close
+                                      setTimeout(() => {
+                                        setCreatingCollectionItem({
+                                          type,
+                                          parentId: parentNode.id,
+                                          parentPath: parentNode.path,
+                                        });
+                                      }, 100);
+                                    },
+                                  }}
+                                  selectedPath={selectedPath}
+                                  contextFolderPath={activeContextPath}
+                                  expandSignal={expandAllSignal}
+                                  collapseSignal={collapseAllSignal}
+                                  creatingState={
+                                    creatingCollectionItem
+                                      ? {
+                                          type: creatingCollectionItem.type,
+                                          parentId:
+                                            creatingCollectionItem.parentId,
+                                        }
+                                      : null
+                                  }
+                                  onCommitCreation={handleCommitCreation}
+                                  onCancelCreation={() =>
+                                    setCreatingCollectionItem(null)
+                                  }
+                                />
+                              ))}
+                            </>
+                          );
                         })()}
                       </Box>
                     )}
@@ -730,6 +1023,8 @@ export const DatabaseSidebar = ({
           </Group>
         </Stack>
       </Modal>
+
+      {/* New File/Folder Modal REMOVED for Inline Input */}
     </Stack>
   );
 };

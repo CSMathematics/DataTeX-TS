@@ -238,19 +238,6 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
     const move = (e: MouseEvent) => {
       if (isDragging && dragStartRef.current && selectedId) {
         // Drag Logic
-        // We are in global window coordinates.
-        // However, calculating delta in SVG coordinates is easier if we look at SVG clicks.
-        // But here we are in window mousemove.
-        // Let's assume the SVG didn't move relative to screen.
-        // Better: we did startDrag on the SVG element.
-        // Let's rely on mapToSvg from generic move?
-        // Actually, simpler:
-        // We need current mouse pos -> map to svg -> map to tikz.
-        // But access to svg rect is needed.
-        // Let's fallback to handling dragging inside the SVG `onMouseMove`?
-        // No, window listener is better for leaving bounds.
-        // Ideally we simply track delta from start.
-        // If we use the SVG onMouseMove for drag, it's easier to get local coords.
       }
 
       if (isResizingVert && rightColRef.current) {

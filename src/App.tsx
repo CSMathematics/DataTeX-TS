@@ -126,9 +126,7 @@ export default function App() {
     settings.customThemeOverrides
   );
 
-  // --- PERFORMANCE OPTIMIZATION: Memoize settings to prevent EditorArea re-renders ---
-  // This is crucial. Without this, every time App re-renders (e.g., cursor move),
-  // a new object is passed to EditorArea, breaking React.memo.
+  // Memoize settings to prevent unnecessary EditorArea re-renders.
   const editorSettingsMemo = useMemo(() => settings.editor, [settings.editor]);
 
   // --- Layout State ---
@@ -231,14 +229,14 @@ export default function App() {
   const prevLoadedCountRef = useRef(loadedCollections.length);
 
   useEffect(() => {
-    // If collection count increased, it means user checked one -> Open Panel
+    // Auto-open panel when collection count increases (user checked one).
     if (loadedCollections.length > prevLoadedCountRef.current) {
       setShowDatabasePanel(true);
     }
     prevLoadedCountRef.current = loadedCollections.length;
   }, [loadedCollections]);
 
-  // --- Resource Inspector Logic: Auto-close when no relevant tabs ---
+  // Auto-close resource inspector if no editor/table tabs are open.
   useEffect(() => {
     // Only keep right sidebar open if there are editor or table tabs
     // "start-page" and "settings" do not need the resource inspector
@@ -397,8 +395,7 @@ export default function App() {
           );
         }
 
-        // If clicking the same section, toggle sidebar visibility
-        // If clicking a different section, open sidebar and switch to that section
+        // Toggle sidebar if clicking same section; otherwise open new section.
         if (activeActivity === section) {
           setIsSidebarOpen((prev) => !prev);
         } else {
@@ -579,7 +576,6 @@ export default function App() {
       // Use store's closeTab - it handles everything
       const closed = closeTabStore(id);
       if (!closed) {
-        // Tab had unsaved changes but user cancelled - shouldn't happen here since we already confirmed
       }
     },
     [tabs, closeTabStore]

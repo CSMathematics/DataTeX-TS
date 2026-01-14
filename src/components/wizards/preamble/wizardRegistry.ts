@@ -64,12 +64,7 @@ export const WIZARD_REGISTRY: Record<string, WizardConfig> = {
     isEmbedded: true,
     displayName: "TikZ",
   },
-  pgfplots: {
-    category: "graphics",
-    wizardView: "wizard-tikz",
-    isEmbedded: true,
-    displayName: "PGFPlots",
-  },
+
   pstricks: {
     category: "graphics",
     wizardView: "wizard-pstricks",

@@ -110,18 +110,6 @@ export const TableDataView: React.FC<TableDataViewProps> = ({
     setSearch("");
   }, [tableName]);
 
-  // Initial Column Load: Deprecated/Simplified
-  // The backend now returns columns with data.
-  // But if we want to search *before* loading, we might need columns?
-  // Actually, if columns is empty, we pass empty searchCols, backend ignores search or (better) we just fetch once without search first.
-  // We can probably remove the separate Initial Column Load useEffect if fetchData handles it.
-  // However, to keep it robust:
-  // If we have no columns, we can't search effectively (searchCols empty).
-  // But fetchData gets called with empty columns initially, backend returns data + columns.
-  // So we are good. We can remove the "Initial Column Load" effect entirely!
-
-  // NOTE: We keep usage of `dbPath` as a dependency regarding "is DB ready".
-
   useEffect(() => {
     if (dbPath) {
       fetchData();

@@ -609,8 +609,7 @@ export const HeaderContent: React.FC<HeaderProps> = ({
         </ActionIcon>
         <ActionIcon
           variant="subtle"
-          color="red" // Usually close is red on hover, but user asked for simple style. Let's start with gray and maybe hover red if possible, but mantine simple variant is easiest.
-          // Actually user image showed grey icons. Let's stick to gray.
+          color="red"
           onClick={() => getCurrentWindow().close()}
           size="sm"
         >

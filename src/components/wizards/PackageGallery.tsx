@@ -302,7 +302,6 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({
   // Fetch packages when database view is shown and search changes
   useEffect(() => {
     if (showPackageDB) {
-      // Debounce if needed, but for now simple
       const timeout = setTimeout(() => {
         getAllPackages(pkgSearch, undefined, 100).then((res) =>
           setDbPackages(res.packages)

@@ -177,8 +177,6 @@ export function useAppPanelResize({
         }
         if (isResizingDatabaseHeight) {
           // Bottom panel resizing (drag up/down).
-          // Since it's at the bottom, we calculate height as (Window Height - Mouse Y).
-          // But the ghost element follows the mouse Y.
           const minY = 100;
           const maxY = window.innerHeight - 100;
           const y = Math.max(minY, Math.min(maxY, e.clientY));
@@ -222,14 +220,6 @@ export function useAppPanelResize({
       if (isResizingDatabaseHeight && ghostRef.current) {
         const y = parseInt(ghostRef.current.style.top || "0", 10);
         if (y > 0) {
-          // Height is effectively (Total Height - y) if it's a bottom panel?
-          // Wait, App layout typically uses "height" for the bottom panel.
-          // If the resize handle is AT the top of the bottom panel:
-          // Mouse Y is the top edge of the panel.
-          // So Height = Window Height - Mouse Y (approx).
-          // Let's assume footer is 30px (or similar).
-          // We can use flex or fixed height. The hook manages the value.
-          // Let's calculate from bottom.
           const h = Math.max(
             100,
             Math.min(window.innerHeight - 100, window.innerHeight - y)

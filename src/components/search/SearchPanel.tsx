@@ -130,13 +130,6 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ onOpenFile }) => {
         collections: collectionNames,
         maxResults: 1000,
       });
-
-      // Refresh search results to show changes (or clear them)
-      // Actually, after replace, we should probably re-run search or clear it.
-      // Let's re-run search with the *new* text if we want to confirm, or clearing matches.
-      // For now, let's just show a success message.
-      // But re-running search with OLD text will return 0 matches if replaced successfully.
-
       // Update result to show empty matches ? Or reload.
       setResult(null);
 

@@ -120,8 +120,7 @@ async fn compile_resource_cmd(id: String, state: State<'_, AppState>) -> Result<
             preamble_content, body_content
         );
 
-        // Save to temporary file in same directory?
-        // Or in a temp folder. Same directory is safer for relative image paths.
+        // Save temp file in same dir to preserve relative paths.
         let original_path = std::path::Path::new(&resource.path);
         let parent_dir = original_path.parent().unwrap_or(std::path::Path::new("."));
         let file_stem = original_path.file_stem().unwrap().to_str().unwrap();
@@ -133,8 +132,7 @@ async fn compile_resource_cmd(id: String, state: State<'_, AppState>) -> Result<
         // Compile
         let output_dir = parent_dir.to_string_lossy().to_string();
 
-        // Use -jobname to output the PDF with the original filename (overwriting any previous build)
-        // This ensures that the main editor's PDF viewer (which looks for filename.pdf) picks it up automatically.
+        // Use -jobname to output PDF with original filename for viewer compatibility.
         let jobname_arg = format!("-jobname={}", file_stem);
 
         let result = compiler::compile(
@@ -144,8 +142,7 @@ async fn compile_resource_cmd(id: String, state: State<'_, AppState>) -> Result<
             &output_dir,
         );
 
-        // Clean up temp tex file (optional? maybe keep for debugging or user inspection?)
-        // Let's keep it for now as '_preview.tex'
+        // Keep temp file for debugging/logging.
 
         // Output path logic (compiler usually replaces extension)
         match result {

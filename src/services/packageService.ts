@@ -200,27 +200,6 @@ export async function getPackageById(
   return createEnhancedPackage(ctanPkg);
 }
 
-/**
- * Get all packages that have wizard support (Local Registry check + Rust fetch check if needed)
- * For now, simple approach: Fetch all packages that are in the wizard registry.
- * Since default registry is small, we can fetch them individually or batch.
- * However, we don't have a "get_packages_by_ids" command yet.
- * BUT, usually we want to list them.
- *
- * Optimization: Since WIZARD_REGISTRY is in frontend, we know the IDs.
- * We can iterate the registry and call getPackageById (n+1 problem but n is small).
- * OR, since we removed the local JSON, we rely on Rust.
- *
- * Alternative: "get_packages" in Rust could return ALL if limit is not set?
- * No, for safety limit is 100.
- *
- * New Approach:
- * We can just return the local wizard config wrapped as Partial<EnhancedPackage> if we want INSTANT access,
- * but to get full metadata we need the backend.
- *
- * Let's assume we want to query the backend for these specific IDs.
- * Better yet, let's just fetch them as needed or use a robust search.
- */
 export async function getPackagesWithWizards(): Promise<EnhancedPackage[]> {
   // Get all IDs from registry
   const ids = Object.keys(WIZARD_REGISTRY);

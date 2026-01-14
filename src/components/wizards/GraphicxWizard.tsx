@@ -55,12 +55,6 @@ export const GraphicxWizard: React.FC<GraphicxWizardProps> = ({ onInsert }) => {
       });
 
       if (selected && typeof selected === "string") {
-        // Use relative path if possible, otherwise absolute
-        // For simplicity, we just use the name or absolute path based on user pref usually.
-        // But standard practice is often relative.
-        // Let's just put the full path or filename.
-        // Ideally we should copy it to project, but that's complex.
-        // Let's just put the path ensuring forward slashes.
         setFilePath(selected.replace(/\\/g, "/"));
       }
     } catch (e) {

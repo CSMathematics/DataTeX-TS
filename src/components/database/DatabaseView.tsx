@@ -260,19 +260,8 @@ export const DatabaseView = React.memo(
 
     const handleRevealInFileExplorer = async () => {
       if (activeResource?.path) {
-        // Reveal the parent directory
-        // We use standard shell command or tauri plugin if available.
-        // Assuming we just want to open the parent folder.
+        // Reveal parent directory using system commands.
         try {
-          // Determine OS and run appropriate command is complex without a specific plugin
-          // But we can try to use the 'open' command on the parent dir
-          // Or use the shell plugin if configured.
-          // For now, let's assume we can just confirm it with user or use a simple hack?
-          // Actually, simple usage of 'open' on parent dir usually works.
-          // Or better, let's just open the file itself which usually highlights it or opens default app.
-          // But user asked for "show in explorer".
-          // Let's try opening the parent directory.
-
           // Remove filename to get parent directory
           const parentDir = activeResource.path.replace(/[/\\][^/\\]*$/, "");
 

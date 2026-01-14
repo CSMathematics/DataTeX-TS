@@ -1,4 +1,4 @@
-import { CustomColorDef, CustomListDef, hexToModelValue } from '../LanguageDb';
+import { CustomColorDef, CustomListDef, hexToModelValue } from "../LanguageDb";
 
 // Interface for the configuration object
 export interface PreambleConfig {
@@ -16,7 +16,7 @@ export interface PreambleConfig {
   bibBackend: string; // 'none', 'bibtex', 'biber'
   bibStyle: string;
   bibFile: string;
-  
+
   // Geometry
   pkgGeometry: boolean;
   marginTop: number;
@@ -30,17 +30,17 @@ export interface PreambleConfig {
   marginSep: number;
   marginWidth: number;
   includeMp: boolean;
-  
+
   headHeight: number;
   headSep: number;
   footSkip: number;
   bindingOffset: number;
   hOffset: number;
   vOffset: number;
-  
+
   includeHead: boolean;
   includeFoot: boolean;
-  
+
   // Packages
   pkgAmsmath: boolean;
   pkgGraphicx: boolean;
@@ -80,88 +80,104 @@ export interface PreambleConfig {
 // --- Generator Functions ---
 
 export const generateGeneral = (config: PreambleConfig): string => {
-  let code = '';
-  
+  let code = "";
+
   // Class Options
   let classOpts: string[] = [`${config.fontSize}pt`, config.paperSize];
-  if (config.columns === 'two') classOpts.push('twocolumn');
-  if (config.sidedness === 'twoside') classOpts.push('twoside');
+  if (config.columns === "two") classOpts.push("twocolumn");
+  if (config.sidedness === "twoside") classOpts.push("twoside");
 
-  code += `\\documentclass[${classOpts.join(', ')}]{${config.docClass}}\n`;
+  code += `\\documentclass[${classOpts.join(", ")}]{${config.docClass}}\n`;
   code += `\\usepackage[${config.encoding}]{inputenc}\n`;
   code += `\\usepackage[T1]{fontenc}\n`;
 
   // Font Selection
-  if (config.fontFamily && config.fontFamily !== 'lmodern') {
-      if (config.fontFamily === 'times') code += `\\usepackage{mathptmx}\n`;
-      else if (config.fontFamily === 'palatino') code += `\\usepackage{mathpazo}\n`;
-      else if (config.fontFamily === 'helvet') code += `\\usepackage{helvet}\n\\renewcommand{\\familydefault}{\\sfdefault}\n`;
-      else if (config.fontFamily === 'utopia') code += `\\usepackage{fourier}\n`;
-      else if (config.fontFamily === 'charter') code += `\\usepackage{charter}\n`;
-      else if (config.fontFamily === 'bookman') code += `\\usepackage{bookman}\n`;
-      else if (config.fontFamily === 'courier') code += `\\usepackage{courier}\n`;
-      else if (config.fontFamily === 'avant') code += `\\usepackage{avant}\n`;
-      else if (config.fontFamily === 'chancery') code += `\\usepackage{chancery}\n`;
+  if (config.fontFamily && config.fontFamily !== "lmodern") {
+    if (config.fontFamily === "times") code += `\\usepackage{mathptmx}\n`;
+    else if (config.fontFamily === "palatino")
+      code += `\\usepackage{mathpazo}\n`;
+    else if (config.fontFamily === "helvet")
+      code += `\\usepackage{helvet}\n\\renewcommand{\\familydefault}{\\sfdefault}\n`;
+    else if (config.fontFamily === "utopia") code += `\\usepackage{fourier}\n`;
+    else if (config.fontFamily === "charter") code += `\\usepackage{charter}\n`;
+    else if (config.fontFamily === "bookman") code += `\\usepackage{bookman}\n`;
+    else if (config.fontFamily === "courier") code += `\\usepackage{courier}\n`;
+    else if (config.fontFamily === "avant") code += `\\usepackage{avant}\n`;
+    else if (config.fontFamily === "chancery")
+      code += `\\usepackage{chancery}\n`;
   } else {
-      code += `\\usepackage{lmodern}\n`;
+    code += `\\usepackage{lmodern}\n`;
   }
 
-  let babelOpts = ['english'];
-  if (config.mainLang !== 'english') babelOpts.push(config.mainLang);
-  code += `\\usepackage[${babelOpts.join(',')}]{babel}\n`;
-  if (config.mainLang === 'greek') code += `\\usepackage{alphabeta}\n`;
+  let babelOpts = ["english"];
+  if (config.mainLang !== "english") babelOpts.push(config.mainLang);
+  code += `\\usepackage[${babelOpts.join(",")}]{babel}\n`;
+  if (config.mainLang === "greek") code += `\\usepackage{alphabeta}\n`;
 
   return code;
 };
 
 export const generateGeometry = (config: PreambleConfig): string => {
-  if (!config.pkgGeometry) return '';
+  if (!config.pkgGeometry) return "";
 
   let gOpts: string[] = [];
-  gOpts.push(`top=${config.marginTop}cm`, `bottom=${config.marginBottom}cm`, `left=${config.marginLeft}cm`, `right=${config.marginRight}cm`);
-  
-  if (config.columns === 'two') gOpts.push(`columnsep=${config.columnSep}cm`);
-  
+  gOpts.push(
+    `top=${config.marginTop}cm`,
+    `bottom=${config.marginBottom}cm`,
+    `left=${config.marginLeft}cm`,
+    `right=${config.marginRight}cm`
+  );
+
+  if (config.columns === "two") gOpts.push(`columnsep=${config.columnSep}cm`);
+
   if (config.marginNotes) {
-    gOpts.push(`marginparsep=${config.marginSep}cm`, `marginparwidth=${config.marginWidth}cm`);
+    gOpts.push(
+      `marginparsep=${config.marginSep}cm`,
+      `marginparwidth=${config.marginWidth}cm`
+    );
     if (config.includeMp) gOpts.push(`includemp`);
   }
-  
+
   if (config.headHeight > 0) gOpts.push(`headheight=${config.headHeight}cm`);
   if (config.headSep > 0) gOpts.push(`headsep=${config.headSep}cm`);
   if (config.footSkip > 0) gOpts.push(`footskip=${config.footSkip}cm`);
-  if (config.bindingOffset > 0) gOpts.push(`bindingoffset=${config.bindingOffset}cm`);
-  if (config.hOffset !== 0) gOpts.push(`hoffset=${config.hOffset}cm`); 
+  if (config.bindingOffset > 0)
+    gOpts.push(`bindingoffset=${config.bindingOffset}cm`);
+  if (config.hOffset !== 0) gOpts.push(`hoffset=${config.hOffset}cm`);
   if (config.vOffset !== 0) gOpts.push(`voffset=${config.vOffset}cm`);
-  
+
   if (config.includeHead) gOpts.push(`includehead`);
   if (config.includeFoot) gOpts.push(`includefoot`);
-  if (config.sidedness === 'asymmetric') gOpts.push(`asymmetric`);
+  if (config.sidedness === "asymmetric") gOpts.push(`asymmetric`);
 
-  return `\\usepackage[${gOpts.join(', ')}]{geometry}\n`;
+  return `\\usepackage[${gOpts.join(", ")}]{geometry}\n`;
 };
 
 export const generatePackages = (
-  config: PreambleConfig, 
-  customColors: CustomColorDef[], 
+  config: PreambleConfig,
+  customColors: CustomColorDef[],
   codeEngine: string
 ): string => {
   let code = `\n% --- Packages ---\n`;
-  
+
   if (config.pkgAmsmath) code += `\\usepackage{amsmath, amsfonts, amssymb}\n`;
   if (config.pkgGraphicx) code += `\\usepackage{graphicx}\n`;
-  
+
   // Xcolor logic
-  if (config.pkgXcolor || customColors.length > 0 || codeEngine === 'listings') {
-      code += `\\usepackage[dvipsnames, table]{xcolor}\n`;
+  if (
+    config.pkgXcolor ||
+    customColors.length > 0 ||
+    codeEngine === "listings"
+  ) {
+    code += `\\usepackage[dvipsnames, table]{xcolor}\n`;
   }
 
   // Custom Colors Definitions
   if (customColors.length > 0) {
-      code += `\n% --- Custom Colors ---\n`;
-      customColors.forEach(c => {
-          code += `\\definecolor{${c.name}}{${c.model}}{${c.value}}\n`;
-      });
+    code += `\n% --- Custom Colors ---\n`;
+    customColors.forEach((c) => {
+      code += `\\definecolor{${c.name}}{${c.model}}{${c.value}}\n`;
+    });
   }
 
   if (config.pkgBooktabs) code += `\\usepackage{booktabs}\n`;
@@ -173,9 +189,11 @@ export const generatePackages = (
   if (config.pkgSubcaption) code += `\\usepackage{subcaption}\n`;
 
   if (config.pkgTikz) code += `\\usepackage{tikz}\n`;
-  if (config.pkgPgfplots) code += `\\usepackage{pgfplots}\n\\pgfplotsset{compat=1.18}\n`;
+  if (config.pkgPgfplots)
+    code += `\\usepackage{pgfplots}\n\\pgfplotsset{compat=1.18}\n`;
 
-  if (config.pkgFancyhdr) code += `\\usepackage{fancyhdr}\n\\pagestyle{fancy}\n`;
+  if (config.pkgFancyhdr)
+    code += `\\usepackage{fancyhdr}\n\\pagestyle{fancy}\n`;
   if (config.pkgMulticol) code += `\\usepackage{multicol}\n`;
   if (config.pkgTitlesec) code += `\\usepackage{titlesec}\n`;
   if (config.pkgMicrotype) code += `\\usepackage{microtype}\n`;
@@ -183,43 +201,53 @@ export const generatePackages = (
   if (config.pkgSiunitx) code += `\\usepackage{siunitx}\n`;
 
   if (config.pkgTodonotes) code += `\\usepackage{todonotes}\n`;
-  
+
   return code;
 };
 
-export const generateLists = (config: PreambleConfig, customLists: CustomListDef[]): string => {
-  if (!config.pkgEnumitem) return '';
+export const generateLists = (
+  config: PreambleConfig,
+  customLists: CustomListDef[]
+): string => {
+  if (!config.pkgEnumitem) return "";
 
-  let code = `\\usepackage${config.enumitemInline ? '[inline]' : ''}{enumitem}\n`;
-  
-  if (config.enumitemSep === 'nosep') code += `\\setlist{nosep}\n`;
-  else if (config.enumitemSep === 'half') code += `\\setlist{itemsep=0.5ex}\n`;
-  
-  if (config.enumitemItemize !== 'default') {
-      let label = '';
-      if (config.enumitemItemize === 'dash') label = 'label={--}';
-      else if (config.enumitemItemize === 'asterisk') label = 'label={*}';
-      else if (config.enumitemItemize === 'bullet') label = 'label=\\textbullet';
-      if (label) code += `\\setlist[itemize]{${label}}\n`;
+  let code = `\\usepackage${
+    config.enumitemInline ? "[inline]" : ""
+  }{enumitem}\n`;
+
+  if (config.enumitemSep === "nosep") code += `\\setlist{nosep}\n`;
+  else if (config.enumitemSep === "half") code += `\\setlist{itemsep=0.5ex}\n`;
+
+  if (config.enumitemItemize !== "default") {
+    let label = "";
+    if (config.enumitemItemize === "dash") label = "label={--}";
+    else if (config.enumitemItemize === "asterisk") label = "label={*}";
+    else if (config.enumitemItemize === "bullet") label = "label=\\textbullet";
+    if (label) code += `\\setlist[itemize]{${label}}\n`;
   }
 
-  if (config.enumitemEnumerate !== 'default') {
-      let label = '';
-      if (config.enumitemEnumerate === 'alph') label = 'label=\\alph*), ref=\\alph*)';
-      else if (config.enumitemEnumerate === 'Alph') label = 'label=\\Alph*., ref=\\Alph*';
-      else if (config.enumitemEnumerate === 'roman') label = 'label=\\roman*), ref=\\roman*)';
-      else if (config.enumitemEnumerate === 'Roman') label = 'label=\\Roman*., ref=\\Roman*';
-      else if (config.enumitemEnumerate === 'arabic_paren') label = 'label=(\\arabic*), ref=(\\arabic*)';
-      
-      if (label) code += `\\setlist[enumerate]{${label}}\n`;
+  if (config.enumitemEnumerate !== "default") {
+    let label = "";
+    if (config.enumitemEnumerate === "alph")
+      label = "label=\\alph*), ref=\\alph*)";
+    else if (config.enumitemEnumerate === "Alph")
+      label = "label=\\Alph*., ref=\\Alph*";
+    else if (config.enumitemEnumerate === "roman")
+      label = "label=\\roman*), ref=\\roman*)";
+    else if (config.enumitemEnumerate === "Roman")
+      label = "label=\\Roman*., ref=\\Roman*";
+    else if (config.enumitemEnumerate === "arabic_paren")
+      label = "label=(\\arabic*), ref=(\\arabic*)";
+
+    if (label) code += `\\setlist[enumerate]{${label}}\n`;
   }
 
   if (customLists.length > 0) {
-      code += `\n% --- Custom Lists ---\n`;
-      customLists.forEach(l => {
-          code += `\\newlist{${l.name}}{${l.baseType}}{3}\n`;
-          if (l.options) code += `\\setlist[${l.name}]{${l.options}}\n`;
-      });
+    code += `\n% --- Custom Lists ---\n`;
+    customLists.forEach((l) => {
+      code += `\\newlist{${l.name}}{${l.baseType}}{3}\n`;
+      if (l.options) code += `\\setlist[${l.name}]{${l.options}}\n`;
+    });
   }
   return code;
 };
@@ -230,7 +258,8 @@ export const generateCodeHighlighting = (
     showNumbers: boolean; // Corrected property name
     breakLines: boolean;
     showFrame: boolean;
-    lstColors: { // Corrected property name
+    lstColors: {
+      // Corrected property name
       keyword: string;
       string: string;
       comment: string;
@@ -239,93 +268,102 @@ export const generateCodeHighlighting = (
     mintedStyle: string;
   }
 ): string => {
-  if (engine === 'none') return '';
+  if (engine === "none") return "";
 
   let code = `\n% --- Code Highlighting (${engine}) ---\n`;
 
-  if (engine === 'listings') {
-      code += `\\usepackage{listings}\n`;
-      // Define colors for listings
-      code += `\\definecolor{codegreen}{rgb}{${hexToModelValue(settings.lstColors.comment, 'listings_rgb')}}\n`;
-      code += `\\definecolor{codegray}{rgb}{0.5,0.5,0.5}\n`;
-      code += `\\definecolor{codepurple}{rgb}{${hexToModelValue(settings.lstColors.string, 'listings_rgb')}}\n`;
-      code += `\\definecolor{codeblue}{rgb}{${hexToModelValue(settings.lstColors.keyword, 'listings_rgb')}}\n`;
-      code += `\\definecolor{backcolour}{rgb}{${hexToModelValue(settings.lstColors.background, 'listings_rgb')}}\n\n`;
+  if (engine === "listings") {
+    code += `\\usepackage{listings}\n`;
+    // Define colors for listings
+    code += `\\definecolor{codegreen}{rgb}{${hexToModelValue(
+      settings.lstColors.comment,
+      "listings_rgb"
+    )}}\n`;
+    code += `\\definecolor{codegray}{rgb}{0.5,0.5,0.5}\n`;
+    code += `\\definecolor{codepurple}{rgb}{${hexToModelValue(
+      settings.lstColors.string,
+      "listings_rgb"
+    )}}\n`;
+    code += `\\definecolor{codeblue}{rgb}{${hexToModelValue(
+      settings.lstColors.keyword,
+      "listings_rgb"
+    )}}\n`;
+    code += `\\definecolor{backcolour}{rgb}{${hexToModelValue(
+      settings.lstColors.background,
+      "listings_rgb"
+    )}}\n\n`;
 
-      code += `\\lstdefinestyle{mystyle}{\n`;
-      code += `    backgroundcolor=\\color{backcolour},\n`;
-      code += `    commentstyle=\\color{codegreen},\n`;
-      code += `    keywordstyle=\\color{codeblue},\n`;
-      code += `    numberstyle=\\tiny\\color{codegray},\n`;
-      code += `    stringstyle=\\color{codepurple},\n`;
-      code += `    basicstyle=\\ttfamily\\footnotesize,\n`;
-      if (settings.breakLines) code += `    breaklines=true,\n`;
-      code += `    captionpos=b,\n    keepspaces=true,\n`;
-      if (settings.showNumbers) code += `    numbers=left,\n    numbersep=5pt,\n`;
-      if (settings.showFrame) code += `    frame=single,\n`;
-      code += `    tabsize=2\n}\n`;
-      code += `\\lstset{style=mystyle}\n`;
-  } else if (engine === 'minted') {
-      code += `\\usepackage{minted}\n`;
-      code += `\\usemintedstyle{${settings.mintedStyle}}\n`;
-      code += `\\setminted{\n`;
-      if (settings.showNumbers) code += `    linenos,\n`;
-      if (settings.breakLines) code += `    breaklines,\n`;
-      if (settings.showFrame) code += `    frame=lines,\n`;
-      code += `    fontsize=\\footnotesize,\n    tabsize=4\n}\n`;
+    code += `\\lstdefinestyle{mystyle}{\n`;
+    code += `    backgroundcolor=\\color{backcolour},\n`;
+    code += `    commentstyle=\\color{codegreen},\n`;
+    code += `    keywordstyle=\\color{codeblue},\n`;
+    code += `    numberstyle=\\tiny\\color{codegray},\n`;
+    code += `    stringstyle=\\color{codepurple},\n`;
+    code += `    basicstyle=\\ttfamily\\footnotesize,\n`;
+    if (settings.breakLines) code += `    breaklines=true,\n`;
+    code += `    captionpos=b,\n    keepspaces=true,\n`;
+    if (settings.showNumbers) code += `    numbers=left,\n    numbersep=5pt,\n`;
+    if (settings.showFrame) code += `    frame=single,\n`;
+    code += `    tabsize=2\n}\n`;
+    code += `\\lstset{style=mystyle}\n`;
+  } else if (engine === "minted") {
+    code += `\\usepackage{minted}\n`;
+    code += `\\usemintedstyle{${settings.mintedStyle}}\n`;
+    code += `\\setminted{\n`;
+    if (settings.showNumbers) code += `    linenos,\n`;
+    if (settings.breakLines) code += `    breaklines,\n`;
+    if (settings.showFrame) code += `    frame=lines,\n`;
+    code += `    fontsize=\\footnotesize,\n    tabsize=4\n}\n`;
   }
-  
+
   return code;
 };
 
 export const generateBibliography = (config: PreambleConfig): string => {
-  if (config.bibBackend === 'none') return '';
+  if (config.bibBackend === "none") return "";
 
   let code = `\n% --- Bibliography ---\n`;
-  if (config.bibBackend === 'bibtex') {
-      // BibTeX is usually handled at the end of document, but we can put style here?
-      // Actually style goes in preamble or before bibliography command?
-      // Standard LaTeX: \bibliographystyle{...} in document.
-      // But we are generating preamble.
-      // We can add a comment or just leave it for the document body.
-      // However, we can add natbib if needed?
-      // Let's assume standard bibtex for now or maybe natbib.
-      // Let's add natbib as it is very common for BibTeX users.
-      code += `\\usepackage[square,numbers]{natbib}\n`;
-      code += `\\bibliographystyle{${config.bibStyle || 'plain'}}\n`;
-  } else if (config.bibBackend === 'biber') {
-      code += `\\usepackage[backend=biber, style=${config.bibStyle || 'numeric'}]{biblatex}\n`;
-      code += `\\addbibresource{${config.bibFile || 'references.bib'}}\n`;
+  if (config.bibBackend === "bibtex") {
+    code += `\\usepackage[square,numbers]{natbib}\n`;
+    code += `\\bibliographystyle{${config.bibStyle || "plain"}}\n`;
+  } else if (config.bibBackend === "biber") {
+    code += `\\usepackage[backend=biber, style=${
+      config.bibStyle || "numeric"
+    }]{biblatex}\n`;
+    code += `\\addbibresource{${config.bibFile || "references.bib"}}\n`;
   }
   return code;
 };
 
 export const generateFooterAndMeta = (config: PreambleConfig): string => {
-  let code = '';
-  
+  let code = "";
+
   // Hyperref usually goes last
   if (config.pkgHyperref) {
-      code += `\\usepackage{hyperref}\n`;
-      let hOpts: string[] = [];
-      if (config.hyperrefColors) {
-          hOpts.push(`colorlinks=true`);
-          if (config.hyperrefLinkColor) hOpts.push(`linkcolor=${config.hyperrefLinkColor}`);
-          if (config.hyperrefUrlColor) hOpts.push(`urlcolor=${config.hyperrefUrlColor}`);
-          if (config.hyperrefLinkColor) hOpts.push(`citecolor=${config.hyperrefLinkColor}`); // Default match
-      } else {
-          hOpts.push(`hidelinks`);
-      }
-      if (hOpts.length > 0) code += `\\hypersetup{${hOpts.join(', ')}}\n`;
+    code += `\\usepackage{hyperref}\n`;
+    let hOpts: string[] = [];
+    if (config.hyperrefColors) {
+      hOpts.push(`colorlinks=true`);
+      if (config.hyperrefLinkColor)
+        hOpts.push(`linkcolor=${config.hyperrefLinkColor}`);
+      if (config.hyperrefUrlColor)
+        hOpts.push(`urlcolor=${config.hyperrefUrlColor}`);
+      if (config.hyperrefLinkColor)
+        hOpts.push(`citecolor=${config.hyperrefLinkColor}`); // Default match
+    } else {
+      hOpts.push(`hidelinks`);
+    }
+    if (hOpts.length > 0) code += `\\hypersetup{${hOpts.join(", ")}}\n`;
   }
   // Cleveref goes AFTER hyperref
   if (config.pkgCleveref) {
-      code += `\\usepackage{cleveref}\n`;
+    code += `\\usepackage{cleveref}\n`;
   }
 
   code += `\n% --- Metadata ---\n`;
-  code += `\\title{${config.title || 'Untitled'}}\n`;
-  code += `\\author{${config.author || ''}}\n`;
-  code += `\\date{${config.date ? '\\today' : ''}}\n`;
+  code += `\\title{${config.title || "Untitled"}}\n`;
+  code += `\\author{${config.author || ""}}\n`;
+  code += `\\date{${config.date ? "\\today" : ""}}\n`;
 
   return code;
 };
@@ -339,11 +377,16 @@ export const generateFullPreamble = (
     showNumbers: boolean;
     breakLines: boolean;
     showFrame: boolean;
-    lstColors: { keyword: string; string: string; comment: string; background: string; };
+    lstColors: {
+      keyword: string;
+      string: string;
+      comment: string;
+      background: string;
+    };
     mintedStyle: string;
   }
 ): string => {
-  let full = '';
+  let full = "";
   full += generateGeneral(config);
   full += generateGeometry(config);
   full += generatePackages(config, customColors, codeSettings.engine);
@@ -351,17 +394,17 @@ export const generateFullPreamble = (
   full += generateCodeHighlighting(codeSettings.engine, codeSettings);
   full += generateBibliography(config);
   full += generateFooterAndMeta(config);
-  
+
   full += `\n\\begin{document}\n\n\\maketitle\n\n\\section{Introduction}\n% Content here\n\n`;
 
   // Add bibliography command placeholder
-  if (config.bibBackend === 'bibtex') {
-      full += `\\bibliography{${config.bibFile || 'references'}}\n`;
-  } else if (config.bibBackend === 'biber') {
-      full += `\\printbibliography\n`;
+  if (config.bibBackend === "bibtex") {
+    full += `\\bibliography{${config.bibFile || "references"}}\n`;
+  } else if (config.bibBackend === "biber") {
+    full += `\\printbibliography\n`;
   }
 
   full += `\\end{document}`;
-  
+
   return full;
 };
