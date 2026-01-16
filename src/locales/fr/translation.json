@@ -1,0 +1,774 @@
+{
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Éditer",
+    "create": "Créer",
+    "open": "Ouvrir",
+    "close": "Fermer",
+    "search": "Rechercher",
+    "settings": "Paramètres",
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "refresh": "Actualiser",
+    "filterFiles": "Filtrer les fichiers...",
+    "newFile": "Nouveau Fichier",
+    "newFolder": "Nouveau Dossier",
+    "empty": "Vide",
+    "or": "OU",
+    "noResults": "Aucun résultat trouvé",
+    "download": "Télécharger",
+    "print": "Imprimer"
+  },
+  "tools": {
+    "packageBrowser": {
+      "title": "Paquets CTAN",
+      "searchPlaceholder": "Rechercher des paquets...",
+      "filterTopic": "Filtrer par sujet",
+      "loadMore": "Charger Plus... ({{remaining}} restants)",
+      "noPackages": "Aucun paquet trouvé pour \"{{query}}\"",
+      "visitHome": "Visiter Page d'Accueil",
+      "visitCtan": "Visiter Page CTAN",
+      "pkgInfo": "Information sur {{id}}",
+      "description": "Description",
+      "version": "Version",
+      "insertPkg": "Insérer \\usepackage{{{id}}}",
+      "insertCount": "Insérer {{count}}",
+      "wizardAvailable": "Assistant Disponible",
+      "selectPackage": "Sélectionnez un paquet pour voir les détails"
+    }
+  },
+  "wizards": {
+    "insertCode": "Insérer Code",
+    "includegraphics": {
+      "source": "Source de l'Image",
+      "filePath": "Chemin du Fichier",
+      "dimensions": "Dimensions & Transformation",
+      "width": "Largeur",
+      "height": "Hauteur",
+      "keepAspectRatio": "Garder Proportions",
+      "scale": "Facteur d'Échelle",
+      "angle": "Angle de Rotation (degrés)",
+      "figureEnv": "Environnement Figure",
+      "centering": "Centrage",
+      "caption": "Légende",
+      "label": "Étiquette",
+      "placement": "Placement",
+      "insertCode": "Insérer le Code"
+    }
+  },
+  "settings": {
+    "title": "Paramètres",
+    "searchPlaceholder": "Rechercher des paramètres...",
+    "noSettingsFound": "Aucun paramètre trouvé",
+    "categories": {
+      "general": "Général",
+      "tex": "Moteurs TeX",
+      "compilation": "Compilation",
+      "editor": "Apparence de l'Éditeur",
+      "editorBehavior": "Comportement de l'Éditeur",
+      "pdfViewer": "Visionneuse PDF",
+      "database": "Base de Données",
+      "accessibility": "Accessibilité",
+      "shortcuts": "Raccourcis Clavier",
+      "theme": "Thème"
+    },
+    "general": {
+      "title": "Paramètres Généraux",
+      "description": "Paramètres globaux de l'application.",
+      "startupBehavior": {
+        "label": "Comportement au Démarrage",
+        "description": "Que montrer au démarrage de l'application",
+        "restore": "Restaurer la Dernière Session",
+        "welcome": "Afficher l'Écran d'Accueil",
+        "empty": "Espace de Travail Vide"
+      },
+      "confirmOnExit": {
+        "label": "Confirmer à la Sortie",
+        "description": "Demander confirmation avant de fermer avec des modifications non enregistrées"
+      },
+      "language": {
+        "label": "Langue",
+        "description": "Sélectionner la Langue"
+      },
+      "autoSave": {
+        "label": "Sauvegarde Automatique",
+        "description": "Sauvegarder automatiquement les modifications (Bientôt)."
+      }
+    },
+    "tex": {
+      "title": "Configuration Moteur TeX",
+      "description": "Configurez comment vos documents LaTeX sont compilés.",
+      "defaultEngine": {
+        "label": "Moteur par Défaut",
+        "description": "Le moteur utilisé lorsqu'aucun commentaire magique spécifique n'est trouvé."
+      },
+      "pdflatexPath": { "label": "Chemin pdfLaTeX" },
+      "xelatexPath": { "label": "Chemin XeLaTeX" },
+      "lualatexPath": { "label": "Chemin LuaLaTeX" },
+      "outputDirectory": {
+        "label": "Répertoire de Sortie",
+        "description": "Répertoire pour les fichiers auxiliaires (relatif au document)."
+      },
+      "shellEscape": {
+        "label": "Activer Shell Escape (--shell-escape)",
+        "description": "Permet l'exécution de commandes externes (ex. pour minted)."
+      },
+      "synctex": {
+        "label": "Activer SyncTeX",
+        "description": "Requis pour la recherche directe/inverse."
+      },
+      "bibtex": {
+        "label": "Exécuter BibTeX/Biber",
+        "description": "Exécuter automatiquement le processeur de bibliographie."
+      }
+    },
+    "compilation": {
+      "title": "Paramètres de Compilation",
+      "description": "Comportement avancé de compilation et gestion de sortie.",
+      "buildBehavior": {
+        "title": "Comportement de Construction",
+        "description": "Quand et comment les fichiers sont compilés",
+        "compileOnSave": {
+          "label": "Compiler à la Sauvegarde",
+          "description": "Compiler automatiquement les documents lors de la sauvegarde"
+        },
+        "timeout": {
+          "label": "Délai de Compilation",
+          "description": "Temps maximum en secondes pour la compilation (30-300)"
+        }
+      },
+      "outputDirectory": {
+        "title": "Répertoire de Sortie",
+        "description": "Où les artefacts de compilation sont stockés",
+        "buildDirectory": {
+          "label": "Répertoire de Construction",
+          "description": "Emplacement pour les fichiers auxiliaires et de sortie",
+          "source": "Même que le Fichier Source",
+          "custom": "Chemin Personnalisé"
+        },
+        "customBuildPath": {
+          "label": "Chemin de Construction Personnalisé",
+          "description": "Chemin relatif ou absolu pour la sortie de construction"
+        },
+        "cleanAuxFiles": {
+          "label": "Nettoyer Fichiers Auxiliaires",
+          "description": "Supprimer fichiers .aux, .log, .toc après compilation réussie"
+        }
+      },
+      "errorHandling": {
+        "title": "Gestion des Erreurs",
+        "description": "Comment les erreurs de compilation sont affichées",
+        "showLogOnError": {
+          "label": "Afficher Panneau Log sur Erreur",
+          "description": "Ouvrir automatiquement le panneau de log en cas d'erreurs"
+        },
+        "maxErrors": {
+          "label": "Nombre Maximum d'Erreurs",
+          "description": "Limiter le nombre d'erreurs affichées (10-100)"
+        }
+      }
+    },
+    "editor": {
+      "title": "Paramètres de l'Éditeur",
+      "description": "Personnalisez l'expérience de l'éditeur de code.",
+      "fontSize": {
+        "label": "Taille de Police",
+        "description": "Contrôle la taille de la police en pixels."
+      },
+      "fontFamily": {
+        "label": "Famille de Police",
+        "description": "La famille de police utilisée dans l'éditeur.",
+        "notFound": "Aucune police trouvée"
+      },
+      "wordWrap": {
+        "label": "Retour à la Ligne",
+        "description": "Contrôle comment les lignes sont renvoyées à la ligne."
+      },
+      "theme": {
+        "label": "Thème de l'Éditeur",
+        "description": "Schéma de couleurs pour l'éditeur de code."
+      },
+      "lineNumbers": {
+        "label": "Numéros de Ligne",
+        "description": "Contrôle l'affichage des numéros de ligne.",
+        "relative": "Relatif"
+      },
+      "minimap": {
+        "label": "Minicarte",
+        "description": "Contrôle si la minicarte est affichée."
+      }
+    },
+    "editorBehavior": {
+      "title": "Comportement de l'Éditeur",
+      "description": "Personnalisez comment l'éditeur répond à votre saisie.",
+      "formatting": {
+        "title": "Formatage",
+        "description": "Préférences d'indentation et d'espacement",
+        "tabSize": {
+          "label": "Taille de Tabulation",
+          "description": "Nombre d'espaces par tabulation"
+        },
+        "insertSpaces": {
+          "label": "Insérer des Espaces",
+          "description": "Utiliser des espaces au lieu de caractères de tabulation"
+        }
+      },
+      "autoCompletion": {
+        "title": "Auto-complétion",
+        "description": "Insertion et complétion automatique",
+        "autoCloseBrackets": {
+          "label": "Fermer Automatiquement Parenthèses",
+          "description": "Fermer automatiquement (), {}, [], et guillemets"
+        },
+        "autoCloseLatexEnv": {
+          "label": "Fermer Automatiquement Env. LaTeX",
+          "description": "Insérer automatiquement \\end{} lors de la saisie de \\begin{}"
+        },
+        "suggestOnTrigger": {
+          "label": "Suggérer sur Caractères Déclencheurs",
+          "description": "Afficher suggestions IntelliSense lors de la saisie de \\"
+        },
+        "quickSuggestions": {
+          "label": "Suggestions Rapides",
+          "description": "Afficher suggestions en ligne pendant la saisie"
+        }
+      },
+      "editorActions": {
+        "title": "Actions de l'Éditeur",
+        "description": "Formatage et sauvegarde automatique",
+        "formatOnSave": {
+          "label": "Formater à la Sauvegarde",
+          "description": "Formater automatiquement le document lors de la sauvegarde"
+        },
+        "scrollBeyondLastLine": {
+          "label": "Défiler Au-delà de la Dernière Ligne",
+          "description": "Permettre le défilement au-delà de la fin du document"
+        }
+      },
+      "cursor": {
+        "title": "Curseur",
+        "description": "Apparence et comportement du curseur",
+        "style": {
+          "label": "Style du Curseur",
+          "description": "Style visuel du curseur de texte",
+          "line": "Ligne (|)",
+          "block": "Bloc (█)",
+          "underline": "Souligné (_)"
+        },
+        "blinking": {
+          "label": "Clignotement du Curseur",
+          "description": "Style d'animation pour le curseur",
+          "blink": "Clignoter",
+          "smooth": "Lisse",
+          "phase": "Phase",
+          "expand": "Étendre",
+          "solid": "Solide (Sans Clignotement)"
+        }
+      }
+    },
+    "pdfViewer": {
+      "title": "Paramètres Visionneuse PDF",
+      "description": "Personnalisez le comportement et l'apparence de la visionneuse PDF.",
+      "display": {
+        "title": "Paramètres d'Affichage",
+        "description": "Contrôlez comment les PDF sont affichés",
+        "defaultZoom": {
+          "label": "Niveau de Zoom par Défaut",
+          "description": "Comment les PDF doivent être affichés par défaut",
+          "fitPage": "Ajuster à la Page",
+          "fitWidth": "Ajuster à la Largeur",
+          "actual": "Taille Réelle (100%)"
+        },
+        "splitViewMode": {
+          "label": "Mode Vue Partagée",
+          "description": "Comment l'éditeur et le PDF sont disposés",
+          "horizontal": "Horizontal (Côte à Côte)",
+          "vertical": "Vertical (Haut et Bas)",
+          "auto": "Auto (Basé sur Taille Fenêtre)"
+        }
+      },
+      "behavior": {
+        "title": "Paramètres de Comportement",
+        "description": "Actions et fonctionnalités automatiques",
+        "showByDefault": {
+          "label": "Afficher PDF par Défaut",
+          "description": "Afficher automatiquement le panneau PDF à l'ouverture de fichiers .tex"
+        },
+        "autoRefresh": {
+          "label": "Actualisation Auto PDF",
+          "description": "Recharger automatiquement le PDF après compilation réussie"
+        }
+      },
+      "prevPage": "Page Précédente",
+      "nextPage": "Page Suivante",
+      "zoomOut": "Zoom Arrière",
+      "zoomIn": "Zoom Avant",
+      "fitWidth": "Ajuster à la Largeur",
+      "fitPage": "Ajuster à la Page",
+      "actualSize": "Taille Réelle",
+      "synctex": {
+        "title": "Paramètres SyncTeX",
+        "description": "Synchronisation entre source et PDF",
+        "highlight": {
+          "label": "Surlignage SyncTeX",
+          "description": "Surligner la position correspondante dans le PDF pendant la sync avant"
+        },
+        "scrollSync": {
+          "label": "Synchronisation Défilement",
+          "description": "Synchroniser le défilement entre l'éditeur et la visionneuse PDF"
+        }
+      }
+    },
+    "database": {
+      "title": "Paramètres Base de Données",
+      "description": "Personnalisez la vue et le comportement de la base de données.",
+      "view": {
+        "title": "Paramètres de Vue",
+        "description": "Vues par défaut et options d'affichage",
+        "defaultView": {
+          "label": "Vue par Défaut",
+          "description": "Comment la base de données est affichée par défaut",
+          "table": "Vue Tableau",
+          "graph": "Vue Graphique",
+          "list": "Vue Liste"
+        },
+        "showMetadataPanel": {
+          "label": "Afficher Panneau Métadonnées",
+          "description": "Afficher panneau métadonnées par défaut lors de la visualisation de ressources"
+        },
+        "tablePageSize": {
+          "label": "Taille de Page Tableau",
+          "description": "Nombre de lignes par page dans la vue tableau (10-100)"
+        }
+      },
+      "graph": {
+        "title": "Vue Graphique",
+        "description": "Paramètres pour l'affichage graphique visuel",
+        "physics": {
+          "label": "Activer Simulation Physique",
+          "description": "Utiliser mise en page dirigée par force pour visualisation graphique"
+        },
+        "animation": {
+          "label": "Animation Graphique",
+          "description": "Animer transitions et interactions graphiques"
+        }
+      },
+      "advanced": {
+        "title": "Options Avancées",
+        "description": "Fonctionnalités supplémentaires base de données",
+        "autoDetectPreambles": {
+          "label": "Auto-détecter Préambules",
+          "description": "Identifier et catégoriser automatiquement les fichiers de préambule"
+        },
+        "showFilePreview": {
+          "label": "Afficher Aperçu Fichier au Survol",
+          "description": "Afficher info-bulle d'aperçu de fichier au survol des éléments"
+        }
+      }
+    },
+    "accessibility": {
+      "title": "Paramètres Accessibilité",
+      "description": "Améliorer lisibilité et réduire fatigue visuelle.",
+      "visual": {
+        "title": "Améliorations Visuelles",
+        "description": "Paramètres pour une meilleure visibilité",
+        "highContrast": {
+          "label": "Mode Contraste Élevé",
+          "description": "Augmenter le contraste pour une meilleure visibilité"
+        },
+        "fontLigatures": {
+          "label": "Ligatures de Police",
+          "description": "Utiliser combinaisons de caractères spéciaux (→, ≤, etc.)"
+        },
+        "letterSpacing": {
+          "label": "Espacement des Lettres",
+          "description": "Espace supplémentaire entre les lettres en pixels (0-2)"
+        },
+        "lineHeight": {
+          "label": "Hauteur de Ligne",
+          "description": "Espace vertical entre les lignes (1.0-2.0)"
+        },
+        "renderWhitespace": {
+          "label": "Afficher Espaces Blancs",
+          "description": "Afficher caractères d'espace invisibles",
+          "none": "Aucun",
+          "boundary": "Limite (Début/Fin)",
+          "selection": "Sélection Uniquement",
+          "all": "Tous les Espaces"
+        }
+      },
+      "motion": {
+        "title": "Mouvement & Animation",
+        "description": "Contrôler mouvement et transitions",
+        "smoothScrolling": {
+          "label": "Défilement Fluide",
+          "description": "Activer animations de défilement fluide"
+        },
+        "animationSpeed": {
+          "label": "Vitesse d'Animation",
+          "description": "Vitesse des animations UI et transitions",
+          "slow": "Lent (Relaxé)",
+          "normal": "Normal",
+          "fast": "Rapide (Vif)",
+          "none": "Aucun (Instantané)"
+        },
+        "reduceMotion": {
+          "label": "Réduire Mouvement",
+          "description": "Minimiser animations pour sensibilité au mouvement (écrase vitesse animation)"
+        }
+      }
+    },
+    "theme": {
+      "title": "Paramètres de Thème",
+      "description": "Personnalisez l'apparence de l'application.",
+      "uiTheme": {
+        "label": "Thème UI",
+        "description": "Thème de couleur pour l'interface de l'application.",
+        "custom": "Personnalisé",
+        "light": "Clair",
+        "dark": "Sombre"
+      },
+      "advanced": {
+        "title": "Éditeur de Thème Avancé",
+        "description": "Remplacer couleurs spécifiques du thème actuel. Les modifications sont appliquées immédiatement.",
+        "appBg": { "label": "Arrière-plan App", "description": "Arrière-plan principal derrière l'éditeur" },
+        "sidebarBg": { "label": "Arrière-plan Barre Latérale", "description": "Barre latérale gauche" },
+        "headerBg": { "label": "Arrière-plan En-tête", "description": "Barre de navigation supérieure" },
+        "panelBg": { "label": "Arrière-plan Panneau", "description": "Panneaux latéraux (fichiers, base de données)" },
+        "statusBarBg": { "label": "Arrière-plan Barre d'État", "description": "Barre d'état inférieure" },
+        "primaryColor": { "label": "Couleur Primaire", "description": "Couleur d'accent principale (boutons, surlignages)" },
+        "accentColor": { "label": "Couleur d'Accent", "description": "Accent secondaire (icônes, états actifs)" },
+        "borderColor": { "label": "Couleur Bordure", "description": "Couleur de bordure globale" },
+        "actions": "Actions",
+        "resetOverrides": "Réinitialiser Remplacements",
+        "newThemeName": "Nom Nouveau Thème",
+        "saveAsTheme": "Enregistrer comme Thème"
+      }
+    },
+    "shortcuts": {
+      "title": "Raccourcis Clavier",
+      "description": "Personnalisez les raccourcis clavier pour les actions fréquentes.",
+      "resetAll": "Réinitialiser Tout par Défaut",
+      "categories": {
+        "general": "Général",
+        "editor": "Éditeur",
+        "compilation": "Compilation",
+        "navigation": "Navigation"
+      },
+      "actions": {
+        "file.save": { "description": "Enregistrer fichier actuel" },
+        "file.saveAll": { "description": "Enregistrer tous les fichiers" },
+        "file.closeTab": { "description": "Fermer onglet actuel" },
+        "file.newTemplate": { "description": "Nouveau fichier depuis modèle" },
+        "view.openSettings": { "description": "Ouvrir Paramètres" },
+        "editor.find": { "description": "Trouver dans le fichier" },
+        "editor.replace": { "description": "Chercher et remplacer" },
+        "compilation.build": { "description": "Compiler document actuel" },
+        "view.toggleSidebar": { "description": "Basculer barre latérale" },
+        "tools.packageBrowser": { "description": "Ouvrir Navigateur Paquets" }
+      },
+      "modified": "Modifié",
+      "edit": "Éditer Raccourci",
+      "reset": "Réinitialiser",
+      "editModal": {
+        "title": "Éditer Raccourci",
+        "instruction": "Appuyez sur la combinaison de touches souhaitée pour :",
+        "listening": "Écoute des touches...",
+        "save": "Enregistrer Raccourci"
+      }
+    },
+    "common": {
+      "on": "Activer",
+      "off": "Désactiver"
+    }
+  },
+  "menu": {
+    "file": {
+      "label": "Fichier",
+      "newFile": "Nouveau Fichier",
+      "newFromTemplate": "Nouveau depuis Modèle",
+      "open": "Ouvrir",
+      "save": "Enregistrer",
+      "exportPdf": "Exporter en PDF",
+      "exit": "Quitter"
+    },
+    "edit": {
+      "label": "Édition",
+      "undo": "Annuler",
+      "redo": "Refaire",
+      "cut": "Couper",
+      "copy": "Copier",
+      "paste": "Coller",
+      "find": "Rechercher"
+    },
+    "insert": {
+      "label": "Insérer",
+      "image": "Image (Figure)"
+    },
+    "view": {
+      "label": "Affichage",
+      "databasePanel": "Panneau Base de Données",
+      "rightSidebar": "Barre Latérale Droite (PDF)",
+      "wordCount": "Nombre de Mots",
+      "zoomIn": "Zoom Avant",
+      "zoomOut": "Zoom Arrière"
+    },
+    "database": {
+      "label": "Base de Données",
+      "open": "Ouvrir Base / Dossier",
+      "addCollection": "Ajouter Collection (Dossier)",
+      "refresh": "Actualiser Base"
+    },
+    "tools": {
+      "label": "Outils",
+      "website": "Site Web",
+      "wizards": "Assistants",
+      "preambleWizard": "Assistant Préambule",
+      "tableWizard": "Assistant Tableau",
+      "tikzWizard": "Assistant TikZ",
+      "fancyhdrWizard": "Assistant FancyHDR",
+      "pstricksWizard": "Assistant PSTricks",
+      "packageBrowser": "Navigateur Paquets",
+      "settings": "Paramètres",
+      "packageGallery": "Galerie Paquets"
+    },
+    "build": {
+      "label": "Build",
+      "compile": "Compiler",
+      "stop": "Arrêter Build"
+    },
+    "help": {
+      "label": "Aide",
+      "about": "À propos de DataTex"
+    }
+  },
+  "sidebar": {
+    "database": "Base de Données",
+    "structure": "Structure",
+    "symbols": "Symboles AMS",
+    "gallery": "Galerie Paquets",
+    "search": "Rechercher",
+    "git": "Contrôle Source",
+    "settings": "Paramètres",
+    "openPackageDatabase": "Ouvrir Base Paquets",
+    "selectCategory": "Sélectionner une catégorie",
+    "noStructure": "Aucune structure trouvée.",
+    "projectFiles": "Dossiers Projet",
+    "quickTools": "OUTILS RAPIDES",
+    "noFolderOpened": "Aucun dossier ouvert",
+    "openFolder": "Ouvrir Dossier",
+    "labelPrefix": "Étiquette: "
+  },
+  "header": {
+    "searchPlaceholder": "Recherche DataTex (Ctrl+P)",
+    "showOutline": "Afficher structure",
+    "hideOutline": "Masquer structure",
+    "showDatabase": "Afficher tableau base",
+    "hideDatabase": "Masquer tableau base",
+    "moveDatabaseLeft": "Déplacer base à gauche",
+    "moveDatabaseBottom": "Déplacer base en bas",
+    "showRightPanel": "Afficher panneau droit",
+    "hideRightPanel": "Masquer panneau droit",
+    "aiAssistant": "Assistant IA"
+  },
+  "database": {
+    "title": "Collections",
+    "createCollection": "Créer Collection",
+    "importFolderAsCollection": "Importer Dossier comme Collection",
+    "searchCollections": "Rechercher collections...",
+    "searchPlaceholder": "Rechercher...",
+    "noCollections": "Aucune collection trouvée.",
+    "importFile": "Importer Fichier",
+    "addExistingFolder": "Ajouter Dossier Existant",
+    "deleteCollection": "Supprimer Collection",
+    "collectionsLoaded_one": "{{count}} collection chargée",
+    "collectionsLoaded_other": "{{count}} collections chargées",
+    "deleteCollectionTitle": "Supprimer Collection",
+    "deleteCollectionConfirm": "Êtes-vous sûr de vouloir supprimer la collection",
+    "deleteCollectionWarning": "ATTENTION : Cette action supprimera la collection et toutes ses ressources de la base de données, mais ne supprimera PAS les fichiers de votre système de fichiers.",
+    "newCollectionTitle": "Nouvelle Collection",
+    "collectionNameLabel": "Nom Collection",
+    "collectionNamePlaceholder": "ex., Mathématiques, Physique",
+    "addFolderTo": "Ajouter Dossier à",
+    "selectImportFolder": "Sélectionner Dossier à Importer",
+    "importFileTo": "Importer Fichier dans",
+    "cannotCreateInEmptyCollection": "Impossible de créer fichier dans une collection vide. Veuillez importer un fichier ou dossier d'abord.",
+    "invalidCollectionPath": "Chemin de collection invalide.",
+    "selectCollections": "Sélectionner des collections",
+    "loadedCollections": "Collections chargées",
+    "selectCollectionToView": "Sélectionnez une collection pour voir son contenu",
+    "tabs": {
+      "metadata": "Métadonnées",
+      "bibliography": "Bibliographie"
+    },
+    "inspector": {
+      "title": "Titre",
+      "fileType": "Type Fichier",
+      "id": "ID",
+      "collection": "Collection",
+      "created": "Créé",
+      "bibMessage": "Sélectionnez une entrée bibliographique pour voir les détails.",
+      "noPdf": "Aucun aperçu PDF disponible.",
+      "fields": {
+        "title": "Titre",
+        "fileType": "Type Fichier",
+        "id": "ID",
+        "collection": "Collection",
+        "created": "Créé"
+      }
+    },
+    "actions": {
+      "emptyFile": "Fichier Vide",
+      "fromTemplate": "Depuis Modèle",
+      "preambleWizard": "Assistant Préambule",
+      "addExistingFile": "Ajouter Fichier Existant",
+      "openInEditor": "Ouvrir dans l'Éditeur",
+      "revealInExplorer": "Révéler dans l'Explorateur",
+      "moveToCollection": "Déplacer vers Collection",
+      "moveTo": "Déplacer vers...",
+      "removeFromDatabase": "Retirer de la Base"
+    },
+    "graph": {
+      "title": "Vue Graphique",
+      "controls": {
+        "zoomIn": "Zoom Avant",
+        "zoomOut": "Zoom Arrière",
+        "fitToView": "Ajuster à la Vue",
+        "hide": "Masquer"
+      },
+      "filters": "Filtres",
+      "packages": "Paquets",
+      "bibliographies": "Bibliographies",
+      "images": "Images",
+      "classes": "Classes",
+      "dtx": "Fichiers DTX",
+      "ins": "Fichiers INS",
+      "layout": "Mise en page",
+      "free": "Libre",
+      "treeTD": "Arbre (Haut-Bas)",
+      "treeLR": "Arbre (Gauche-Droite)",
+      "radial": "Radial",
+      "view": "Vue",
+      "focusMode": "Mode Focus",
+      "physics": "Physique",
+      "linkDistance": "Distance Liens",
+      "repulsion": "Répulsion",
+      "legend": {
+        "title": "Légende",
+        "document": "Document",
+        "preamble": "Préambule",
+        "dependency": "Dépendance",
+        "package": "Paquet",
+        "class": "Classe",
+        "bibliography": "Bibliographie",
+        "image": "Image",
+        "dtx": "DTX",
+        "ins": "INS"
+      }
+    },
+    "newFile": "Nouveau Fichier",
+    "newFolder": "Nouveau Dossier",
+    "addFolder": "Ajouter Dossier"
+  },
+  "startPage": {
+    "documentation": "Documentation",
+    "getStarted": "Commencer",
+    "emptyFile": "Fichier Vide",
+    "emptyFileDesc": "Commencer à zéro avec un document vide.",
+    "preambleWizard": "Assistant Préambule",
+    "preambleWizardDesc": "Configurer paramètres page, paquets et polices.",
+    "databaseTools": "Outils Base Données",
+    "examGenerator": "Générateur Examens",
+    "examGeneratorDesc": "Créer examens automatiquement depuis exercices valides.",
+    "browseDatabase": "Parcourir Base",
+    "browseDatabaseDesc": "Gérer fichiers, étiquettes et métadonnées.",
+    "packageBrowser": "Navigateur Paquets",
+    "packageBrowserDesc": "Rechercher et explorer paquets CTAN.",
+    "recentProjects": "PROJETS RÉCENTS",
+    "noRecentProjects": "Aucun projet récent trouvé.",
+    "quickResources": "Ressources Rapides",
+    "latexCheatsheet": "Aide-mémoire LaTeX",
+    "ctanSearch": "Recherche Paquets CTAN",
+    "detexify": "Detexify (Symboles)",
+    "tikzExamples": "Exemples TikZ",
+    "templates": "Modèles",
+    "viewAllTemplates": "Voir tous les modèles"
+  },
+  "statusBar": {
+    "ready": "Prêt",
+    "wordCount": "Nombre Mots",
+    "spellCheck": "Vérif. Orthographe",
+    "connected": "Connecté",
+    "disconnected": "Déconnecté",
+    "ln": "Li",
+    "col": "Col",
+    "plainText": "Texte Brut",
+    "dbPrefix": "BD DataTex:"
+  },
+  "search": {
+    "placeholder": "Rechercher dans les fichiers...",
+    "replacePlaceholder": "Remplacer...",
+    "replaceAll": "Tout Remplacer",
+    "case": "Casse",
+    "regex": "Regex",
+    "fileTypes": "Types de Fichiers:",
+    "noMatches": "Aucune correspondance trouvée",
+    "confirmReplace": "Êtes-vous sûr de vouloir remplacer \"{{search}}\" par \"{{replace}}\" dans toutes les correspondances ? Cette action est irréversible.",
+    "replaceSuccess": "Remplacé {{count}} occurrences dans {{files}} fichiers.",
+    "replaceError": "Le remplacement a échoué : {{error}}",
+    "errorPrefix": "Erreur : {{error}}",
+    "stats": "{{matches}} correspondances dans {{files}} fichiers ({{duration}}ms)"
+  },
+  "editorToolbar": {
+    "bold": "Gras (\\textbf)",
+    "italic": "Italique (\\textit)",
+    "underline": "Souligné (\\underline)",
+    "strikethrough": "Barré (\\st)",
+    "text": "Texte (\\text)",
+    "highlight": "Surligné (\\hl)",
+    "code": "Code (\\texttt)",
+    "alignLeft": "Aligner Gauche (flushleft)",
+    "alignCenter": "Aligner Centre (center)",
+    "alignRight": "Aligner Droite (flushright)",
+    "justify": "Justifier (default)",
+    "quote": "Environnement Citation",
+    "ellipsis": "Points susp. (\\dots)",
+    "bulletList": "Liste Puces (itemize)",
+    "numberedList": "Liste Numérotée (enumerate)",
+    "inlineMath": "Maths En Ligne ($...$)",
+    "displayMath": "Maths Affichées (\\[...\\])",
+    "subscript": "Indice (_{})",
+    "superscript": "Exposant (^{})",
+    "horizontalSpace": "Espace Horizontal (\\hspace)",
+    "verticalSpace": "Espace Vertical (\\vspace)",
+    "link": "Lien (\\href)",
+    "unlink": "Supprimer Lien"
+  },
+  "ai": {
+    "settings": {
+      "title": "Paramètres IA",
+      "provider": "Fournisseur",
+      "openaiKey": "Clé API OpenAI",
+      "geminiKey": "Clé API Gemini",
+      "ollamaUrl": "URL Ollama",
+      "customAgents": "Agents Personnalisés",
+      "createNewAgent": "Créer Nouvel Agent",
+      "disclaimer": "Les clés API sont stockées localement dans votre navigateur/données app."
+    },
+    "provider": {
+      "mock": "Mock IA (Debug)",
+      "openai": "OpenAI",
+      "gemini": "Google Gemini",
+      "ollama": "Ollama (Local)"
+    },
+    "assistantTitle": "Assistant IA",
+    "standardAssistant": "Assistant Standard",
+    "agentPrefix": "Agent:",
+    "fetchModelsTooltip": "Récupérer modèles disponibles depuis API",
+    "fetch": "Récupérer",
+    "model": "Modèle"
+  }
+}

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Stack,
   ActionIcon,
@@ -31,6 +32,7 @@ export const AISidebar: React.FC<AISidebarProps> = ({
   onInsertCode,
   // onClose,
 }) => {
+  const { t } = useTranslation();
   const [showSettings, setShowSettings] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
@@ -87,7 +89,7 @@ export const AISidebar: React.FC<AISidebarProps> = ({
     <Group align="flex-end" gap="xs">
       <Autocomplete
         style={{ flex: 1 }}
-        label="Model"
+        label={t("ai.model")}
         placeholder={placeholder}
         data={availableModels.length > 0 ? availableModels : [currentModel]}
         value={currentModel}
@@ -98,9 +100,9 @@ export const AISidebar: React.FC<AISidebarProps> = ({
         variant="light"
         onClick={handleFetchModels}
         loading={loadingModels}
-        title="Fetch available models from API"
+        title={t("ai.fetchModelsTooltip")}
       >
-        Fetch
+        {t("ai.fetch")}
       </Button>
     </Group>
   );
@@ -119,16 +121,16 @@ export const AISidebar: React.FC<AISidebarProps> = ({
             <ActionIcon variant="subtle" onClick={() => setShowSettings(false)}>
               <FontAwesomeIcon icon={faArrowLeft} />
             </ActionIcon>
-            <Title order={5}>AI Settings</Title>
+            <Title order={5}>{t("ai.settings.title")}</Title>
           </Group>
 
           <Select
-            label="Provider"
+            label={t("ai.settings.provider")}
             data={[
-              { value: "mock", label: "Mock AI (Debug)" },
-              { value: "openai", label: "OpenAI" },
-              { value: "gemini", label: "Google Gemini" },
-              { value: "ollama", label: "Ollama (Local)" },
+              { value: "mock", label: t("ai.provider.mock") },
+              { value: "openai", label: t("ai.provider.openai") },
+              { value: "gemini", label: t("ai.provider.gemini") },
+              { value: "ollama", label: t("ai.provider.ollama") },
             ]}
             value={provider}
             onChange={(val) => {
@@ -140,7 +142,7 @@ export const AISidebar: React.FC<AISidebarProps> = ({
           {provider === "openai" && (
             <>
               <PasswordInput
-                label="OpenAI API Key"
+                label={t("ai.settings.openaiKey")}
                 placeholder="sk-..."
                 value={openaiKey}
                 onChange={(e) => setOpenAIKey(e.currentTarget.value)}
@@ -152,7 +154,7 @@ export const AISidebar: React.FC<AISidebarProps> = ({
           {provider === "gemini" && (
             <>
               <PasswordInput
-                label="Gemini API Key"
+                label={t("ai.settings.geminiKey")}
                 placeholder="AIza..."
                 value={geminiKey}
                 onChange={(e) => setGeminiKey(e.currentTarget.value)}
@@ -168,7 +170,7 @@ export const AISidebar: React.FC<AISidebarProps> = ({
           {provider === "ollama" && (
             <>
               <TextInput
-                label="Ollama URL"
+                label={t("ai.settings.ollamaUrl")}
                 placeholder="http://localhost:11434"
                 value={ollamaUrl}
                 onChange={(e) => setOllamaUrl(e.currentTarget.value)}
@@ -177,7 +179,11 @@ export const AISidebar: React.FC<AISidebarProps> = ({
             </>
           )}
 
-          <Divider my="md" label="Custom Agents" labelPosition="center" />
+          <Divider
+            my="md"
+            label={t("ai.settings.customAgents")}
+            labelPosition="center"
+          />
 
           <Stack gap="xs">
             {agents.map((agent) => (
@@ -220,12 +226,12 @@ export const AISidebar: React.FC<AISidebarProps> = ({
                 setEditorOpen(true);
               }}
             >
-              Create New Agent
+              {t("ai.settings.createNewAgent")}
             </Button>
           </Stack>
 
           <Text size="xs" c="dimmed" mt="auto">
-            API keys are stored locally in your browser/app data.
+            {t("ai.settings.disclaimer")}
           </Text>
         </Stack>
       ) : (
@@ -238,12 +244,12 @@ export const AISidebar: React.FC<AISidebarProps> = ({
             }}
           >
             <Group justify="space-between" mb="xs">
-              <Title order={5}>AI Assistant</Title>
+              <Title order={5}>{t("ai.assistantTitle")}</Title>
               <ActionIcon
                 variant="light"
                 size="sm"
                 onClick={() => setShowSettings(true)}
-                title="AI Settings"
+                title={t("ai.settings.title")}
               >
                 <FontAwesomeIcon icon={faCog} />
               </ActionIcon>
@@ -251,10 +257,10 @@ export const AISidebar: React.FC<AISidebarProps> = ({
 
             <Select
               data={[
-                { value: "standard", label: "Standard Assistant" },
+                { value: "standard", label: t("ai.standardAssistant") },
                 ...agents.map((a) => ({
                   value: a.id,
-                  label: `Agent: ${a.name}`,
+                  label: `${t("ai.agentPrefix")} ${a.name}`,
                 })),
               ]}
               value={activeAgentId || "standard"}

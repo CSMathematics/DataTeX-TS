@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Title,
   Text,
@@ -61,6 +62,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
   onInsertPackage,
   compact = false,
 }) => {
+  const { t } = useTranslation();
   const [search, setSearch] = useInputState("");
   const [debouncedSearch] = useDebouncedValue(search, 150);
   // Selected package for detail view (null = none selected, storing just the ID)
@@ -234,7 +236,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
               >
                 <FontAwesomeIcon icon={faBoxOpen} />
               </ThemeIcon>
-              <Title order={4}>CTAN Packages</Title>
+              <Title order={4}>{t("tools.packageBrowser.title")}</Title>
               <Badge variant="outline" size="sm">
                 {filteredPackages.length} /{" "}
                 {totalPackages > 0 ? totalPackages : "?"}
@@ -255,7 +257,9 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
                     setSelectedPkgs(new Set());
                   }}
                 >
-                  Insert {selectedPkgs.size}
+                  {t("tools.packageBrowser.insertCount", {
+                    count: selectedPkgs.size,
+                  })}
                 </Button>
               )}
               <ActionIcon
@@ -270,7 +274,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
           </Group>
 
           <TextInput
-            placeholder="Search packages..."
+            placeholder={t("tools.packageBrowser.searchPlaceholder")}
             leftSection={<FontAwesomeIcon icon={faSearch} />}
             value={search}
             onChange={setSearch}
@@ -280,7 +284,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
 
           <Group gap="xs">
             <Select
-              placeholder="Filter by topic"
+              placeholder={t("tools.packageBrowser.filterTopic")}
               data={allTopics}
               value={selectedTopic}
               onChange={setSelectedTopic}
@@ -321,8 +325,9 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
                 ))}
                 {filteredPackages.length < totalPackages && (
                   <Button variant="subtle" size="xs" onClick={loadMore}>
-                    Load More... ({totalPackages - filteredPackages.length}{" "}
-                    remaining)
+                    {t("tools.packageBrowser.loadMore", {
+                      remaining: totalPackages - filteredPackages.length,
+                    })}
                   </Button>
                 )}
               </>
@@ -334,7 +339,9 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
                   icon={faBoxOpen}
                   style={{ fontSize: 48, color: "var(--mantine-color-dimmed)" }}
                 />
-                <Text c="dimmed">No packages found matching "{search}"</Text>
+                <Text c="dimmed">
+                  {t("tools.packageBrowser.noPackages", { query: search })}
+                </Text>
               </Stack>
             )}
           </Stack>
@@ -386,7 +393,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
                       }}
                     >
                       {pkg.home && (
-                        <Tooltip label="Visit Home Page">
+                        <Tooltip label={t("tools.packageBrowser.visitHome")}>
                           <ActionIcon
                             variant="light"
                             size="sm"
@@ -399,7 +406,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
                         </Tooltip>
                       )}
                       {pkg.ctan && (
-                        <Tooltip label="Visit CTAN Page">
+                        <Tooltip label={t("tools.packageBrowser.visitCtan")}>
                           <ActionIcon
                             variant="default"
                             size="sm"
@@ -411,7 +418,11 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
                           </ActionIcon>
                         </Tooltip>
                       )}
-                      <Tooltip label={`${pkg.id} Information`}>
+                      <Tooltip
+                        label={t("tools.packageBrowser.pkgInfo", {
+                          id: pkg.id,
+                        })}
+                      >
                         <ActionIcon
                           variant="default"
                           size="sm"
@@ -438,7 +449,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
                     {/* Caption/Description */}
                     <Box>
                       <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb={4}>
-                        Description
+                        {t("tools.packageBrowser.description")}
                       </Text>
                       <Text size="sm">{stripHtml(pkg.caption)}</Text>
                     </Box>
@@ -453,7 +464,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
                           tt="uppercase"
                           mb={4}
                         >
-                          Version
+                          {t("tools.packageBrowser.version")}
                         </Text>
                         <Text size="sm">{pkg.version}</Text>
                       </Box>
@@ -473,7 +484,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
                           onInsertPackage(`\\usepackage{${pkg.id}}\n`)
                         }
                       >
-                        Insert \usepackage{`{${pkg.id}}`}
+                        {t("tools.packageBrowser.insertPkg", { id: pkg.id })}
                       </Button>
                     )}
 
@@ -487,7 +498,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
                           <FontAwesomeIcon icon={faWandMagicSparkles} />
                         }
                       >
-                        Wizard Available
+                        {t("tools.packageBrowser.wizardAvailable")}
                       </Badge>
                     )}
 
@@ -505,7 +516,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
               icon={faBoxOpen}
               style={{ fontSize: 48, opacity: 0.3 }}
             />
-            <Text size="sm">Select a package to view details</Text>
+            <Text size="sm">{t("tools.packageBrowser.selectPackage")}</Text>
           </Stack>
         )}
       </Box>

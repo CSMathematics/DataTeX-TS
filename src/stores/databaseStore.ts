@@ -6,6 +6,7 @@ export interface Collection {
   description?: string;
   icon?: string;
   kind: string;
+  path?: string;
   created_at?: string;
 }
 
@@ -62,9 +63,10 @@ interface DatabaseState {
     collectionName: string,
     path: string
   ) => Promise<void>;
-  createCollection: (name: string) => Promise<void>;
+  createCollection: (name: string, path: string) => Promise<void>;
   selectResource: (id: string | null) => void;
   toggleCollectionLoaded: (name: string) => Promise<void>;
+  setLoadedCollections: (collections: string[]) => Promise<void>;
   fetchResourcesForLoadedCollections: () => Promise<void>;
   deleteCollection: (name: string) => Promise<void>;
   deleteResource: (id: string) => Promise<void>;
@@ -74,6 +76,7 @@ interface DatabaseState {
     content: string,
     metadata?: LatexFileMetadata
   ) => Promise<void>;
+  createFolder: (path: string, collection: string) => Promise<void>;
   importFile: (path: string, collection: string) => Promise<void>;
   updateResourceMetadata: (
     id: string,
@@ -149,12 +152,34 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
 
     set({ loadedCollections: newLoadedCollections, isLoading: true });
 
-    // Fetch resources for all loaded collections using batch command (single IPC call)
+    // Fetch resources for all loaded collections
     try {
       const allResources = await invoke<Resource[]>(
         "get_resources_by_collections_cmd",
         {
           collections: newLoadedCollections,
+        }
+      );
+
+      set({ allLoadedResources: allResources, isLoading: false });
+    } catch (err: any) {
+      set({ error: err.toString(), isLoading: false });
+    }
+  },
+
+  setLoadedCollections: async (collections: string[]) => {
+    set({ loadedCollections: collections, isLoading: true });
+
+    if (collections.length === 0) {
+      set({ allLoadedResources: [], isLoading: false });
+      return;
+    }
+
+    try {
+      const allResources = await invoke<Resource[]>(
+        "get_resources_by_collections_cmd",
+        {
+          collections,
         }
       );
 
@@ -214,10 +239,10 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
     }
   },
 
-  createCollection: async (name: string) => {
-    set({ isLoading: true });
+  createCollection: async (name: string, path: string) => {
+    set({ isLoading: true, error: null });
     try {
-      await invoke("create_collection_cmd", { name });
+      await invoke("create_collection_cmd", { name, path });
       await get().fetchCollections();
       set({ isLoading: false });
     } catch (err: any) {
@@ -290,6 +315,21 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
         metadata,
       });
       // Refresh to show new file
+      await get().fetchResourcesForLoadedCollections();
+      set({ isLoading: false });
+    } catch (err: any) {
+      set({ error: err.toString(), isLoading: false });
+    }
+  },
+
+  createFolder: async (path: string, collection: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await invoke("create_folder_cmd", {
+        path,
+        collectionName: collection,
+      });
+      // Refresh to show new folder
       await get().fetchResourcesForLoadedCollections();
       set({ isLoading: false });
     } catch (err: any) {

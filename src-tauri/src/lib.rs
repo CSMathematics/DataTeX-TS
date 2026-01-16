@@ -267,7 +267,11 @@ async fn get_collections_cmd(state: State<'_, AppState>) -> Result<Vec<Collectio
 }
 
 #[tauri::command]
-async fn create_collection_cmd(name: String, state: State<'_, AppState>) -> Result<(), String> {
+async fn create_collection_cmd(
+    name: String,
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let db_guard = state.db_manager.lock().await;
     let db = db_guard.as_ref().ok_or("Database not initialized")?;
 
@@ -276,6 +280,7 @@ async fn create_collection_cmd(name: String, state: State<'_, AppState>) -> Resu
         description: Some("Manually created collection".to_string()),
         icon: Some("database".to_string()),
         kind: "manual".to_string(),
+        path: Some(path),
         created_at: None,
     };
     db.create_collection(&collection).await?;
@@ -325,6 +330,7 @@ async fn import_folder_cmd(
         description: Some(format!("Imported from {}", path)),
         icon: Some("folder".to_string()),
         kind: "files".to_string(),
+        path: Some(path.clone()),
         created_at: None,
     };
     db.create_collection(&collection).await?;
@@ -455,7 +461,7 @@ async fn create_resource_cmd(
 }
 
 #[tauri::command]
-async fn import_file_cmd(
+async fn create_folder_cmd(
     path: String,
     collection_name: String,
     state: State<'_, AppState>,
@@ -463,28 +469,116 @@ async fn import_file_cmd(
     let db_guard = state.db_manager.lock().await;
     let db = db_guard.as_ref().ok_or("Database not initialized")?;
 
+    // 1. Create directory on disk
+    fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+
+    // 2. Add to database
     let file_name = std::path::Path::new(&path)
         .file_name()
         .unwrap_or_default()
         .to_string_lossy()
         .to_string();
 
+    let resource = Resource {
+        id: Uuid::new_v4().to_string(),
+        path: path.clone(),
+        kind: "folder".to_string(), // Explicitly folder
+        collection: collection_name,
+        title: Some(file_name),
+        content_hash: None,
+        metadata: Some(serde_json::json!({})),
+        created_at: None,
+        updated_at: None,
+    };
+
+    db.add_resource(&resource).await
+}
+
+#[tauri::command]
+async fn import_file_cmd(
+    path: String,
+    collection_name: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    println!(
+        "import_file_cmd called with path: '{}', collection: '{}'",
+        path, collection_name
+    );
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    // 1. Get Collection Path
+    // Since we don't have get_collection_by_name exposed yet, fetch all and find.
+    let collections = db.get_collections().await?;
+    let target_col = collections
+        .into_iter()
+        .find(|c| c.name == collection_name)
+        .ok_or("Collection not found")?;
+
+    let col_path_str = target_col.path.ok_or("Collection has no physical path")?;
+    let col_path = std::path::Path::new(&col_path_str);
+
+    // 2. Prepare Destination Path
+    let src_path = std::path::Path::new(&path);
+    let file_name = src_path.file_name().ok_or("Invalid source file name")?;
+
+    let mut dest_path = col_path.join(file_name);
+
+    // 3. Handle Duplicates (Auto-rename)
+    if dest_path.exists() {
+        let file_stem = src_path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        let extension = src_path
+            .extension()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
+        let mut counter = 1;
+        while dest_path.exists() {
+            let new_name = if extension.is_empty() {
+                format!("{}_{}", file_stem, counter)
+            } else {
+                format!("{}_{}.{}", file_stem, counter, extension)
+            };
+            dest_path = col_path.join(new_name);
+            counter += 1;
+        }
+    }
+
+    // 4. Perform Copy
+    // Check if source and dest are the same (already in folder)
+    if src_path != dest_path {
+        fs::copy(&src_path, &dest_path).map_err(|e| format!("Failed to copy file: {}", e))?;
+    }
+
+    // 5. Register NEW path in Database
+    let final_path_str = dest_path.to_string_lossy().to_string();
+    let final_file_name = dest_path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+
     // Simple type detection extension - reusing logic could be better but copying for now
-    let kind = if file_name.ends_with(".tex") {
+    let kind = if final_file_name.ends_with(".tex") {
         "file"
-    } else if file_name.ends_with(".bib") {
+    } else if final_file_name.ends_with(".bib") {
         "bibliography"
-    } else if file_name.ends_with(".sty") {
+    } else if final_file_name.ends_with(".sty") {
         "package"
-    } else if file_name.ends_with(".cls") {
+    } else if final_file_name.ends_with(".cls") {
         "class"
-    } else if file_name.ends_with(".dtx") {
+    } else if final_file_name.ends_with(".dtx") {
         "dtx"
-    } else if file_name.ends_with(".ins") {
+    } else if final_file_name.ends_with(".ins") {
         "ins"
-    } else if file_name.ends_with(".png")
-        || file_name.ends_with(".jpg")
-        || file_name.ends_with(".pdf")
+    } else if final_file_name.ends_with(".png")
+        || final_file_name.ends_with(".jpg")
+        || final_file_name.ends_with(".pdf")
     {
         "figure"
     } else {
@@ -493,10 +587,10 @@ async fn import_file_cmd(
 
     let resource = Resource {
         id: Uuid::new_v4().to_string(),
-        path: path.clone(),
+        path: final_path_str,
         kind: kind.to_string(),
         collection: collection_name,
-        title: Some(file_name),
+        title: Some(final_file_name),
         content_hash: None,
         metadata: Some(serde_json::json!({})),
         created_at: None,
@@ -764,13 +858,22 @@ async fn get_file_tree_cmd(
     let db_guard = state.db_manager.lock().await;
     let db = db_guard.as_ref().ok_or("Database not initialized")?;
 
+    // Build collection roots map for tree builder
+    let all_cols = db.get_collections().await?;
+    let mut roots = std::collections::HashMap::new();
+    for c in all_cols {
+        if let Some(p) = c.path {
+            roots.insert(c.name, p);
+        }
+    }
+
     let mut all_resources = Vec::new();
     for col in collections {
         let resources = db.get_resources_by_collection(&col).await?;
         all_resources.extend(resources);
     }
 
-    Ok(tree_builder::build_file_tree(all_resources))
+    Ok(tree_builder::build_file_tree(all_resources, &roots))
 }
 
 #[tauri::command]
@@ -3815,6 +3918,7 @@ pub fn run() {
             delete_collection_cmd,
             delete_resource_cmd,
             create_resource_cmd,
+            create_folder_cmd,
             import_file_cmd,
             reveal_path_cmd,
             link_resources_cmd,

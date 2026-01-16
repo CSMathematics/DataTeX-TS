@@ -94,11 +94,14 @@ export const StatusBar: React.FC<StatusBarProps> = React.memo(
           )}
 
           <Text size="xs" inherit>
-            Ln {cursorPosition.lineNumber}, Col {cursorPosition.column}
+            {t("statusBar.ln")} {cursorPosition.lineNumber},{" "}
+            {t("statusBar.col")} {cursorPosition.column}
           </Text>
 
           <Text size="xs" inherit>
-            {language === "latex" ? "LaTeX" : language || "Plain Text"}
+            {language === "latex"
+              ? "LaTeX"
+              : language || t("statusBar.plainText")}
           </Text>
           <Text size="xs" inherit>
             UTF-8
@@ -113,7 +116,7 @@ export const StatusBar: React.FC<StatusBarProps> = React.memo(
               }}
             />
             <Text size="xs" inherit>
-              DataTex DB:{" "}
+              {t("statusBar.dbPrefix")}{" "}
               {dbConnected
                 ? t("statusBar.connected")
                 : t("statusBar.disconnected")}

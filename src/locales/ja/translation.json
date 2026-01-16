@@ -1,0 +1,774 @@
+{
+  "common": {
+    "save": "保存",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "edit": "編集",
+    "create": "作成",
+    "open": "開く",
+    "close": "閉じる",
+    "search": "検索",
+    "settings": "設定",
+    "loading": "読み込み中...",
+    "error": "エラー",
+    "success": "成功",
+    "refresh": "更新",
+    "filterFiles": "ファイルをフィルタ...",
+    "newFile": "新規ファイル",
+    "newFolder": "新規フォルダ",
+    "empty": "空",
+    "or": "または",
+    "noResults": "結果が見つかりません",
+    "download": "ダウンロード",
+    "print": "印刷"
+  },
+  "tools": {
+    "packageBrowser": {
+      "title": "CTAN パッケージ",
+      "searchPlaceholder": "パッケージを検索...",
+      "filterTopic": "トピックでフィルタ",
+      "loadMore": "さらに読み込む... (残り {{remaining}})",
+      "noPackages": "\"{{query}}\" に一致するパッケージは見つかりませんでした",
+      "visitHome": "ホームページへ",
+      "visitCtan": "CTAN ページへ",
+      "pkgInfo": "{{id}} 情報",
+      "description": "説明",
+      "version": "バージョン",
+      "insertPkg": "\\usepackage{{{id}}} を挿入",
+      "insertCount": "{{count}} 個を挿入",
+      "wizardAvailable": "ウィザード利用可能",
+      "selectPackage": "詳細を見るにはパッケージを選択してください"
+    }
+  },
+  "wizards": {
+    "insertCode": "コードを挿入",
+    "includegraphics": {
+      "source": "画像ソース",
+      "filePath": "ファイルパス",
+      "dimensions": "寸法と変換",
+      "width": "幅",
+      "height": "高さ",
+      "keepAspectRatio": "アスペクト比を維持",
+      "scale": "倍率",
+      "angle": "回転角度 (度)",
+      "figureEnv": "Figure 環境",
+      "centering": "センタリング",
+      "caption": "キャプション",
+      "label": "ラベル",
+      "placement": "配置",
+      "insertCode": "コードを挿入"
+    }
+  },
+  "settings": {
+    "title": "設定",
+    "searchPlaceholder": "設定を検索...",
+    "noSettingsFound": "設定が見つかりません",
+    "categories": {
+      "general": "一般",
+      "tex": "TeX エンジン",
+      "compilation": "コンパイル",
+      "editor": "エディタの外観",
+      "editorBehavior": "エディタの動作",
+      "pdfViewer": "PDF ビューア",
+      "database": "データベース",
+      "accessibility": "アクセシビリティ",
+      "shortcuts": "キーボードショートカット",
+      "theme": "テーマ"
+    },
+    "general": {
+      "title": "一般設定",
+      "description": "アプリケーション全体の設定。",
+      "startupBehavior": {
+        "label": "起動時の動作",
+        "description": "アプリケーション起動時に表示するもの",
+        "restore": "前回のセッションを復元",
+        "welcome": "ウェルカム画面を表示",
+        "empty": "空のワークスペース"
+      },
+      "confirmOnExit": {
+        "label": "終了時に確認",
+        "description": "未保存の変更がある場合に終了確認を行う"
+      },
+      "language": {
+        "label": "言語",
+        "description": "言語を選択"
+      },
+      "autoSave": {
+        "label": "自動保存",
+        "description": "変更を自動的に保存します（近日公開）。"
+      }
+    },
+    "tex": {
+      "title": "TeX エンジン設定",
+      "description": "LaTeX ドキュメントのコンパイル方法を設定します。",
+      "defaultEngine": {
+        "label": "デフォルトエンジン",
+        "description": "特定的のマジックコメントが見つからない場合に使用されるエンジン。"
+      },
+      "pdflatexPath": { "label": "pdfLaTeX パス" },
+      "xelatexPath": { "label": "XeLaTeX パス" },
+      "lualatexPath": { "label": "LuaLaTeX パス" },
+      "outputDirectory": {
+        "label": "出力ディレクトリ",
+        "description": "補助ファイルのディレクトリ（ドキュメントからの相対パス）。"
+      },
+      "shellEscape": {
+        "label": "Shell Escape を有効化 (--shell-escape)",
+        "description": "外部コマンドの実行を許可します（例：minted 用）。"
+      },
+      "synctex": {
+        "label": "SyncTeX を有効化",
+        "description": "順方向/逆方向検索に必要です。"
+      },
+      "bibtex": {
+        "label": "BibTeX/Biber を実行",
+        "description": "参考文献処理プログラムを自動的に実行します。"
+      }
+    },
+    "compilation": {
+      "title": "コンパイル設定",
+      "description": "高度なコンパイル動作と出力管理。",
+      "buildBehavior": {
+        "title": "ビルド動作",
+        "description": "いつ、どのようにファイルをコンパイルするか",
+        "compileOnSave": {
+          "label": "保存時にコンパイル",
+          "description": "保存時にドキュメントを自動的にコンパイル"
+        },
+        "timeout": {
+          "label": "コンパイルタイムアウト",
+          "description": "コンパイルの最大時間（秒）（30-300）"
+        }
+      },
+      "outputDirectory": {
+        "title": "出力ディレクトリ",
+        "description": "コンパイル成果物の保存場所",
+        "buildDirectory": {
+          "label": "ビルドディレクトリ",
+          "description": "補助ファイルと出力ファイルの場所",
+          "source": "ソースファイルと同じ",
+          "custom": "カスタムパス"
+        },
+        "customBuildPath": {
+          "label": "カスタムビルドパス",
+          "description": "ビルド出力の相対パスまたは絶対パス"
+        },
+        "cleanAuxFiles": {
+          "label": "補助ファイルをクリーンアップ",
+          "description": "コンパイル成功後に .aux, .log, .toc ファイルを削除"
+        }
+      },
+      "errorHandling": {
+        "title": "エラー処理",
+        "description": "コンパイルエラーの表示方法",
+        "showLogOnError": {
+          "label": "エラー時にログパネルを表示",
+          "description": "エラー発生時に自動的にログパネルを開く"
+        },
+        "maxErrors": {
+          "label": "最大表示エラー数",
+          "description": "表示するエラー数を制限（10-100）"
+        }
+      }
+    },
+    "editor": {
+      "title": "エディタ設定",
+      "description": "コードエディタのエクスペリエンスをカスタマイズします。",
+      "fontSize": {
+        "label": "フォントサイズ",
+        "description": "フォントサイズをピクセル単位で制御します。"
+      },
+      "fontFamily": {
+        "label": "フォントファミリー",
+        "description": "エディタで使用するフォントファミリー。",
+        "notFound": "フォントが見つかりません"
+      },
+      "wordWrap": {
+        "label": "右端で折り返す",
+        "description": "行の折り返し方法を制御します。"
+      },
+      "theme": {
+        "label": "エディタテーマ",
+        "description": "コードエディタの配色スキーム。"
+      },
+      "lineNumbers": {
+        "label": "行番号",
+        "description": "行番号の表示を制御します。",
+        "relative": "相対"
+      },
+      "minimap": {
+        "label": "ミニマップ",
+        "description": "ミニマップを表示するかどうかを制御します。"
+      }
+    },
+    "editorBehavior": {
+      "title": "エディタの動作",
+      "description": "入力に対するエディタの反応をカスタマイズします。",
+      "formatting": {
+        "title": "フォーマット",
+        "description": "インデントとスペースの設定",
+        "tabSize": {
+          "label": "タブサイズ",
+          "description": "タブごとのスペース数"
+        },
+        "insertSpaces": {
+          "label": "スペースを挿入",
+          "description": "タブの代わりにスペースを使用"
+        }
+      },
+      "autoCompletion": {
+        "title": "自動補完",
+        "description": "自動挿入と補完",
+        "autoCloseBrackets": {
+          "label": "括弧を自動的に閉じる",
+          "description": "(), {}, [], 引用符を自動的に閉じる"
+        },
+        "autoCloseLatexEnv": {
+          "label": "LaTeX 環境を自動的に閉じる",
+          "description": "\\begin{} 入力時に自動的に \\end{} を挿入"
+        },
+        "suggestOnTrigger": {
+          "label": "トリガー文字で提案",
+          "description": "\\ 入力時に IntelliSense 提案を表示"
+        },
+        "quickSuggestions": {
+          "label": "クイック提案",
+          "description": "入力時にインラインで提案を表示"
+        }
+      },
+      "editorActions": {
+        "title": "エディタのアクション",
+        "description": "自動フォーマットと保存",
+        "formatOnSave": {
+          "label": "保存時にフォーマット",
+          "description": "保存時にドキュメントを自動的にフォーマット"
+        },
+        "scrollBeyondLastLine": {
+          "label": "最終行を超えてスクロール",
+          "description": "ドキュメントの末尾を超えてスクロールすることを許可"
+        }
+      },
+      "cursor": {
+        "title": "カーソル",
+        "description": "カーソルの外観と動作",
+        "style": {
+          "label": "カーソルスタイル",
+          "description": "テキストカーソルの視覚スタイル",
+          "line": "線 (|)",
+          "block": "ブロック (█)",
+          "underline": "下線 (_)"
+        },
+        "blinking": {
+          "label": "カーソルの点滅",
+          "description": "カーソルのアニメーションスタイル",
+          "blink": "点滅",
+          "smooth": "スムーズ",
+          "phase": "フェーズ",
+          "expand": "拡大",
+          "solid": "実線 (点滅なし)"
+        }
+      }
+    },
+    "pdfViewer": {
+      "title": "PDF ビューア設定",
+      "description": "PDF ビューアの動作と外観をカスタマイズします。",
+      "display": {
+        "title": "表示設定",
+        "description": "PDF の表示方法を制御",
+        "defaultZoom": {
+          "label": "デフォルトズームレベル",
+          "description": "PDF のデフォルト表示方法",
+          "fitPage": "ページに合わせる",
+          "fitWidth": "幅に合わせる",
+          "actual": "実際のサイズ (100%)"
+        },
+        "splitViewMode": {
+          "label": "分割表示モード",
+          "description": "エディタと PDF の配置方法",
+          "horizontal": "水平 (横並び)",
+          "vertical": "垂直 (上下)",
+          "auto": "自動 (ウィンドウサイズに基づく)"
+        }
+      },
+      "behavior": {
+        "title": "動作設定",
+        "description": "自動アクションと機能",
+        "showByDefault": {
+          "label": "デフォルトで PDF を表示",
+          "description": ".tex ファイルを開くときに自動的に PDF パネルを表示"
+        },
+        "autoRefresh": {
+          "label": "PDF 自動更新",
+          "description": "コンパイル成功後に PDF を自動的にリロード"
+        }
+      },
+      "prevPage": "前のページ",
+      "nextPage": "次のページ",
+      "zoomOut": "縮小",
+      "zoomIn": "拡大",
+      "fitWidth": "幅に合わせる",
+      "fitPage": "ページに合わせる",
+      "actualSize": "実際のサイズ",
+      "synctex": {
+        "title": "SyncTeX 設定",
+        "description": "ソースと PDF 間の同期",
+        "highlight": {
+          "label": "SyncTeX ハイライト",
+          "description": "順方向同期時に PDF 内の対応する位置をハイライト"
+        },
+        "scrollSync": {
+          "label": "スクロール同期",
+          "description": "エディタと PDF ビューア間のスクロールを同期"
+        }
+      }
+    },
+    "database": {
+      "title": "データベース設定",
+      "description": "データベースのビューと動作をカスタマイズします。",
+      "view": {
+        "title": "ビュー設定",
+        "description": "デフォルトビューと表示オプション",
+        "defaultView": {
+          "label": "デフォルトビュー",
+          "description": "データベースのデフォルト表示方法",
+          "table": "テーブルビュー",
+          "graph": "グラフビュー",
+          "list": "リストビュー"
+        },
+        "showMetadataPanel": {
+          "label": "メタデータパネルを表示",
+          "description": "リソース表示時にデフォルトでメタデータパネルを表示"
+        },
+        "tablePageSize": {
+          "label": "テーブルページサイズ",
+          "description": "テーブルビューでの1ページあたりの行数 (10-100)"
+        }
+      },
+      "graph": {
+        "title": "グラフビュー",
+        "description": "グラフ可視化設定",
+        "physics": {
+          "label": "物理シミュレーションを有効化",
+          "description": "グラフ可視化に力指向レイアウトを使用"
+        },
+        "animation": {
+          "label": "グラフアニメーション",
+          "description": "グラフの遷移とインタラクションをアニメーション化"
+        }
+      },
+      "advanced": {
+        "title": "詳細オプション",
+        "description": "追加のデータベース機能",
+        "autoDetectPreambles": {
+          "label": "プリアンブルを自動検出",
+          "description": "プリアンブルファイルを自動的に識別して分類"
+        },
+        "showFilePreview": {
+          "label": "ホバー時にファイルプレビューを表示",
+          "description": "要素にカーソルを合わせたときにプレビューツールチップを表示"
+        }
+      }
+    },
+    "accessibility": {
+      "title": "アクセシビリティ設定",
+      "description": "読みやすさを向上させ、目の疲れを軽減します。",
+      "visual": {
+        "title": "視覚的強化",
+        "description": "視認性向上のための設定",
+        "highContrast": {
+          "label": "ハイコントラストモード",
+          "description": "視認性を高めるためにコントラストを上げる"
+        },
+        "fontLigatures": {
+          "label": "フォント合字",
+          "description": "特殊文字の組み合わせを使用 (→, ≤, など)"
+        },
+        "letterSpacing": {
+          "label": "文字間隔",
+          "description": "文字間の追加スペース（ピクセル）(0-2)"
+        },
+        "lineHeight": {
+          "label": "行の高さ",
+          "description": "行間の垂直スペース (1.0-2.0)"
+        },
+        "renderWhitespace": {
+          "label": "空白を表示",
+          "description": "不可視の空白文字を表示",
+          "none": "なし",
+          "boundary": "境界 (先頭/末尾)",
+          "selection": "選択範囲のみ",
+          "all": "すべての空白"
+        }
+      },
+      "motion": {
+        "title": "モーションとアニメーション",
+        "description": "動きと遷移を制御",
+        "smoothScrolling": {
+          "label": "スムーズスクロール",
+          "description": "スムーズスクロールアニメーションを有効化"
+        },
+        "animationSpeed": {
+          "label": "アニメーション速度",
+          "description": "UI アニメーションと遷移の速度",
+          "slow": "遅い (リラックス)",
+          "normal": "通常",
+          "fast": "速い (キビキビ)",
+          "none": "なし (即時)"
+        },
+        "reduceMotion": {
+          "label": "動きを減らす",
+          "description": "動きに敏感な人向けにアニメーションを最小化 (アニメーション速度を上書き)"
+        }
+      }
+    },
+    "theme": {
+      "title": "テーマ設定",
+      "description": "アプリケーションの外観をカスタマイズします。",
+      "uiTheme": {
+        "label": "UI テーマ",
+        "description": "アプリケーションインターフェースのカラーテーマ。",
+        "custom": "カスタム",
+        "light": "ライト",
+        "dark": "ダーク"
+      },
+      "advanced": {
+        "title": "高度なテーマエディタ",
+        "description": "現在のテーマの特定の色を上書きします。変更はすぐに適用されます。",
+        "appBg": { "label": "アプリ背景", "description": "エディタ背後のメイン背景" },
+        "sidebarBg": { "label": "サイドバー背景", "description": "左側のサイドバー" },
+        "headerBg": { "label": "ヘッダー背景", "description": "上部ナビゲーションバー" },
+        "panelBg": { "label": "パネル背景", "description": "サイドパネル (ファイル, データベース)" },
+        "statusBarBg": { "label": "ステータスバー背景", "description": "下部ステータスバー" },
+        "primaryColor": { "label": "プライマリカラー", "description": "主要なアクセントカラー (ボタン, ハイライト)" },
+        "accentColor": { "label": "アクセントカラー", "description": "二次的なアクセント (アイコン, アクティブ状態)" },
+        "borderColor": { "label": "境界線の色", "description": "グローバルな境界線の色" },
+        "actions": "アクション",
+        "resetOverrides": "上書きをリセット",
+        "newThemeName": "新しいテーマ名",
+        "saveAsTheme": "テーマとして保存"
+      }
+    },
+    "shortcuts": {
+      "title": "キーボードショートカット",
+      "description": "頻繁な操作のキーボードショートカットをカスタマイズします。",
+      "resetAll": "すべてデフォルトにリセット",
+      "categories": {
+        "general": "一般",
+        "editor": "エディタ",
+        "compilation": "コンパイル",
+        "navigation": "ナビゲーション"
+      },
+      "actions": {
+        "file.save": { "description": "現在のファイルを保存" },
+        "file.saveAll": { "description": "すべてのファイルを保存" },
+        "file.closeTab": { "description": "現在のタブを閉じる" },
+        "file.newTemplate": { "description": "テンプレートから新規ファイル" },
+        "view.openSettings": { "description": "設定を開く" },
+        "editor.find": { "description": "ファイル内検索" },
+        "editor.replace": { "description": "検索と置換" },
+        "compilation.build": { "description": "現在のドキュメントをコンパイル" },
+        "view.toggleSidebar": { "description": "サイドバーの切り替え" },
+        "tools.packageBrowser": { "description": "パッケージブラウザを開く" }
+      },
+      "modified": "変更済み",
+      "edit": "ショートカットを編集",
+      "reset": "デフォルトにリセット",
+      "editModal": {
+        "title": "ショートカットを編集",
+        "instruction": "希望するキーの組み合わせを押してください:",
+        "listening": "キー入力を待機中...",
+        "save": "ショートカットを保存"
+      }
+    },
+    "common": {
+      "on": "オン",
+      "off": "オフ"
+    },
+    "statusBar": {
+      "ready": "準備完了",
+      "wordCount": "文字数",
+      "spellCheck": "スペルチェック",
+      "connected": "接続済み",
+      "disconnected": "切断",
+      "ln": "行",
+      "col": "列",
+      "plainText": "プレーンテキスト",
+      "dbPrefix": "DataTex DB:"
+    },
+    "search": {
+      "placeholder": "ファイル内を検索...",
+      "replacePlaceholder": "置換...",
+      "replaceAll": "すべて置換",
+      "case": "大文字/小文字",
+      "regex": "正規表現",
+      "fileTypes": "ファイルタイプ:",
+      "noMatches": "一致は見つかりませんでした",
+      "confirmReplace": "すべての一致箇所で \"{{search}}\" を \"{{replace}}\" に置換してもよろしいですか？この操作は元に戻せません。",
+      "replaceSuccess": "{{files}} ファイルで {{count}} 箇所置換しました。",
+      "replaceError": "置換に失敗しました: {{error}}",
+      "errorPrefix": "エラー: {{error}}",
+      "stats": "{{files}} ファイルで {{matches}} 件の一致 ({{duration}}ms)"
+    }
+  },
+  "menu": {
+    "file": {
+      "label": "ファイル",
+      "newFile": "新規ファイル",
+      "newFromTemplate": "テンプレートから新規作成",
+      "open": "開く",
+      "save": "保存",
+      "exportPdf": "PDF にエクスポート",
+      "exit": "終了"
+    },
+    "edit": {
+      "label": "編集",
+      "undo": "元に戻す",
+      "redo": "やり直す",
+      "cut": "切り取り",
+      "copy": "コピー",
+      "paste": "貼り付け",
+      "find": "検索"
+    },
+    "insert": {
+      "label": "挿入",
+      "image": "画像 (Figure)"
+    },
+    "view": {
+      "label": "表示",
+      "databasePanel": "データベースパネル",
+      "rightSidebar": "右サイドバー (PDF)",
+      "wordCount": "文字数",
+      "zoomIn": "拡大",
+      "zoomOut": "縮小"
+    },
+    "database": {
+      "label": "データベース",
+      "open": "DB / フォルダを開く",
+      "addCollection": "コレクション (フォルダ) を追加",
+      "refresh": "DB を更新"
+    },
+    "tools": {
+      "label": "ツール",
+      "website": "ウェブサイト",
+      "wizards": "ウィザード",
+      "preambleWizard": "プリアンブルウィザード",
+      "tableWizard": "テーブルウィザード",
+      "tikzWizard": "TikZ ウィザード",
+      "fancyhdrWizard": "FancyHDR ウィザード",
+      "pstricksWizard": "PSTricks ウィザード",
+      "packageBrowser": "パッケージブラウザ",
+      "settings": "設定",
+      "packageGallery": "パッケージギャラリー"
+    },
+    "build": {
+      "label": "ビルド",
+      "compile": "コンパイル",
+      "stop": "停止"
+    },
+    "help": {
+      "label": "ヘルプ",
+      "about": "DataTex について"
+    }
+  },
+  "sidebar": {
+    "database": "データベース",
+    "structure": "構造",
+    "symbols": "AMS 記号",
+    "gallery": "パッケージギャラリー",
+    "search": "検索",
+    "git": "ソース管理",
+    "settings": "設定",
+    "openPackageDatabase": "パッケージ DB を開く",
+    "selectCategory": "カテゴリを選択",
+    "noStructure": "構造が見つかりません。",
+    "projectFiles": "プロジェクトフォルダ",
+    "quickTools": "クイックツール",
+    "noFolderOpened": "フォルダが開かれていません",
+    "openFolder": "フォルダを開く",
+    "labelPrefix": "ラベル: "
+  },
+  "header": {
+    "searchPlaceholder": "DataTex 検索 (Ctrl+P)",
+    "showOutline": "アウトラインを表示",
+    "hideOutline": "アウトラインを隠す",
+    "showDatabase": "データベース表を表示",
+    "hideDatabase": "データベース表を隠す",
+    "moveDatabaseLeft": "データベースを左へ移動",
+    "moveDatabaseBottom": "データベースを下へ移動",
+    "showRightPanel": "右パネルを表示",
+    "hideRightPanel": "右パネルを隠す",
+    "aiAssistant": "AI アシスタント"
+  },
+  "database": {
+    "title": "コレクション",
+    "createCollection": "コレクションを作成",
+    "importFolderAsCollection": "フォルダをコレクションとしてインポート",
+    "searchCollections": "コレクションを検索...",
+    "searchPlaceholder": "検索...",
+    "noCollections": "コレクションが見つかりません。",
+    "importFile": "ファイルをインポート",
+    "addExistingFolder": "既存のフォルダを追加",
+    "deleteCollection": "コレクションを削除",
+    "collectionsLoaded_one": "{{count}} コレクションを読み込みました",
+    "collectionsLoaded_other": "{{count}} コレクションを読み込みました",
+    "deleteCollectionTitle": "コレクションを削除",
+    "deleteCollectionConfirm": "このコレクションを削除してもよろしいですか",
+    "deleteCollectionWarning": "警告: この操作はデータベースからコレクションとそのすべてのリソースを削除しますが、ファイルシステムからファイルは*削除しません*。",
+    "newCollectionTitle": "新しいコレクション",
+    "collectionNameLabel": "コレクション名",
+    "collectionNamePlaceholder": "例: 数学, 物理学",
+    "addFolderTo": "フォルダを追加先",
+    "selectImportFolder": "インポートするフォルダを選択",
+    "importFileTo": "ファイルをインポート先",
+    "cannotCreateInEmptyCollection": "空のコレクションにファイルを作成することはできません。先にファイルまたはフォルダをインポートしてください。",
+    "invalidCollectionPath": "無効なコレクションパスです。",
+    "selectCollections": "コレクションを選択",
+    "loadedCollections": "読み込まれたコレクション",
+    "selectCollectionToView": "コンテンツを表示するコレクションを選択してください",
+    "tabs": {
+      "metadata": "メタデータ",
+      "bibliography": "参考文献"
+    },
+    "inspector": {
+      "title": "タイトル",
+      "fileType": "ファイルタイプ",
+      "id": "ID",
+      "collection": "コレクション",
+      "created": "作成日",
+      "bibMessage": "詳細を見るには参考文献エントリを選択してください。",
+      "noPdf": "PDF プレビューは利用できません。",
+      "fields": {
+        "title": "タイトル",
+        "fileType": "ファイルタイプ",
+        "id": "ID",
+        "collection": "コレクション",
+        "created": "作成日"
+      }
+    },
+    "actions": {
+      "emptyFile": "空のファイル",
+      "fromTemplate": "テンプレートから",
+      "preambleWizard": "プリアンブルウィザード",
+      "addExistingFile": "既存のファイルを追加",
+      "openInEditor": "エディタで開く",
+      "revealInExplorer": "エクスプローラーで表示",
+      "moveToCollection": "コレクションに移動",
+      "moveTo": "移動先...",
+      "removeFromDatabase": "データベースから削除"
+    },
+    "graph": {
+      "title": "グラフビュー",
+      "controls": {
+        "zoomIn": "拡大",
+        "zoomOut": "縮小",
+        "fitToView": "ビューに合わせる",
+        "hide": "隠す"
+      },
+      "filters": "フィルタ",
+      "packages": "パッケージ",
+      "bibliographies": "参考文献",
+      "images": "画像",
+      "classes": "クラス",
+      "dtx": "DTX ファイル",
+      "ins": "INS ファイル",
+      "layout": "レイアウト",
+      "free": "フリー",
+      "treeTD": "ツリー (上-下)",
+      "treeLR": "ツリー (左-右)",
+      "radial": "放射状",
+      "view": "ビュー",
+      "focusMode": "フォーカスモード",
+      "physics": "物理",
+      "linkDistance": "リンク距離",
+      "repulsion": "反発",
+      "legend": {
+        "title": "凡例",
+        "document": "ドキュメント",
+        "preamble": "プリアンブル",
+        "dependency": "依存関係",
+        "package": "パッケージ",
+        "class": "クラス",
+        "bibliography": "参考文献",
+        "image": "画像",
+        "dtx": "DTX",
+        "ins": "INS"
+      }
+    },
+    "newFile": "新規ファイル",
+    "newFolder": "新規フォルダ",
+    "addFolder": "フォルダを追加"
+  },
+  "startPage": {
+    "documentation": "ドキュメント",
+    "getStarted": "始める",
+    "emptyFile": "空のファイル",
+    "emptyFileDesc": "空のドキュメントをゼロから作成します。",
+    "preambleWizard": "プリアンブルウィザード",
+    "preambleWizardDesc": "ページ設定、パッケージ、フォントを構成します。",
+    "databaseTools": "データベースツール",
+    "examGenerator": "試験ジェネレーター",
+    "examGeneratorDesc": "有効な演習から試験を自動的に作成します。",
+    "browseDatabase": "データベースを閲覧",
+    "browseDatabaseDesc": "ファイル、タグ、メタデータを管理します。",
+    "packageBrowser": "パッケージブラウザ",
+    "packageBrowserDesc": "CTAN パッケージを検索して探索します。",
+    "recentProjects": "最近のプロジェクト",
+    "noRecentProjects": "最近のプロジェクトが見つかりません。",
+    "quickResources": "クイックリソース",
+    "latexCheatsheet": "LaTeX チートシート",
+    "ctanSearch": "CTAN パッケージ検索",
+    "detexify": "Detexify (記号認識)",
+    "tikzExamples": "TikZ 例",
+    "templates": "テンプレート",
+    "viewAllTemplates": "すべてのテンプレートを表示"
+  },
+  "editorToolbar": {
+    "bold": "太字 (\\textbf)",
+    "italic": "斜体 (\\textit)",
+    "underline": "下線 (\\underline)",
+    "strikethrough": "取り消し線 (\\st)",
+    "text": "テキスト (\\text)",
+    "highlight": "ハイライト (\\hl)",
+    "code": "コード (\\texttt)",
+    "alignLeft": "左揃え (flushleft)",
+    "alignCenter": "中央揃え (center)",
+    "alignRight": "右揃え (flushright)",
+    "justify": "両端揃え (default)",
+    "quote": "引用",
+    "ellipsis": "省略記号 (\\dots)",
+    "bulletList": "箇条書き (itemize)",
+    "numberedList": "番号付きリスト (enumerate)",
+    "inlineMath": "インライン数式 ($...$)",
+    "displayMath": "ディスプレイ数式 (\\[...\\])",
+    "subscript": "下付き文字 (_{})",
+    "superscript": "上付き文字 (^{})",
+    "horizontalSpace": "水平スペース (\\hspace)",
+    "verticalSpace": "垂直スペース (\\vspace)",
+    "link": "リンク (\\href)",
+    "unlink": "リンクを解除"
+  },
+  "ai": {
+    "settings": {
+      "title": "AI 設定",
+      "provider": "プロバイダー",
+      "openaiKey": "OpenAI API キー",
+      "geminiKey": "Gemini API キー",
+      "ollamaUrl": "Ollama URL",
+      "customAgents": "カスタムエージェント",
+      "createNewAgent": "新しいエージェントを作成",
+      "disclaimer": "API キーはブラウザ/アプリデータにローカルに保存されます。"
+    },
+    "provider": {
+      "mock": "Mock AI (デバッグ)",
+      "openai": "OpenAI",
+      "gemini": "Google Gemini",
+      "ollama": "Ollama (ローカル)"
+    },
+    "assistantTitle": "AI アシスタント",
+    "standardAssistant": "標準アシスタント",
+    "agentPrefix": "エージェント:",
+    "fetchModelsTooltip": "API から利用可能なモデルを取得",
+    "fetch": "取得",
+    "model": "モデル"
+  }
+}

@@ -39,6 +39,7 @@ impl DatabaseManager {
             include_str!("../../migrations/011_migrate_json_to_typed.sql"), // 10
             include_str!("../../migrations/012_resource_bibliographies.sql"), // 11
             include_str!("../../migrations/013_resource_dtx_ins.sql"), // 12
+            include_str!("../../migrations/014_add_collection_path.sql"), // 13
         ];
 
         // Check current version
@@ -176,12 +177,13 @@ impl DatabaseManager {
 
     pub async fn create_collection(&self, collection: &Collection) -> Result<(), String> {
         sqlx::query(
-            "INSERT OR IGNORE INTO collections (name, description, icon, type) VALUES (?, ?, ?, ?)",
+            "INSERT OR IGNORE INTO collections (name, description, icon, type, path) VALUES (?, ?, ?, ?, ?)",
         )
         .bind(&collection.name)
         .bind(&collection.description)
         .bind(&collection.icon)
         .bind(&collection.kind)
+        .bind(&collection.path)
         .execute(&self.pool)
         .await
         .map_err(|e| e.to_string())?;

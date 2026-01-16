@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import ForceGraph2D from "react-force-graph-2d";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import {
@@ -37,6 +38,7 @@ interface VisualGraphViewProps {
 }
 
 export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
+  const { t } = useTranslation();
   const theme = useMantineTheme();
   // Granular selectors - prevents re-renders when unrelated state changes
   const fetchGraphLinks = useDatabaseStore((state) => state.fetchGraphLinks);
@@ -275,14 +277,20 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
   };
 
   const legendItems = [
-    { label: "Document", color: theme.colors.blue[7] },
-    { label: "Preamble", color: theme.colors.teal[7] },
-    { label: "Package", color: theme.colors.orange[7] },
-    { label: "Class", color: theme.colors.violet[7] },
-    { label: "Bibliography", color: theme.colors.yellow[7] },
-    { label: "Image", color: theme.colors.pink[7] },
-    { label: "DTX", color: theme.colors.cyan[7] },
-    { label: "INS", color: theme.colors.grape[7] },
+    { label: t("database.graph.legend.document"), color: theme.colors.blue[7] },
+    { label: t("database.graph.legend.preamble"), color: theme.colors.teal[7] },
+    {
+      label: t("database.graph.legend.package"),
+      color: theme.colors.orange[7],
+    },
+    { label: t("database.graph.legend.class"), color: theme.colors.violet[7] },
+    {
+      label: t("database.graph.legend.bibliography"),
+      color: theme.colors.yellow[7],
+    },
+    { label: t("database.graph.legend.image"), color: theme.colors.pink[7] },
+    { label: t("database.graph.legend.dtx"), color: theme.colors.cyan[7] },
+    { label: t("database.graph.legend.ins"), color: theme.colors.grape[7] },
   ];
 
   return (
@@ -304,11 +312,11 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
       >
         <Group justify="space-between">
           <Text fw={700} size="sm">
-            Graph View
+            {t("database.graph.title")}
           </Text>
           {/* Search Overlay */}
           <Autocomplete
-            placeholder="Search file..."
+            placeholder={t("database.searchPlaceholder")}
             data={graphData.nodes.map((n) => n.name)}
             value={searchValue}
             onChange={handleSearch}
@@ -318,7 +326,10 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
           {/* Zoom Controls */}
 
           <Group gap={2}>
-            <Tooltip label="Zoom In" position="right">
+            <Tooltip
+              label={t("database.graph.controls.zoomIn")}
+              position="right"
+            >
               <ActionIcon
                 variant="subtle"
                 color="gray"
@@ -331,7 +342,10 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
                 <IconZoomIn size={14} />
               </ActionIcon>
             </Tooltip>
-            <Tooltip label="Zoom Out" position="right">
+            <Tooltip
+              label={t("database.graph.controls.zoomOut")}
+              position="right"
+            >
               <ActionIcon
                 variant="subtle"
                 color="gray"
@@ -344,7 +358,10 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
                 <IconZoomOut size={14} />
               </ActionIcon>
             </Tooltip>
-            <Tooltip label="Fit to View" position="right">
+            <Tooltip
+              label={t("database.graph.controls.fitToView")}
+              position="right"
+            >
               <ActionIcon
                 variant="subtle"
                 color="gray"
@@ -359,7 +376,11 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
             </Tooltip>
             <Divider my={2} />
             <Tooltip
-              label={showControls ? "Hide Controls" : "Show Controls"}
+              label={
+                showControls
+                  ? t("database.graph.controls.hide")
+                  : t("database.graph.controls.show")
+              }
               position="right"
             >
               <ActionIcon
@@ -401,10 +422,10 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
         >
           <Stack gap="xs">
             <Text size="xs" fw={700} c="dimmed">
-              FILTERS
+              {t("database.graph.filters")}
             </Text>
             <Checkbox
-              label="Packages"
+              label={t("database.graph.packages")}
               size="xs"
               checked={filters.showPackages}
               onChange={(event) =>
@@ -415,7 +436,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
               }
             />
             <Checkbox
-              label="Bibliographies"
+              label={t("database.graph.bibliographies")}
               size="xs"
               checked={filters.showBibliographies}
               onChange={(event) =>
@@ -426,7 +447,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
               }
             />
             <Checkbox
-              label="Images"
+              label={t("database.graph.images")}
               size="xs"
               checked={filters.showImages}
               onChange={(event) =>
@@ -437,7 +458,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
               }
             />
             <Checkbox
-              label="Classes"
+              label={t("database.graph.classes")}
               size="xs"
               checked={filters.showClasses}
               onChange={(event) =>
@@ -448,7 +469,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
               }
             />
             <Checkbox
-              label="DTX Files"
+              label={t("database.graph.dtx")}
               size="xs"
               checked={filters.showDtx}
               onChange={(event) =>
@@ -459,7 +480,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
               }
             />
             <Checkbox
-              label="INS Files"
+              label={t("database.graph.ins")}
               size="xs"
               checked={filters.showIns}
               onChange={(event) =>
@@ -473,15 +494,15 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
             <Divider my="xs" />
 
             <Text size="xs" fw={700} c="dimmed">
-              LAYOUT
+              {t("database.graph.layout")}
             </Text>
             <Select
               size="xs"
               data={[
-                { value: "null", label: "Free (Force)" },
-                { value: "td", label: "Tree (Top-Down)" },
-                { value: "lr", label: "Tree (Left-Right)" },
-                { value: "radialout", label: "Radial" },
+                { value: "null", label: t("database.graph.free") },
+                { value: "td", label: t("database.graph.treeTD") },
+                { value: "lr", label: t("database.graph.treeLR") },
+                { value: "radialout", label: t("database.graph.radial") },
               ]}
               value={dagMode || "null"}
               onChange={(val) => setDagMode(val === "null" ? null : val)}
@@ -491,10 +512,10 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
             <Divider my="xs" />
 
             <Text size="xs" fw={700} c="dimmed">
-              VIEW
+              {t("database.graph.view")}
             </Text>
             <Group justify="space-between">
-              <Text size="xs">Focus Mode</Text>
+              <Text size="xs">{t("database.graph.focusMode")}</Text>
               <Switch
                 size="xs"
                 checked={focusMode}
@@ -504,10 +525,10 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
             <Divider my="xs" />
 
             <Text size="xs" fw={700} c="dimmed">
-              PHYSICS
+              {t("database.graph.physics")}
             </Text>
 
-            <Text size="xs">Link Distance</Text>
+            <Text size="xs">{t("database.graph.linkDistance")}</Text>
             <Slider
               size="xs"
               min={0}
@@ -516,7 +537,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
               onChange={(val) => setPhysics({ ...physics, linkDistance: val })}
             />
 
-            <Text size="xs">Repulsion</Text>
+            <Text size="xs">{t("database.graph.repulsion")}</Text>
             <Slider
               size="xs"
               min={-500}
@@ -547,7 +568,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
         >
           <Stack gap={4}>
             <Text size="xs" fw={700} c="dimmed" mb={2}>
-              LEGEND
+              {t("database.graph.legend.title")}
             </Text>
             {legendItems.map((item) => (
               <Group key={item.label} gap="xs">
@@ -564,7 +585,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
                   backgroundColor: theme.colors.gray[5],
                 }}
               ></div>
-              <Text size="xs">Dependency</Text>
+              <Text size="xs">{t("database.graph.legend.dependency")}</Text>
             </Group>
             <Group gap="xs">
               <div
@@ -574,7 +595,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
                   borderTop: `1px dashed ${theme.colors.gray[5]}`,
                 }}
               ></div>
-              <Text size="xs">Package</Text>
+              <Text size="xs">{t("database.graph.legend.package")}</Text>
             </Group>
             <Group gap="xs">
               <div
@@ -584,7 +605,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
                   borderTop: `1px dotted ${theme.colors.gray[5]}`,
                 }}
               ></div>
-              <Text size="xs">Bibliography</Text>
+              <Text size="xs">{t("database.graph.legend.bibliography")}</Text>
             </Group>
           </Stack>
         </Paper>

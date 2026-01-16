@@ -56,8 +56,16 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
         label={t("settings.general.language.label")}
         description={t("settings.general.language.description")}
         data={[
-          { value: "en", label: "English" },
-          { value: "el", label: "Ελληνικά" },
+          { value: "en", label: "🇬🇧 English" },
+          { value: "el", label: "🇬🇷 Ελληνικά" },
+          { value: "it", label: "🇮🇹 Italiano" },
+          { value: "fr", label: "🇫🇷 Français" },
+          { value: "de", label: "🇩🇪 Deutsch" },
+          { value: "es", label: "🇪🇸 Español" },
+          { value: "zh-CN", label: "🇨🇳 简体中文 (Chinese)" },
+          { value: "pt", label: "🇵🇹 Português" },
+          { value: "ru", label: "🇷🇺 Русский" },
+          { value: "ja", label: "🇯🇵 日本語 (Japanese)" },
         ]}
         value={settings.language}
         onChange={(val) => val && onUpdate("language", val)}

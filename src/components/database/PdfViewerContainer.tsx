@@ -1,4 +1,5 @@
 import { useState, useCallback, memo, useRef, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Document, Page, pdfjs } from "react-pdf";
 import {
   Group,
@@ -65,6 +66,7 @@ const PdfToolbar = memo(
     onDownload: () => void;
     onPrint: () => void;
   }) => {
+    const { t } = useTranslation();
     const handlePageInput = useCallback(
       (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Enter") {
@@ -88,7 +90,7 @@ const PdfToolbar = memo(
       >
         {/* Page Navigation */}
         <Group gap="xs">
-          <Tooltip label="Previous Page">
+          <Tooltip label={t("pdfViewer.prevPage")}>
             <ActionIcon
               variant="subtle"
               color="gray"
@@ -115,7 +117,7 @@ const PdfToolbar = memo(
               / {numPages}
             </Text>
           </Group>
-          <Tooltip label="Next Page">
+          <Tooltip label={t("pdfViewer.nextPage")}>
             <ActionIcon
               variant="subtle"
               color="gray"
@@ -130,7 +132,7 @@ const PdfToolbar = memo(
 
         {/* Zoom Controls */}
         <Group gap="xs">
-          <Tooltip label="Zoom Out">
+          <Tooltip label={t("pdfViewer.zoomOut")}>
             <ActionIcon
               variant="subtle"
               color="gray"
@@ -151,9 +153,9 @@ const PdfToolbar = memo(
               else if (val) onScaleChange(parseInt(val, 10) / 100);
             }}
             data={[
-              { value: "width", label: "Fit Width" },
-              { value: "page", label: "Fit Page" },
-              { value: "actual", label: "Actual Size" },
+              { value: "width", label: t("pdfViewer.fitWidth") },
+              { value: "page", label: t("pdfViewer.fitPage") },
+              { value: "actual", label: t("pdfViewer.actualSize") },
               { value: "50", label: "50%" },
               { value: "75", label: "75%" },
               { value: "100", label: "100%" },
@@ -164,7 +166,7 @@ const PdfToolbar = memo(
             styles={{ input: { textAlign: "center" } }}
             allowDeselect={false}
           />
-          <Tooltip label="Zoom In">
+          <Tooltip label={t("pdfViewer.zoomIn")}>
             <ActionIcon
               variant="subtle"
               color="gray"
@@ -178,7 +180,7 @@ const PdfToolbar = memo(
 
         {/* Actions */}
         <Group gap="xs">
-          <Tooltip label="Fit to Width">
+          <Tooltip label={t("pdfViewer.fitWidth")}>
             <ActionIcon
               variant="subtle"
               color="gray"
@@ -188,7 +190,7 @@ const PdfToolbar = memo(
               <IconArrowsHorizontal size={16} />
             </ActionIcon>
           </Tooltip>
-          <Tooltip label="Fit to Page">
+          <Tooltip label={t("pdfViewer.fitPage")}>
             <ActionIcon
               variant="subtle"
               color="gray"
@@ -198,7 +200,7 @@ const PdfToolbar = memo(
               <IconArrowsMaximize size={16} />
             </ActionIcon>
           </Tooltip>
-          <Tooltip label="Download">
+          <Tooltip label={t("common.download")}>
             <ActionIcon
               variant="subtle"
               color="gray"
@@ -208,7 +210,7 @@ const PdfToolbar = memo(
               <IconDownload size={16} />
             </ActionIcon>
           </Tooltip>
-          <Tooltip label="Print">
+          <Tooltip label={t("common.print")}>
             <ActionIcon
               variant="subtle"
               color="gray"
@@ -229,6 +231,7 @@ PdfToolbar.displayName = "PdfToolbar";
 // Main container component
 export const PdfViewerContainer = memo(
   ({ pdfUrl, onSyncTexInverse }: PdfViewerContainerProps) => {
+    const { t } = useTranslation();
     const [numPages, setNumPages] = useState(0);
     const [currentPage, setCurrentPage] = useState(1);
     const [scale, setScale] = useState(1.0);
@@ -438,7 +441,7 @@ export const PdfViewerContainer = memo(
     );
 
     if (!pdfUrl) {
-      return <EmptyState message="No PDF available" />;
+      return <EmptyState message={t("database.inspector.noPdf")} />;
     }
 
     return (
@@ -465,7 +468,7 @@ export const PdfViewerContainer = memo(
           }}
           onClick={handlePageClick}
         >
-          {loading && <LoadingState message="Loading PDF..." />}
+          {loading && <LoadingState message={t("common.loading")} />}
           {error && <EmptyState message={error} bg="transparent" />}
           <Document
             file={pdfUrl}

@@ -16,16 +16,23 @@ pub struct TreeNode {
 }
 
 const ALLOWED_EXTENSIONS: [&str; 10] = [
-    "tex", "pdf", "bib", "sty", "png", "jpg", "jpeg", "gif", "svg", "webp",
+    "tex", "pdf", "bib", "sty", "cls", "dtx", "ins", "png", "jpg", "jpeg",
 ];
 
-pub fn build_file_tree(resources: Vec<Resource>) -> Vec<TreeNode> {
+pub fn build_file_tree(
+    resources: Vec<Resource>,
+    collection_roots: &HashMap<String, String>,
+) -> Vec<TreeNode> {
     // 1. Filter resources (ignore hidden files and non-allowed extensions)
     let filtered_resources: Vec<&Resource> = resources
         .iter()
         .filter(|r| {
             if r.path.contains("/.") || r.path.contains("\\.") {
                 return false;
+            }
+            // Always include folders
+            if r.kind == "folder" {
+                return true;
             }
             let ext = std::path::Path::new(&r.path)
                 .extension()
@@ -61,22 +68,32 @@ pub fn build_file_tree(resources: Vec<Resource>) -> Vec<TreeNode> {
         // Determine separator
         let separator = if paths[0].contains('\\') { "\\" } else { "/" };
 
-        // Find common prefix
-        let parts_list: Vec<Vec<&str>> =
-            paths.iter().map(|p| p.split(separator).collect()).collect();
+        // Determine Root Path
+        // New strategy: Use the explicit collection path if provided
+        let common_root = if let Some(root) = collection_roots.get(&collection_name) {
+            root.clone()
+        } else {
+            // Fallback to purely common prefix (legacy behavior, though buggy for single files)
+            // Better fallback: Parent of the first file? Or common prefix but handle strict parents?
+            // Let's stick to common prefix logic for fallback but warn?
+            // Or simply use the parent of the first resource as a guess if it's a file?
+            let parts_list: Vec<Vec<&str>> =
+                paths.iter().map(|p| p.split(separator).collect()).collect();
 
-        let mut common_prefix: Vec<&str> = Vec::new();
-        if let Some(first) = parts_list.first() {
-            common_prefix = first.clone();
-            for parts in parts_list.iter().skip(1) {
-                let mut j = 0;
-                while j < common_prefix.len() && j < parts.len() && common_prefix[j] == parts[j] {
-                    j += 1;
+            let mut common_prefix: Vec<&str> = Vec::new();
+            if let Some(first) = parts_list.first() {
+                common_prefix = first.clone();
+                for parts in parts_list.iter().skip(1) {
+                    let mut j = 0;
+                    while j < common_prefix.len() && j < parts.len() && common_prefix[j] == parts[j]
+                    {
+                        j += 1;
+                    }
+                    common_prefix.truncate(j);
                 }
-                common_prefix.truncate(j);
             }
-        }
-        let common_root = common_prefix.join(separator);
+            common_prefix.join(separator)
+        };
 
         // Root Node
         let mut root_node = TreeNode {
@@ -129,6 +146,14 @@ pub fn build_file_tree(resources: Vec<Resource>) -> Vec<TreeNode> {
             }
             my_path.push_str(part);
 
+            // FIX: If it is a file, use the actual resource path, do not reconstruct it from prefix
+            // This prevents external files from having the collection root prepended to their absolute path
+            let node_path = if is_file {
+                r.path.clone()
+            } else {
+                my_path.clone()
+            };
+
             let id = if is_file {
                 r.id.clone()
             } else {
@@ -138,8 +163,17 @@ pub fn build_file_tree(resources: Vec<Resource>) -> Vec<TreeNode> {
             let node = map.entry(part.to_string()).or_insert_with(|| TempNode {
                 id,
                 name: part.to_string(),
-                r#type: (if is_file { "file" } else { "folder" }).to_string(),
-                path: my_path.clone(),
+                r#type: (if is_file {
+                    if r.kind == "folder" {
+                        "folder"
+                    } else {
+                        "file"
+                    }
+                } else {
+                    "folder"
+                })
+                .to_string(),
+                path: node_path.clone(),
                 children: HashMap::new(),
             });
 
@@ -150,21 +184,30 @@ pub fn build_file_tree(resources: Vec<Resource>) -> Vec<TreeNode> {
                     collection_name,
                     r,
                     is_file_check,
-                    my_path,
+                    my_path, // Continue passing constructed path for folders
                     separator,
                 );
             }
         }
 
         for r in res_list {
-            // Relative path
-            let relative_path = if r.path.starts_with(&common_root) {
-                &r.path[common_root.len()..]
-            } else {
-                &r.path
+            // Relative path using robust Path component logic
+            let root_path = std::path::Path::new(&common_root);
+            let resource_path = std::path::Path::new(&r.path);
+
+            let relative_clean = match resource_path.strip_prefix(root_path) {
+                Ok(p) => p.to_string_lossy().to_string(),
+                Err(_) => {
+                    // File is outside the common root
+                    // Flatten it for the view: just show the filename.
+                    // This prevents the full absolute path directory structure (e.g., /home/user/...)
+                    // from being rendered inside the collection tree.
+                    resource_path
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| r.path.clone())
+                }
             };
-            // Trim leading separator
-            let relative_clean = relative_path.trim_start_matches(separator);
 
             // Split
             let parts: Vec<&str> = relative_clean

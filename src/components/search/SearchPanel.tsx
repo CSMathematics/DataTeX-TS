@@ -27,6 +27,7 @@ import {
   SearchMatch,
   SearchResult,
 } from "../../services/searchService";
+import { useTranslation } from "react-i18next";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import { FileMatchGroup } from "./FileMatchGroup";
 
@@ -35,6 +36,7 @@ interface SearchPanelProps {
 }
 
 export const SearchPanel: React.FC<SearchPanelProps> = ({ onOpenFile }) => {
+  const { t } = useTranslation();
   const [searchText, setSearchText] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [useRegex, setUseRegex] = useState(false);
@@ -111,7 +113,10 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ onOpenFile }) => {
     // Confirm with user
     if (
       !window.confirm(
-        `Are you sure you want to replace "${searchText}" with "${replaceText}" in all matches? This cannot be undone.`
+        t("search.confirmReplace", {
+          search: searchText,
+          replace: replaceText,
+        })
       )
     ) {
       return;
@@ -135,11 +140,14 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ onOpenFile }) => {
 
       // Maybe show a temporary success status
       alert(
-        `Replaced ${replaceRes.total_replacements} occurrences in ${replaceRes.total_files_changed} files.`
+        t("search.replaceSuccess", {
+          count: replaceRes.total_replacements,
+          files: replaceRes.total_files_changed,
+        })
       );
     } catch (err) {
       console.error("Replace failed:", err);
-      setError("Replace failed: " + String(err));
+      setError(t("search.replaceError", { error: String(err) }));
     } finally {
       setIsSearching(false);
     }
@@ -165,7 +173,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ onOpenFile }) => {
           </ActionIcon>
           <TextInput
             style={{ flex: 1 }}
-            placeholder="Search in files..."
+            placeholder={t("search.placeholder")}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             leftSection={
@@ -195,7 +203,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ onOpenFile }) => {
             <Box w={22} /> {/* Spacer for alignment */}
             <TextInput
               style={{ flex: 1 }}
-              placeholder="Replace..."
+              placeholder={t("search.replacePlaceholder")}
               value={replaceText}
               onChange={(e) => setReplaceText(e.target.value)}
               leftSection={<FontAwesomeIcon icon={faExchangeAlt} size="xs" />}
@@ -211,7 +219,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ onOpenFile }) => {
                       !replaceText ||
                       (result?.matches.length || 0) === 0
                     }
-                    title="Replace All"
+                    title={t("search.replaceAll")}
                     color="blue"
                   >
                     <FontAwesomeIcon icon={faExchangeAlt} size="xs" />
@@ -236,13 +244,13 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ onOpenFile }) => {
       {/* Options */}
       <Group gap="xs">
         <Checkbox
-          label="Case"
+          label={t("search.case")}
           size="xs"
           checked={caseSensitive}
           onChange={(e) => setCaseSensitive(e.currentTarget.checked)}
         />
         <Checkbox
-          label="Regex"
+          label={t("search.regex")}
           size="xs"
           checked={useRegex}
           onChange={(e) => setUseRegex(e.currentTarget.checked)}
@@ -252,7 +260,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ onOpenFile }) => {
       {/* File Type Filters */}
       <Box>
         <Text size="xs" c="dimmed" mb={4}>
-          File Types:
+          {t("search.fileTypes")}
         </Text>
         <Group gap={4}>
           {allFileTypes.map((type) => (
@@ -272,15 +280,18 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ onOpenFile }) => {
       {/* Stats */}
       {result && (
         <Text size="xs" c="dimmed">
-          {result.matches.length} matches in {result.total_files_searched} files
-          ({result.search_duration_ms}ms)
+          {t("search.stats", {
+            matches: result.matches.length,
+            files: result.total_files_searched,
+            duration: result.search_duration_ms,
+          })}
         </Text>
       )}
 
       {/* Error Display */}
       {error && (
         <Text size="xs" c="red">
-          Error: {error}
+          {t("search.errorPrefix", { error })}
         </Text>
       )}
 
@@ -310,7 +321,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ onOpenFile }) => {
           </Stack>
         ) : searchText && !isSearching ? (
           <Text size="sm" c="dimmed" ta="center" mt="md">
-            No matches found
+            {t("search.noMatches")}
           </Text>
         ) : null}
       </ScrollArea>

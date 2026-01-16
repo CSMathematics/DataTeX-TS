@@ -157,7 +157,8 @@ const OutlineView = ({
 
         const newNode: OutlineNode = {
           id: `${index}-${title}`,
-          title: type === "label" ? `Label: ${title}` : title,
+          title:
+            type === "label" ? `${t("sidebar.labelPrefix")}${title}` : title,
           level,
           lineNumber: index + 1,
           children: [],

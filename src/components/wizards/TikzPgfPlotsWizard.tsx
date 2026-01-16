@@ -1297,11 +1297,11 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
             position: "relative",
           }}
         >
-          <Text pos="absolute" top={5} right={5} size="xs" c="dimmed">
-            <Badge size="xs" variant="outline">
+          <Box pos="absolute" top={5} right={5}>
+            <Badge size="xs" variant="outline" color="gray">
               Preview
             </Badge>
-          </Text>
+          </Box>
           <Group pos="absolute" top={5} left={10} gap="xs">
             <Switch
               size="xs"

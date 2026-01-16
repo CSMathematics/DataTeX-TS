@@ -1,0 +1,772 @@
+{
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "create": "创建",
+    "open": "打开",
+    "close": "关闭",
+    "search": "搜索",
+    "settings": "设置",
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "refresh": "刷新",
+    "filterFiles": "过滤文件...",
+    "newFile": "新建文件",
+    "newFolder": "新建文件夹",
+    "empty": "空",
+    "or": "或",
+   "noResults": "未找到结果"
+  },
+  "tools": {
+    "packageBrowser": {
+      "title": "CTAN 宏包",
+      "searchPlaceholder": "搜索宏包...",
+      "filterTopic": "按主题过滤",
+      "loadMore": "加载更多... (剩余 {{remaining}})",
+      "noPackages": "未找到匹配 \"{{query}}\" 的宏包",
+      "visitHome": "访问主页",
+      "visitCtan": "访问 CTAN 页面",
+      "pkgInfo": "{{id}} 信息",
+      "description": "描述",
+      "version": "版本",
+      "insertPkg": "插入 \\usepackage{{{id}}}",
+      "insertCount": "插入 {{count}}",
+      "wizardAvailable": "向导可用",
+      "selectPackage": "选择宏包查看详情"
+    }
+  },
+  "wizards": {
+    "insertCode": "插入代码",
+    "includegraphics": {
+      "source": "图片来源",
+      "filePath": "文件路径",
+      "dimensions": "尺寸与变换",
+      "width": "宽度",
+      "height": "高度",
+      "keepAspectRatio": "保持纵横比",
+      "scale": "缩放因子",
+      "angle": "旋转角度 (度)",
+      "figureEnv": "Figure 环境",
+      "centering": "居中",
+      "caption": "标题",
+      "label": "标签",
+      "placement": "放置位置",
+      "insertCode": "插入代码"
+    }
+  },
+  "settings": {
+    "title": "设置",
+    "searchPlaceholder": "搜索设置...",
+    "noSettingsFound": "未找到设置",
+    "categories": {
+      "general": "常规",
+      "tex": "TeX 引擎",
+      "compilation": "编译",
+      "editor": "编辑器外观",
+      "editorBehavior": "编辑器行为",
+      "pdfViewer": "PDF 阅读器",
+      "database": "数据库",
+      "accessibility": "辅助功能",
+      "shortcuts": "快捷键",
+      "theme": "主题"
+    },
+    "general": {
+      "title": "常规设置",
+      "description": "全局应用程序设置。",
+      "startupBehavior": {
+        "label": "启动行为",
+        "description": "应用程序启动时显示的内容",
+        "restore": "恢复上次会话",
+        "welcome": "显示欢迎屏幕",
+        "empty": "空白工作区"
+      },
+      "confirmOnExit": {
+        "label": "退出时确认",
+        "description": "在有未保存更改时询问是否退出"
+      },
+      "language": {
+        "label": "语言",
+        "description": "选择语言"
+      },
+      "autoSave": {
+        "label": "自动保存",
+        "description": "自动保存更改 (即将推出)。"
+      }
+    },
+    "tex": {
+      "title": "TeX 引擎配置",
+      "description": "配置 LaTeX 文档的编译方式。",
+      "defaultEngine": {
+        "label": "默认引擎",
+        "description": "未找到特定 magic comment 时使用的引擎。"
+      },
+      "pdflatexPath": { "label": "pdfLaTeX 路径" },
+      "xelatexPath": { "label": "XeLaTeX 路径" },
+      "lualatexPath": { "label": "LuaLaTeX 路径" },
+      "outputDirectory": {
+        "label": "输出目录",
+        "description": "辅助文件目录 (相对于文档)。"
+      },
+      "shellEscape": {
+        "label": "启用 Shell Escape (--shell-escape)",
+        "description": "允许执行外部命令 (例如用于 minted)。"
+      },
+      "synctex": {
+        "label": "启用 SyncTeX",
+        "description": "正向/反向搜索所需。"
+      },
+      "bibtex": {
+        "label": "运行 BibTeX/Biber",
+        "description": "自动运行参考文献处理程序。"
+      }
+    },
+    "compilation": {
+      "title": "编译设置",
+      "description": "高级编译行为和输出管理。",
+      "buildBehavior": {
+        "title": "构建行为",
+        "description": "文件编译的时间和方式",
+        "compileOnSave": {
+          "label": "保存时编译",
+          "description": "保存时自动编译文档"
+        },
+        "timeout": {
+          "label": "编译超时",
+          "description": "编译最大时间（秒）(30-300)"
+        }
+      },
+      "outputDirectory": {
+        "title": "输出目录",
+        "description": "编译产物的存储位置",
+        "buildDirectory": {
+          "label": "构建目录",
+          "description": "辅助文件和输出文件的位置",
+          "source": "与源文件相同",
+          "custom": "自定义路径"
+        },
+        "customBuildPath": {
+          "label": "自定义构建路径",
+          "description": "构建输出的相对或绝对路径"
+        },
+        "cleanAuxFiles": {
+          "label": "清理辅助文件",
+          "description": "编译成功后删除 .aux, .log, .toc 文件"
+        }
+      },
+      "errorHandling": {
+        "title": "错误处理",
+        "description": "编译错误的显示方式",
+        "showLogOnError": {
+          "label": "出错时显示日志面板",
+          "description": "发生错误时自动打开日志面板"
+        },
+        "maxErrors": {
+          "label": "最大显示错误数",
+          "description": "限制显示的错误数量 (10-100)"
+        }
+      }
+    },
+    "editor": {
+      "title": "编辑器设置",
+      "description": "自定义代码编辑器体验。",
+      "fontSize": {
+        "label": "字体大小",
+        "description": "控制字体大小（像素）。"
+      },
+      "fontFamily": {
+        "label": "字体家族",
+        "description": "编辑器使用的字体家族。",
+        "notFound": "未找到字体"
+      },
+      "wordWrap": {
+        "label": "自动换行",
+        "description": "控制行如何换行。"
+      },
+      "theme": {
+        "label": "编辑器主题",
+        "description": "代码编辑器的配色方案。"
+      },
+      "lineNumbers": {
+        "label": "行号",
+        "description": "控制行号的显示。",
+        "relative": "相对"
+      },
+      "minimap": {
+        "label": "缩略图",
+        "description": "控制是否显示缩略图。"
+      }
+    },
+    "editorBehavior": {
+      "title": "编辑器行为",
+      "description": "自定义编辑器对输入的响应方式。",
+      "formatting": {
+        "title": "格式化",
+        "description": "缩进和间距偏好",
+        "tabSize": {
+          "label": "制表符大小",
+          "description": "每个制表符的空格数"
+        },
+        "insertSpaces": {
+          "label": "插入空格",
+          "description": "使用空格代替制表符"
+        }
+      },
+      "autoCompletion": {
+        "title": "自动补全",
+        "description": "自动插入和补全",
+        "autoCloseBrackets": {
+          "label": "自动闭合括号",
+          "description": "自动闭合 (), {}, [], 和引号"
+        },
+        "autoCloseLatexEnv": {
+          "label": "自动闭合 LaTeX 环境",
+          "description": "输入 \\begin{} 时自动插入 \\end{}"
+        },
+        "suggestOnTrigger": {
+          "label": "触发字符建议",
+          "description": "输入 \\ 时显示 IntelliSense 建议"
+        },
+        "quickSuggestions": {
+          "label": "快速建议",
+          "description": "输入时显示行内建议"
+        }
+      },
+      "editorActions": {
+        "title": "编辑器操作",
+        "description": "格式化和自动保存",
+        "formatOnSave": {
+          "label": "保存时格式化",
+          "description": "保存时自动格式化文档"
+        },
+        "scrollBeyondLastLine": {
+          "label": "滚动超过最后一行",
+          "description": "允许滚动到文档末尾之后"
+        }
+      },
+      "cursor": {
+        "title": "光标",
+        "description": "光标外观和行为",
+        "style": {
+          "label": "光标样式",
+          "description": "文本光标的视觉样式",
+          "line": "线 (|)",
+          "block": "块 (█)",
+          "underline": "下划线 (_)"
+        },
+        "blinking": {
+          "label": "光标闪烁",
+          "description": "光标的动画样式",
+          "blink": "闪烁",
+          "smooth": "平滑",
+          "phase": "相位",
+          "expand": "扩展",
+          "solid": "实心 (不闪烁)"
+        }
+      }
+    },
+    "pdfViewer": {
+      "title": "PDF 阅读器设置",
+      "description": "自定义 PDF 阅读器的行为和外观。",
+      "display": {
+        "title": "显示设置",
+        "description": "控制 PDF 的显示方式",
+        "defaultZoom": {
+          "label": "默认缩放级别",
+          "description": "PDF 默认显示方式",
+          "fitPage": "适应页面",
+          "fitWidth": "适应宽度",
+          "actual": "实际大小 (100%)"
+        },
+        "splitViewMode": {
+          "label": "分屏模式",
+          "description": "编辑器和 PDF 的排列方式",
+          "horizontal": "水平 (并排)",
+          "vertical": "垂直 (上下)",
+          "auto": "自动 (基于窗口大小)"
+        }
+      },
+      "behavior": {
+        "title": "行为设置",
+        "description": "自动操作和功能",
+        "showByDefault": {
+          "label": "默认显示 PDF",
+          "description": "打开 .tex 文件时自动显示 PDF 面板"
+        },
+        "autoRefresh": {
+          "label": "自动刷新 PDF",
+          "description": "编译成功后自动重新加载 PDF"
+        }
+      },
+      "prevPage": "上一页",
+      "nextPage": "下一页",
+      "zoomOut": "缩小",
+      "zoomIn": "放大",
+      "fitWidth": "适应宽度",
+      "fitPage": "适应页面",
+      "actualSize": "实际大小",
+      "synctex": {
+        "title": "SyncTeX 设置",
+        "description": "源代码和 PDF 之间的同步",
+        "highlight": {
+          "label": "SyncTeX 高亮",
+          "description": "正向同步时高亮 PDF 中的对应位置"
+        },
+        "scrollSync": {
+          "label": "滚动同步",
+          "description": "同步编辑器和 PDF 阅读器的滚动"
+        }
+      }
+    },
+    "database": {
+      "title": "数据库设置",
+      "description": "自定义数据库视图和行为。",
+      "view": {
+        "title": "视图设置",
+        "description": "默认视图和显示选项",
+        "defaultView": {
+          "label": "默认视图",
+          "description": "数据库的默认显示方式",
+          "table": "表格视图",
+          "graph": "图表视图",
+          "list": "列表视图"
+        },
+        "showMetadataPanel": {
+          "label": "显示元数据面板",
+          "description": "查看资源时默认显示元数据面板"
+        },
+        "tablePageSize": {
+          "label": "表格页面大小",
+          "description": "表格视图每页显示的行数 (10-100)"
+        }
+      },
+      "graph": {
+        "title": "图表视图",
+        "description": "图表可视化设置",
+        "physics": {
+          "label": "启用物理模拟",
+          "description": "使用力导向布局进行图表可视化"
+        },
+        "animation": {
+          "label": "图表动画",
+          "description": "动画化图表过渡和交互"
+        }
+      },
+      "advanced": {
+        "title": "高级选项",
+        "description": "额​​外数据库功能",
+        "autoDetectPreambles": {
+          "label": "自动检测导言区",
+          "description": "自动识别和分类导言区文件"
+        },
+        "showFilePreview": {
+          "label": "悬停时显示文件预览",
+          "description": "悬停在元素上时显示文件预览提示"
+        }
+      }
+    },
+    "accessibility": {
+      "title": "辅助功能设置",
+      "description": "提高可读性并减少视觉疲劳。",
+      "visual": {
+        "title": "视觉增强",
+        "description": "提高可见性的设置",
+        "highContrast": {
+          "label": "高对比度模式",
+          "description": "增加对比度以提高可见性"
+        },
+        "fontLigatures": {
+          "label": "字体连字",
+          "description": "使用特殊字符组合 (→, ≤, 等)"
+        },
+        "letterSpacing": {
+          "label": "字间距",
+          "description": "字母之间的额外间距（像素）(0-2)"
+        },
+        "lineHeight": {
+          "label": "行高",
+          "description": "行之间的垂直间距 (1.0-2.0)"
+        },
+        "renderWhitespace": {
+          "label": "渲染空白",
+          "description": "显示不可见的空白字符",
+          "none": "无",
+          "boundary": "边界 (首/尾)",
+          "selection": "仅选择",
+          "all": "所有空白"
+        }
+      },
+      "motion": {
+        "title": "运动与动画",
+        "description": "控制运动和过渡",
+        "smoothScrolling": {
+          "label": "平滑滚动",
+          "description": "启用平滑滚动动画"
+        },
+        "animationSpeed": {
+          "label": "动画速度",
+          "description": "UI 动画和过渡的速度",
+          "slow": "慢 (轻松)",
+          "normal": "正常",
+          "fast": "快 (敏捷)",
+          "none": "无 (即时)"
+        },
+        "reduceMotion": {
+          "label": "减少运动",
+          "description": "最小化动画以适应运动敏感性 (覆盖动画速度)"
+        }
+      }
+    },
+    "theme": {
+      "title": "主题设置",
+      "description": "自定义应用程序的外观。",
+      "uiTheme": {
+        "label": "UI 主题",
+        "description": "应用程序界面的颜色主题。",
+        "custom": "自定义",
+        "light": "浅色",
+        "dark": "深色"
+      },
+      "advanced": {
+        "title": "高级主题编辑器",
+        "description": "覆盖当前主题的特定颜色。更改将立即应用。",
+        "appBg": { "label": "应用背景", "description": "编辑器背后的主要背景" },
+        "sidebarBg": { "label": "侧边栏背景", "description": "左侧侧边栏" },
+        "headerBg": { "label": "标题栏背景", "description": "顶部导航栏" },
+        "panelBg": { "label": "面板背景", "description": "侧面板 (文件, 数据库)" },
+        "statusBarBg": { "label": "状态栏背景", "description": "底部状态栏" },
+        "primaryColor": { "label": "主色", "description": "主要强调色 (按钮, 高亮)" },
+        "accentColor": { "label": "强调色", "description": "次要强调 (图标, 活动状态)" },
+        "borderColor": { "label": "边框颜色", "description": "全局边框颜色" },
+        "actions": "操作",
+        "resetOverrides": "重置覆盖",
+        "newThemeName": "新主题名称",
+        "saveAsTheme": "另存为主题"
+      }
+    },
+    "shortcuts": {
+      "title": "快捷键",
+      "description": "自定义常用操作的快捷键。",
+      "resetAll": "全部重置为默认",
+      "categories": {
+        "general": "常规",
+        "editor": "编辑器",
+        "compilation": "编译",
+        "navigation": "导航"
+      },
+      "actions": {
+        "file.save": { "description": "保存当前文件" },
+        "file.saveAll": { "description": "保存所有文件" },
+        "file.closeTab": { "description": "关闭当前标签页" },
+        "file.newTemplate": { "description": "从模板新建文件" },
+        "view.openSettings": { "description": "打开设置" },
+        "editor.find": { "description": "在文件中查找" },
+        "editor.replace": { "description": "查找和替换" },
+        "compilation.build": { "description": "编译当前文档" },
+        "view.toggleSidebar": { "description": "切换侧边栏" },
+        "tools.packageBrowser": { "description": "打开宏包浏览器" }
+      },
+      "modified": "已修改",
+      "edit": "编辑快捷键",
+      "reset": "重置为默认",
+      "editModal": {
+        "title": "编辑快捷键",
+        "instruction": "按下所需的组合键用以:",
+        "listening": "监听按键...",
+        "save": "保存快捷键"
+      }
+    },
+    "common": {
+      "on": "开",
+      "off": "关"
+    },
+    "statusBar": {
+      "ready": "就绪",
+      "wordCount": "字数统计",
+      "spellCheck": "拼写检查",
+      "connected": "已连接",
+      "disconnected": "未连接",
+      "ln": "行",
+      "col": "列",
+      "plainText": "纯文本",
+      "dbPrefix": "DataTex 数据库:"
+    },
+    "search": {
+      "placeholder": "在文件中搜索...",
+      "replacePlaceholder": "替换...",
+      "replaceAll": "全部替换",
+      "case": "大小写",
+      "regex": "正则",
+      "fileTypes": "文件类型:",
+      "noMatches": "未找到匹配项",
+      "confirmReplace": "确定要在所有匹配项中将 \"{{search}}\" 替换为 \"{{replace}}\" 吗？此操作无法撤消。",
+      "replaceSuccess": "在 {{files}} 个文件中替换了 {{count}} 处。",
+      "replaceError": "替换失败: {{error}}",
+      "errorPrefix": "错误: {{error}}",
+      "stats": "{{files}} 个文件中有 {{matches}} 个匹配 ({{duration}}ms)"
+    }
+  },
+  "menu": {
+    "file": {
+      "label": "文件",
+      "newFile": "新建文件",
+      "newFromTemplate": "从模板新建",
+      "open": "打开",
+      "save": "保存",
+      "exportPdf": "导出为 PDF",
+      "exit": "退出"
+    },
+    "edit": {
+      "label": "编辑",
+      "undo": "撤销",
+      "redo": "重做",
+      "cut": "剪切",
+      "copy": "复制",
+      "paste": "粘贴",
+      "find": "查找"
+    },
+    "insert": {
+      "label": "插入",
+      "image": "图片 (Figure)"
+    },
+    "view": {
+      "label": "视图",
+      "databasePanel": "数据库面板",
+      "rightSidebar": "右侧栏 (PDF)",
+      "wordCount": "字数统计",
+      "zoomIn": "放大",
+      "zoomOut": "缩小"
+    },
+    "database": {
+      "label": "数据库",
+      "open": "打开数据库 / 文件夹",
+      "addCollection": "添加集合 (文件夹)",
+      "refresh": "刷新数据库"
+    },
+    "tools": {
+      "label": "工具",
+      "website": "网站",
+      "wizards": "向导",
+      "preambleWizard": "导言区向导",
+      "tableWizard": "表格向导",
+      "tikzWizard": "TikZ 向导",
+      "fancyhdrWizard": "FancyHDR 向导",
+      "pstricksWizard": "PSTricks 向导",
+      "packageBrowser": "宏包浏览器",
+      "settings": "设置",
+      "packageGallery": "宏包画廊"
+    },
+    "build": {
+      "label": "构建",
+      "compile": "编译",
+      "stop": "停止构建"
+    },
+    "help": {
+      "label": "帮助",
+      "about": "关于 DataTex"
+    }
+  },
+  "sidebar": {
+    "database": "数据库",
+    "structure": "结构",
+    "symbols": "AMS 符号",
+    "gallery": "宏包画廊",
+    "search": "搜索",
+    "git": "源代码管理",
+    "settings": "设置",
+    "openPackageDatabase": "打开宏包数据库",
+    "selectCategory": "选择一个类别",
+    "noStructure": "未找到结构。",
+    "projectFiles": "项目文件夹",
+    "quickTools": "快速工具",
+    "noFolderOpened": "未打开文件夹",
+    "openFolder": "打开文件夹",
+    "labelPrefix": "标签: "
+  },
+  "header": {
+    "searchPlaceholder": "DataTex 搜索 (Ctrl+P)",
+    "showOutline": "显示大纲",
+    "hideOutline": "隐藏大纲",
+    "showDatabase": "显示数据库表",
+    "hideDatabase": "隐藏数据库表",
+    "moveDatabaseLeft": "数据库左移",
+    "moveDatabaseBottom": "数据库下移",
+    "showRightPanel": "显示右侧面板",
+    "hideRightPanel": "隐藏右侧面板",
+    "aiAssistant": "AI 助手"
+  },
+  "database": {
+    "title": "集合",
+    "createCollection": "创建集合",
+    "importFolderAsCollection": "导入文件夹为集合",
+    "searchCollections": "搜索集合...",
+    "searchPlaceholder": "搜索...",
+    "noCollections": "未找到集合。",
+    "importFile": "导入文件",
+    "addExistingFolder": "添加现有文件夹",
+    "deleteCollection": "删除集合",
+    "collectionsLoaded_one": "加载了 {{count}} 个集合",
+    "collectionsLoaded_other": "加载了 {{count}} 个集合",
+    "deleteCollectionTitle": "删除集合",
+    "deleteCollectionConfirm": "确定要删除集合吗",
+    "deleteCollectionWarning": "警告: 此操作将从数据库中删除集合及其所有资源，但*不会*从文件系统中删除您的文件。",
+    "newCollectionTitle": "新集合",
+    "collectionNameLabel": "集合名称",
+    "collectionNamePlaceholder": "例如: 数学, 物理",
+    "addFolderTo": "添加文件夹到",
+    "selectImportFolder": "选择导入文件夹",
+    "importFileTo": "导入文件到",
+    "cannotCreateInEmptyCollection": "无法在空集合中创建文件。请先导入文件或文件夹。",
+    "invalidCollectionPath": "无效的集合路径。",
+    "selectCollections": "选择集合",
+    "loadedCollections": "已加载集合",
+    "selectCollectionToView": "选择一个集合以查看内容",
+    "tabs": {
+      "metadata": "元数据",
+      "bibliography": "参考文献"
+    },
+    "inspector": {
+      "title": "标题",
+      "fileType": "文件类型",
+      "id": "ID",
+      "collection": "集合",
+      "created": "创建时间",
+      "bibMessage": "选择一个参考文献条目以查看详情。",
+      "noPdf": "无 PDF 预览可用。",
+      "fields": {
+        "title": "标题",
+        "fileType": "文件类型",
+        "id": "ID",
+        "collection": "集合",
+        "created": "创建时间"
+      }
+    },
+    "actions": {
+      "emptyFile": "空白文件",
+      "fromTemplate": "从模板",
+      "preambleWizard": "导言区向导",
+      "addExistingFile": "添加现有文件",
+      "openInEditor": "在编辑器中打开",
+      "revealInExplorer": "在资源管理器中显示",
+      "moveToCollection": "移动到集合",
+      "moveTo": "移动到...",
+      "removeFromDatabase": "从数据库中移除"
+    },
+    "graph": {
+      "title": "图表视图",
+      "controls": {
+        "zoomIn": "放大",
+        "zoomOut": "缩小",
+        "fitToView": "适应视图",
+        "hide": "隐藏"
+      },
+      "filters": "过滤器",
+      "packages": "宏包",
+      "bibliographies": "参考文献",
+      "images": "图片",
+      "classes": "文档类",
+      "dtx": "DTX 文件",
+      "ins": "INS 文件",
+      "layout": "布局",
+      "free": "自由",
+      "treeTD": "树状 (上-下)",
+      "treeLR": "树状 (左-右)",
+      "radial": "放射状",
+      "view": "视图",
+      "focusMode": "专注模式",
+      "physics": "物理",
+      "linkDistance": "连线距离",
+      "repulsion": "排斥力",
+      "legend": {
+        "title": "图例",
+        "document": "文档",
+        "preamble": "导言区",
+        "dependency": "依赖",
+        "package": "宏包",
+        "class": "文档类",
+        "bibliography": "参考文献",
+        "image": "图片",
+        "dtx": "DTX",
+        "ins": "INS"
+      }
+    },
+    "newFile": "新建文件",
+    "newFolder": "新建文件夹",
+    "addFolder": "添加文件夹"
+  },
+  "startPage": {
+    "documentation": "文档",
+    "getStarted": "开始",
+    "emptyFile": "空白文件",
+    "emptyFileDesc": "从头开始创建一个空白文档。",
+    "preambleWizard": "导言区向导",
+    "preambleWizardDesc": "配置页面设置、宏包和字体。",
+    "databaseTools": "数据库工具",
+    "examGenerator": "试卷生成器",
+    "examGeneratorDesc": "从有效练习自动创建试卷。",
+    "browseDatabase": "浏览数据库",
+    "browseDatabaseDesc": "管理文件、标签和元数据。",
+    "packageBrowser": "宏包浏览器",
+    "packageBrowserDesc": "搜索和探索 CTAN 宏包。",
+    "recentProjects": "最近项目",
+    "noRecentProjects": "未找到最近项目。",
+    "quickResources": "快速资源",
+    "latexCheatsheet": "LaTeX 备忘单",
+    "ctanSearch": "CTAN 宏包搜索",
+    "detexify": "Detexify (符号识别)",
+    "tikzExamples": "TikZ 示例",
+    "templates": "模板",
+    "viewAllTemplates": "查看所有模板"
+  },
+  "editorToolbar": {
+    "bold": "粗体 (\\textbf)",
+    "italic": "斜体 (\\textit)",
+    "underline": "下划线 (\\underline)",
+    "strikethrough": "删除线 (\\st)",
+    "text": "文本 (\\text)",
+    "highlight": "高亮 (\\hl)",
+    "code": "代码 (\\texttt)",
+    "alignLeft": "左对齐 (flushleft)",
+    "alignCenter": "居中对齐 (center)",
+    "alignRight": "右对齐 (flushright)",
+    "justify": "两端对齐 (默认)",
+    "quote": "引用环境",
+    "ellipsis": "省略号 (\\dots)",
+    "bulletList": "无序列表 (itemize)",
+    "numberedList": "编号列表 (enumerate)",
+    "inlineMath": "行内数学 ($...$)",
+    "displayMath": "显示数学 (\\[...\\])",
+    "subscript": "下标 (_{})",
+    "superscript": "上标 (^{})",
+    "horizontalSpace": "水平间距 (\\hspace)",
+    "verticalSpace": "垂直间距 (\\vspace)",
+    "link": "链接 (\\href)",
+    "unlink": "取消链接"
+  },
+  "ai": {
+    "settings": {
+      "title": "AI 设置",
+      "provider": "提供商",
+      "openaiKey": "OpenAI API 密钥",
+      "geminiKey": "Gemini API 密钥",
+      "ollamaUrl": "Ollama URL",
+      "customAgents": "自定义 Agent",
+      "createNewAgent": "创建新 Agent",
+      "disclaimer": "API 密钥存储在您的浏览器/应用数据本地。"
+    },
+    "provider": {
+      "mock": "模拟 AI (调试)",
+      "openai": "OpenAI",
+      "gemini": "Google Gemini",
+      "ollama": "Ollama (本地)"
+    },
+    "assistantTitle": "AI 助手",
+    "standardAssistant": "标准助手",
+    "agentPrefix": "Agent:",
+    "fetchModelsTooltip": "从 API 获取可用模型",
+    "fetch": "获取",
+    "model": "模型"
+  }
+}

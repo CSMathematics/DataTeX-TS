@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Stack,
   Text,
@@ -57,6 +58,7 @@ export const ResourceInspector = ({
   mainEditorPdfUrl,
   syncTexCoords,
 }: ResourceInspectorProps) => {
+  const { t } = useTranslation();
   const { allLoadedResources, activeResourceId } = useDatabaseStore();
   const resource = allLoadedResources.find((r) => r.id === activeResourceId);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -221,7 +223,7 @@ export const ResourceInspector = ({
                   value="metadata"
                   leftSection={<FontAwesomeIcon icon={faInfoCircle} />}
                 >
-                  Metadata
+                  {t("database.tabs.metadata")}
                 </Tabs.Tab>
                 {/* Hide Bibliography tab for bibliography files as it's redundant */}
                 {resource.kind !== "bibliography" && (
@@ -229,7 +231,7 @@ export const ResourceInspector = ({
                     value="bibliography"
                     leftSection={<FontAwesomeIcon icon={faBook} />}
                   >
-                    Bibliography
+                    {t("database.tabs.bibliography")}
                   </Tabs.Tab>
                 )}
               </>
@@ -248,7 +250,7 @@ export const ResourceInspector = ({
               }}
             >
               {pdfLoading ? (
-                <LoadingState message="Loading PDF..." />
+                <LoadingState message={t("common.loading")} />
               ) : effectivePdfUrl ? (
                 <PdfViewerContainer
                   key={effectivePdfUrl}
@@ -257,9 +259,7 @@ export const ResourceInspector = ({
                 />
               ) : (
                 <EmptyState
-                  message={
-                    pdfError || "No PDF available. Compile the document first."
-                  }
+                  message={pdfError || t("database.inspector.noPdf")}
                 />
               )}
             </Box>
@@ -283,7 +283,7 @@ export const ResourceInspector = ({
                 <Stack p="md" gap="md">
                   <Group grow>
                     <TextInput
-                      label="Title"
+                      label={t("database.inspector.fields.title")}
                       key={resource.id}
                       defaultValue={resource.title || ""}
                       onChange={() => {
@@ -291,7 +291,7 @@ export const ResourceInspector = ({
                       }}
                     />
                     <Select
-                      label="File Type"
+                      label={t("database.inspector.fields.fileType")}
                       data={RESOURCE_KINDS}
                       value={resource.kind}
                       onChange={(val) => {
@@ -302,21 +302,21 @@ export const ResourceInspector = ({
                   </Group>
                   <Group grow>
                     <TextInput
-                      label="ID"
+                      label={t("database.inspector.fields.id")}
                       value={resource.id}
                       readOnly
                       variant="filled"
                       c="dimmed"
                     />
                     <TextInput
-                      label="Collection"
+                      label={t("database.inspector.fields.collection")}
                       value={resource.collection}
                       readOnly
                       variant="filled"
                       c="dimmed"
                     />
                     <TextInput
-                      label="Created"
+                      label={t("database.inspector.fields.created")}
                       value={resource.created_at || "-"}
                       readOnly
                       variant="filled"
@@ -342,7 +342,7 @@ export const ResourceInspector = ({
             <Tabs.Panel value="bibliography">
               <Box p="md">
                 <Text c="dimmed" size="sm">
-                  Bibliography references will appear here.
+                  {t("database.inspector.bibMessage")}
                 </Text>
               </Box>
             </Tabs.Panel>

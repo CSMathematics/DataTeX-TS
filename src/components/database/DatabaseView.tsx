@@ -5,6 +5,7 @@ import React, {
   useRef,
   useEffect,
 } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Table,
   ScrollArea,
@@ -64,6 +65,7 @@ interface SortState {
 
 export const DatabaseView = React.memo(
   ({ onOpenFile, onOpenTemplateModal }: DatabaseViewProps) => {
+    const { t } = useTranslation();
     // Granular selectors - prevents re-renders when unrelated state changes
     const allLoadedResources = useDatabaseStore(
       (state) => state.allLoadedResources
@@ -493,7 +495,7 @@ export const DatabaseView = React.memo(
                   }}
                 >
                   <Menu shadow="md" width={200}>
-                    <Tooltip label="Create new">
+                    <Tooltip label={t("common.create")}>
                       <Menu.Target>
                         <ActionIcon size="xs" color="gray.7" variant="subtle">
                           <FontAwesomeIcon
@@ -504,7 +506,7 @@ export const DatabaseView = React.memo(
                       </Menu.Target>
                     </Tooltip>
                     <Menu.Dropdown>
-                      <Menu.Label>Create new</Menu.Label>
+                      <Menu.Label>{t("common.create")}</Menu.Label>
                       <Menu.Item
                         onClick={() => handleCreateFile("empty")}
                         leftSection={
@@ -514,7 +516,7 @@ export const DatabaseView = React.memo(
                           />
                         }
                       >
-                        Empty LaTeX File
+                        {t("database.actions.emptyFile")}
                       </Menu.Item>
                       <Menu.Item
                         onClick={() => handleCreateFile("template")}
@@ -525,7 +527,7 @@ export const DatabaseView = React.memo(
                           />
                         }
                       >
-                        From Template...
+                        {t("database.actions.fromTemplate")}
                       </Menu.Item>
                       <Menu.Item
                         onClick={() => handleCreateFile("wizard")}
@@ -536,12 +538,12 @@ export const DatabaseView = React.memo(
                           />
                         }
                       >
-                        Preamble Wizard...
+                        {t("database.actions.preambleWizard")}
                       </Menu.Item>
                     </Menu.Dropdown>
                   </Menu>
 
-                  <Tooltip label="Add existing file">
+                  <Tooltip label={t("database.actions.addExistingFile")}>
                     <ActionIcon
                       size="xs"
                       variant="subtle"
@@ -554,7 +556,7 @@ export const DatabaseView = React.memo(
                       />
                     </ActionIcon>
                   </Tooltip>
-                  <Tooltip label="Open in Main Editor">
+                  <Tooltip label={t("database.actions.openInEditor")}>
                     <ActionIcon
                       variant="subtle"
                       size="xs"
@@ -567,7 +569,7 @@ export const DatabaseView = React.memo(
                       />
                     </ActionIcon>
                   </Tooltip>
-                  <Tooltip label="Reveal in Explorer">
+                  <Tooltip label={t("database.actions.revealInExplorer")}>
                     <ActionIcon
                       variant="subtle"
                       size="xs"
@@ -582,7 +584,7 @@ export const DatabaseView = React.memo(
                   </Tooltip>
 
                   <Menu shadow="md" width={200}>
-                    <Tooltip label="Move to Collection">
+                    <Tooltip label={t("database.actions.moveToCollection")}>
                       <Menu.Target>
                         <ActionIcon variant="subtle" size="xs" color="gray.7">
                           <FontAwesomeIcon
@@ -593,7 +595,7 @@ export const DatabaseView = React.memo(
                       </Menu.Target>
                     </Tooltip>
                     <Menu.Dropdown>
-                      <Menu.Label>Move to...</Menu.Label>
+                      <Menu.Label>{t("database.actions.moveTo")}</Menu.Label>
                       {activeResource &&
                         fullCollections
                           .filter((c) => c.name !== activeResource.collection)
@@ -609,7 +611,7 @@ export const DatabaseView = React.memo(
                           ))}
                     </Menu.Dropdown>
                   </Menu>
-                  <Tooltip label="Remove from Database">
+                  <Tooltip label={t("database.actions.removeFromDatabase")}>
                     <ActionIcon
                       variant="subtle"
                       size="xs"
@@ -753,7 +755,7 @@ export const DatabaseView = React.memo(
                 <TextInput
                   flex={1}
                   style={{ padding: 4 }}
-                  placeholder="Global Search..."
+                  placeholder={t("database.searchPlaceholder")}
                   leftSection={
                     <FontAwesomeIcon
                       icon={faSearch}

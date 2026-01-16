@@ -16,7 +16,48 @@
     "filterFiles": "Filter files...",
     "newFile": "New File",
     "newFolder": "New Folder",
-    "empty": "Empty"
+    "empty": "Empty",
+    "or": "OR",
+    "noResults": "No results found",
+    "download": "Download",
+    "print": "Print"
+  },
+  "tools": {
+    "packageBrowser": {
+      "title": "CTAN Packages",
+      "searchPlaceholder": "Search packages...",
+      "filterTopic": "Filter by topic",
+      "loadMore": "Load More... ({{remaining}} remaining)",
+      "noPackages": "No packages found matching \"{{query}}\"",
+      "visitHome": "Visit Home Page",
+      "visitCtan": "Visit CTAN Page",
+      "pkgInfo": "{{id}} Information",
+      "description": "Description",
+      "version": "Version",
+      "insertPkg": "Insert \\usepackage{{{id}}}",
+      "insertCount": "Insert {{count}}",
+      "wizardAvailable": "Wizard Available",
+      "selectPackage": "Select a package to view details"
+    }
+  },
+  "wizards": {
+    "insertCode": "Insert Code",
+    "includegraphics": {
+      "source": "Image Source",
+      "filePath": "File Path",
+      "dimensions": "Dimensions & Transform",
+      "width": "Width",
+      "height": "Height",
+      "keepAspectRatio": "Keep Aspect Ratio",
+      "scale": "Scale Factor",
+      "angle": "Rotation Angle (degrees)",
+      "figureEnv": "Figure Environment",
+      "centering": "Centering",
+      "caption": "Caption",
+      "label": "Label",
+      "placement": "Placement",
+      "insertCode": "Insert Code"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -261,6 +302,13 @@
           "description": "Automatically reload PDF after successful compilation"
         }
       },
+      "prevPage": "Previous Page",
+      "nextPage": "Next Page",
+      "zoomOut": "Zoom Out",
+      "zoomIn": "Zoom In",
+      "fitWidth": "Fit to Width",
+      "fitPage": "Fit to Page",
+      "actualSize": "Actual Size",
       "synctex": {
         "title": "SyncTeX Settings",
         "description": "Synchronization between source and PDF",
@@ -471,20 +519,21 @@
     "database": {
       "label": "Database",
       "open": "Open Database / Folder",
-      "addCollection": "Add Collection (Folder)",
+      "addCollection": "Add Database (Folder)",
       "refresh": "Refresh Database"
     },
     "tools": {
       "label": "Tools",
+      "website": "Website",
       "wizards": "Wizards",
       "preambleWizard": "Preamble Wizard",
       "tableWizard": "Table Wizard",
       "tikzWizard": "TikZ Wizard",
       "fancyhdrWizard": "FancyHDR Wizard",
       "pstricksWizard": "PSTricks Wizard",
-      "packageGallery": "Package Gallery",
       "packageBrowser": "Package Browser",
-      "settings": "Settings"
+      "settings": "Settings",
+      "packageGallery": "Package Gallery"
     },
     "build": {
       "label": "Build",
@@ -510,42 +559,119 @@
     "projectFiles": "Project Folders",
     "quickTools": "QUICK TOOLS",
     "noFolderOpened": "No folder opened",
-    "openFolder": "Open Folder"
+    "openFolder": "Open Folder",
+    "labelPrefix": "Label: "
   },
   "header": {
     "searchPlaceholder": "DataTex Search (Ctrl+P)",
-    "tooltips": {
-      "showOutline": "Show outline",
-      "hideOutline": "Hide outline",
-      "showDatabase": "Show database table",
-      "hideDatabase": "Hide database table",
-      "moveDatabaseLeft": "Move database to left",
-      "moveDatabaseBottom": "Move database to bottom",
-      "showRightPanel": "Show right panel",
-      "hideRightPanel": "Hide right panel",
-      "aiAssistant": "AI Assistant"
-    }
+    "showOutline": "Show outline",
+    "hideOutline": "Hide outline",
+    "showDatabase": "Show database table",
+    "hideDatabase": "Hide database table",
+    "moveDatabaseLeft": "Move database to left",
+    "moveDatabaseBottom": "Move database to bottom",
+    "showRightPanel": "Show right panel",
+    "hideRightPanel": "Hide right panel",
+    "aiAssistant": "AI Assistant"
   },
   "database": {
-    "title": "Collections",
-    "createCollection": "Create Collection",
-    "importFolderAsCollection": "Import Folder as Collection",
-    "searchCollections": "Search collections...",
-    "noCollections": "No collections found.",
+    "title": "Databases",
+    "createCollection": "Create Database",
+    "importFolderAsCollection": "Import Folder as Database",
+    "searchCollections": "Search databases...",
+    "searchPlaceholder": "Search...",
+    "noCollections": "No databases found.",
     "importFile": "Import File",
     "addExistingFolder": "Add Existing Folder",
-    "deleteCollection": "Delete Collection",
-    "collectionsLoaded_one": "{{count}} collection loaded",
-    "collectionsLoaded_other": "{{count}} collections loaded",
-    "deleteCollectionTitle": "Delete Collection",
-    "deleteCollectionConfirm": "Are you sure you want to delete collection",
-    "deleteCollectionWarning": "WARNING: This action will delete the collection and all its resources from the database, but will NOT delete the files from your file system.",
-    "newCollectionTitle": "New Collection",
-    "collectionNameLabel": "Collection Name",
+    "deleteCollection": "Delete Database",
+    "collectionsLoaded_one": "{{count}} database loaded",
+    "collectionsLoaded_other": "{{count}} databases loaded",
+    "deleteCollectionTitle": "Delete Database",
+    "deleteCollectionConfirm": "Are you sure you want to delete database",
+    "deleteCollectionWarning": "WARNING: This action will delete the database and all its resources from the database, but will NOT delete the files from your file system.",
+    "newCollectionTitle": "New Database",
+    "collectionNameLabel": "Database Name",
     "collectionNamePlaceholder": "e.g., Mathematics, Physics",
     "addFolderTo": "Add Folder to",
     "selectImportFolder": "Select Folder to Import",
-    "importFileTo": "Import File to"
+    "importFileTo": "Import File to",
+    "cannotCreateInEmptyCollection": "Cannot create file in an empty database. Please import a file or folder first to establish a location.",
+    "invalidCollectionPath": "Invalid database path.",
+    "selectCollections": "Select Databases",
+    "loadedCollections": "Loaded Databases",
+    "selectCollectionToView": "Select a database to view its content",
+    "tabs": {
+      "metadata": "Metadata",
+      "bibliography": "Bibliography"
+    },
+    "inspector": {
+      "title": "Title",
+      "fileType": "File Type",
+      "id": "ID",
+      "collection": "Collection",
+      "created": "Created",
+      "bibMessage": "Select a bibliography entry to view details.",
+      "noPdf": "No PDF preview available.",
+      "fields": {
+        "title": "Title",
+        "fileType": "File Type",
+        "id": "ID",
+        "collection": "Collection",
+        "created": "Created"
+      }
+    },
+    "actions": {
+      "emptyFile": "Empty File",
+      "fromTemplate": "From Template",
+      "preambleWizard": "Preamble Wizard",
+      "addExistingFile": "Add Existing File",
+      "openInEditor": "Open in Editor",
+      "revealInExplorer": "Reveal in Explorer",
+      "moveToCollection": "Move to Database",
+      "moveTo": "Move to...",
+      "removeFromDatabase": "Remove from Database"
+    },
+    "graph": {
+      "title": "Graph View",
+      "controls": {
+        "zoomIn": "Zoom In",
+        "zoomOut": "Zoom Out",
+        "fitToView": "Fit to View",
+        "hide": "Hide"
+      },
+      "filters": "Filters",
+      "packages": "Packages",
+      "bibliographies": "Bibliographies",
+      "images": "Images",
+      "classes": "Classes",
+      "dtx": "DTX Files",
+      "ins": "INS Files",
+      "layout": "Layout",
+      "free": "Free",
+      "treeTD": "Tree (Top-Down)",
+      "treeLR": "Tree (Left-Right)",
+      "radial": "Radial",
+      "view": "View",
+      "focusMode": "Focus Mode",
+      "physics": "Physics",
+      "linkDistance": "Link Distance",
+      "repulsion": "Repulsion",
+      "legend": {
+        "title": "Legend",
+        "document": "Document",
+        "preamble": "Preamble",
+        "dependency": "Dependency",
+        "package": "Package",
+        "class": "Class",
+        "bibliography": "Bibliography",
+        "image": "Image",
+        "dtx": "DTX",
+        "ins": "INS"
+      }
+    },
+    "newFile": "New File",
+    "newFolder": "New Folder",
+    "addFolder": "Add Folder"
   },
   "startPage": {
     "documentation": "Documentation",
@@ -576,7 +702,25 @@
     "wordCount": "Word Count",
     "spellCheck": "Spell Check",
     "connected": "Connected",
-    "disconnected": "Disconnected"
+    "disconnected": "Disconnected",
+    "ln": "Ln",
+    "col": "Col",
+    "plainText": "Plain Text",
+    "dbPrefix": "DataTex DB:"
+  },
+  "search": {
+    "placeholder": "Search in files...",
+    "replacePlaceholder": "Replace...",
+    "replaceAll": "Replace All",
+    "case": "Case",
+    "regex": "Regex",
+    "fileTypes": "File Types:",
+    "noMatches": "No matches found",
+    "confirmReplace": "Are you sure you want to replace \"{{search}}\" with \"{{replace}}\" in all matches? This cannot be undone.",
+    "replaceSuccess": "Replaced {{count}} occurrences in {{files}} files.",
+    "replaceError": "Replace failed: {{error}}",
+    "errorPrefix": "Error: {{error}}",
+    "stats": "{{matches}} matches in {{files}} files ({{duration}}ms)"
   },
   "editorToolbar": {
     "bold": "Bold (\\textbf)",
@@ -602,5 +746,29 @@
     "verticalSpace": "Vertical Space (\\vspace)",
     "link": "Link (\\href)",
     "unlink": "Unlink (Remove Link)"
+  },
+  "ai": {
+    "settings": {
+      "title": "AI Settings",
+      "provider": "Provider",
+      "openaiKey": "OpenAI API Key",
+      "geminiKey": "Gemini API Key",
+      "ollamaUrl": "Ollama URL",
+      "customAgents": "Custom Agents",
+      "createNewAgent": "Create New Agent",
+      "disclaimer": "API keys are stored locally in your browser/app data."
+    },
+    "provider": {
+      "mock": "Mock AI (Debug)",
+      "openai": "OpenAI",
+      "gemini": "Google Gemini",
+      "ollama": "Ollama (Local)"
+    },
+    "assistantTitle": "AI Assistant",
+    "standardAssistant": "Standard Assistant",
+    "agentPrefix": "Agent:",
+    "fetchModelsTooltip": "Fetch available models from API",
+    "fetch": "Fetch",
+    "model": "Model"
   }
 }

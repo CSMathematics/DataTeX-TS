@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Stack,
   TextInput,
@@ -20,6 +21,7 @@ interface GraphicxWizardProps {
 }
 
 export const GraphicxWizard: React.FC<GraphicxWizardProps> = ({ onInsert }) => {
+  const { t } = useTranslation();
   // --- State ---
   const [filePath, setFilePath] = useState("");
 
@@ -124,11 +126,11 @@ export const GraphicxWizard: React.FC<GraphicxWizardProps> = ({ onInsert }) => {
     <Stack gap="md" p="md" style={{ overflowY: "auto", height: "100%" }}>
       <Paper p="sm" withBorder bg="var(--mantine-color-body)">
         <Text size="sm" fw={700} mb="xs">
-          Image Source
+          {t("wizards.includegraphics.source")}
         </Text>
         <Group align="flex-end">
           <TextInput
-            label="File Path"
+            label={t("wizards.includegraphics.filePath")}
             placeholder="path/to/image.png"
             value={filePath}
             onChange={(e) => setFilePath(e.currentTarget.value)}
@@ -142,12 +144,12 @@ export const GraphicxWizard: React.FC<GraphicxWizardProps> = ({ onInsert }) => {
 
       <Paper p="sm" withBorder bg="var(--mantine-color-body)">
         <Text size="sm" fw={700} mb="xs">
-          Dimensions & Transform
+          {t("wizards.includegraphics.dimensions")}
         </Text>
         <Stack gap="xs">
           <Group grow>
             <TextInput
-              label="Width"
+              label={t("wizards.includegraphics.width")}
               placeholder="e.g. 0.8"
               value={width}
               onChange={(e) => setWidth(e.currentTarget.value)}
@@ -164,7 +166,7 @@ export const GraphicxWizard: React.FC<GraphicxWizardProps> = ({ onInsert }) => {
               }
             />
             <TextInput
-              label="Height"
+              label={t("wizards.includegraphics.height")}
               placeholder="e.g. 5"
               value={height}
               onChange={(e) => setHeight(e.currentTarget.value)}
@@ -184,17 +186,17 @@ export const GraphicxWizard: React.FC<GraphicxWizardProps> = ({ onInsert }) => {
 
           <Group justify="space-between">
             <Switch
-              label="Keep Aspect Ratio"
+              label={t("wizards.includegraphics.keepAspectRatio")}
               checked={keepAspectRatio}
               onChange={(e) => setKeepAspectRatio(e.currentTarget.checked)}
               size="xs"
             />
           </Group>
 
-          <Divider my="xs" label="OR" labelPosition="center" />
+          <Divider my="xs" label={t("common.or")} labelPosition="center" />
 
           <NumberInput
-            label="Scale Factor"
+            label={t("wizards.includegraphics.scale")}
             placeholder="1.0"
             value={scale}
             onChange={(v) => setScale(v === "" ? "" : Number(v))}
@@ -205,7 +207,7 @@ export const GraphicxWizard: React.FC<GraphicxWizardProps> = ({ onInsert }) => {
           <Divider my="xs" />
 
           <NumberInput
-            label="Rotation Angle (degrees)"
+            label={t("wizards.includegraphics.angle")}
             placeholder="e.g. 90"
             value={angle}
             onChange={(v) => setAngle(v === "" ? "" : Number(v))}
@@ -216,7 +218,7 @@ export const GraphicxWizard: React.FC<GraphicxWizardProps> = ({ onInsert }) => {
       <Paper p="sm" withBorder bg="var(--mantine-color-body)">
         <Group justify="space-between" mb="xs">
           <Text size="sm" fw={700}>
-            Figure Environment
+            {t("wizards.includegraphics.figureEnv")}
           </Text>
           <Switch
             checked={useFigure}
@@ -227,24 +229,24 @@ export const GraphicxWizard: React.FC<GraphicxWizardProps> = ({ onInsert }) => {
         {useFigure && (
           <Stack gap="xs">
             <Switch
-              label="Centering"
+              label={t("wizards.includegraphics.centering")}
               checked={center}
               onChange={(e) => setCenter(e.currentTarget.checked)}
             />
             <TextInput
-              label="Caption"
+              label={t("wizards.includegraphics.caption")}
               placeholder="Figure caption..."
               value={caption}
               onChange={(e) => setCaption(e.currentTarget.value)}
             />
             <TextInput
-              label="Label"
+              label={t("wizards.includegraphics.label")}
               placeholder="fig:my_image"
               value={label}
               onChange={(e) => setLabel(e.currentTarget.value)}
             />
             <Select
-              label="Placement"
+              label={t("wizards.includegraphics.placement")}
               data={[
                 { value: "h", label: "Here (h)" },
                 { value: "t", label: "Top (t)" },
@@ -261,7 +263,7 @@ export const GraphicxWizard: React.FC<GraphicxWizardProps> = ({ onInsert }) => {
       </Paper>
 
       <Button fullWidth onClick={() => onInsert(generateCode())}>
-        Insert Code
+        {t("wizards.insertCode")}
       </Button>
     </Stack>
   );

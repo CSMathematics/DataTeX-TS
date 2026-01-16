@@ -10,6 +10,7 @@ pub struct Collection {
     pub icon: Option<String>,
     #[sqlx(rename = "type")]
     pub kind: String,
+    pub path: Option<String>,
     pub created_at: Option<String>,
 }
 

@@ -7,8 +7,7 @@
     "dev": "./node_modules/.bin/vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "pnpm exec tauri",
-    "tauri:dev": "WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1 pnpm exec tauri"
+    "tauri": "WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1 pnpm exec tauri"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",

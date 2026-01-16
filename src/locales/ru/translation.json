@@ -1,0 +1,774 @@
+{
+  "common": {
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "create": "Создать",
+    "open": "Открыть",
+    "close": "Закрыть",
+    "search": "Поиск",
+    "settings": "Настройки",
+    "loading": "Загрузка...",
+    "error": "Ошибка",
+    "success": "Успех",
+    "refresh": "Обновить",
+    "filterFiles": "фильтр файлов...",
+    "newFile": "Новый файл",
+    "newFolder": "Новая папка",
+    "empty": "Пусто",
+    "or": "ИЛИ",
+    "noResults": "Результатов не найдено",
+    "download": "Скачать",
+    "print": "Печать"
+  },
+  "tools": {
+    "packageBrowser": {
+      "title": "Пакеты CTAN",
+      "searchPlaceholder": "Поиск пакетов...",
+      "filterTopic": "Фильтр по теме",
+      "loadMore": "Загрузить еще... (осталось {{remaining}})",
+      "noPackages": "Пакеты не найдены для \"{{query}}\"",
+      "visitHome": "Посетить домашнюю страницу",
+      "visitCtan": "Посетить страницу CTAN",
+      "pkgInfo": "Информация о {{id}}",
+      "description": "Описание",
+      "version": "Версия",
+      "insertPkg": "Вставить \\usepackage{{{id}}}",
+      "insertCount": "Вставить {{count}}",
+      "wizardAvailable": "Мастер доступен",
+      "selectPackage": "Выберите пакет для просмотра подробностей"
+    }
+  },
+  "wizards": {
+    "insertCode": "Вставить код",
+    "includegraphics": {
+      "source": "Источник изображения",
+      "filePath": "Путь к файлу",
+      "dimensions": "Размеры и трансформация",
+      "width": "Ширина",
+      "height": "Высота",
+      "keepAspectRatio": "Сохранять пропорции",
+      "scale": "Коэффициент масштабирования",
+      "angle": "Угол поворота (градусы)",
+      "figureEnv": "Окружение Figure",
+      "centering": "Центрирование",
+      "caption": "Подпись",
+      "label": "Метка",
+      "placement": "Размещение",
+      "insertCode": "Вставить код"
+    }
+  },
+  "settings": {
+    "title": "Настройки",
+    "searchPlaceholder": "Поиск настроек...",
+    "noSettingsFound": "Настройки не найдены",
+    "categories": {
+      "general": "Общие",
+      "tex": "TeX движки",
+      "compilation": "Компиляция",
+      "editor": "Внешний вид редактора",
+      "editorBehavior": "Поведение редактора",
+      "pdfViewer": "Просмотр PDF",
+      "database": "База данных",
+      "accessibility": "Доступность",
+      "shortcuts": "Горячие клавиши",
+      "theme": "Тема"
+    },
+    "general": {
+      "title": "Общие настройки",
+      "description": "Глобальные настройки приложения.",
+      "startupBehavior": {
+        "label": "Поведение при запуске",
+        "description": "Что показывать при запуске приложения",
+        "restore": "Восстановить последнюю сессию",
+        "welcome": "Показать приветственный экран",
+        "empty": "Пустое рабочее пространство"
+      },
+      "confirmOnExit": {
+        "label": "Подтверждение при выходе",
+        "description": "Спрашивать подтверждение перед закрытием с несохраненными изменениями"
+      },
+      "language": {
+        "label": "Язык",
+        "description": "Выберите язык"
+      },
+      "autoSave": {
+        "label": "Автосохранение",
+        "description": "Автоматически сохранять изменения (Скоро)."
+      }
+    },
+    "tex": {
+      "title": "Настройка движка TeX",
+      "description": "Настройте компиляцию ваших документов LaTeX.",
+      "defaultEngine": {
+        "label": "Движок по умолчанию",
+        "description": "Движок, используемый при отсутствии специфического magic comment."
+      },
+      "pdflatexPath": { "label": "Путь к pdfLaTeX" },
+      "xelatexPath": { "label": "Путь к XeLaTeX" },
+      "lualatexPath": { "label": "Путь к LuaLaTeX" },
+      "outputDirectory": {
+        "label": "Выходная директория",
+        "description": "Директория для вспомогательных файлов (относительно документа)."
+      },
+      "shellEscape": {
+        "label": "Включить Shell Escape (--shell-escape)",
+        "description": "Разрешает выполнение внешних команд (например, для minted)."
+      },
+      "synctex": {
+        "label": "Включить SyncTeX",
+        "description": "Необходимо для прямого/обратного поиска."
+      },
+      "bibtex": {
+        "label": "Запускать BibTeX/Biber",
+        "description": "Автоматически запускать обработчик библиографии."
+      }
+    },
+    "compilation": {
+      "title": "Настройки компиляции",
+      "description": "Расширенное поведение компиляции и управление выводом.",
+      "buildBehavior": {
+        "title": "Поведение сборки",
+        "description": "Когда и как компилируются файлы",
+        "compileOnSave": {
+          "label": "Компилировать при сохранении",
+          "description": "Автоматически компилировать документы при сохранении"
+        },
+        "timeout": {
+          "label": "Тайм-аут компиляции",
+          "description": "Максимальное время компиляции в секундах (30-300)"
+        }
+      },
+      "outputDirectory": {
+        "title": "Выходная директория",
+        "description": "Где сохраняются артефакты компиляции",
+        "buildDirectory": {
+          "label": "Директория сборки",
+          "description": "Местоположение вспомогательных и выходных файлов",
+          "source": "Как исходный файл",
+          "custom": "Пользовательский путь"
+        },
+        "customBuildPath": {
+          "label": "Пользовательский путь сборки",
+          "description": "Относительный или абсолютный путь для вывода сборки"
+        },
+        "cleanAuxFiles": {
+          "label": "Очищать вспомогательные файлы",
+          "description": "Удалять файлы .aux, .log, .toc после успешной компиляции"
+        }
+      },
+      "errorHandling": {
+        "title": "Обработка ошибок",
+        "description": "Отображение ошибок компиляции",
+        "showLogOnError": {
+          "label": "Показывать панель лога при ошибке",
+          "description": "Автоматически открывать панель лога при возникновении ошибок"
+        },
+        "maxErrors": {
+          "label": "Макс. количество ошибок",
+          "description": "Ограничить количество отображаемых ошибок (10-100)"
+        }
+      }
+    },
+    "editor": {
+      "title": "Настройки редактора",
+      "description": "Настройте работу с редактором кода.",
+      "fontSize": {
+        "label": "Размер шрифта",
+        "description": "Управляет размером шрифта в пикселях."
+      },
+      "fontFamily": {
+        "label": "Семейство шрифтов",
+        "description": "Семейство шрифтов, используемое в редакторе.",
+        "notFound": "Шрифт не найден"
+      },
+      "wordWrap": {
+        "label": "Перенос слов",
+        "description": "Управляет переносом строк."
+      },
+      "theme": {
+        "label": "Тема редактора",
+        "description": "Цветовая схема для редактора кода."
+      },
+      "lineNumbers": {
+        "label": "Номера строк",
+        "description": "Управляет отображением номеров строк.",
+        "relative": "Относительные"
+      },
+      "minimap": {
+        "label": "Мини-карта",
+        "description": "Управляет отображением мини-карты."
+      }
+    },
+    "editorBehavior": {
+      "title": "Поведение редактора",
+      "description": "Настройте реакцию редактора на ваш ввод.",
+      "formatting": {
+        "title": "Форматирование",
+        "description": "Предпочтения отступов и интервалов",
+        "tabSize": {
+          "label": "Размер табуляции",
+          "description": "Количество пробелов на табуляцию"
+        },
+        "insertSpaces": {
+          "label": "Вставлять пробелы",
+          "description": "Использовать пробелы вместо табуляции"
+        }
+      },
+      "autoCompletion": {
+        "title": "Автодополнение",
+        "description": "Автоматическая вставка и завершение",
+        "autoCloseBrackets": {
+          "label": "Автозакрытие скобок",
+          "description": "Автоматически закрывать (), {}, [], и кавычки"
+        },
+        "autoCloseLatexEnv": {
+          "label": "Автозакрытие окружений LaTeX",
+          "description": "Автоматически вставлять \\end{} при вводе \\begin{}"
+        },
+        "suggestOnTrigger": {
+          "label": "Подсказки при триггерах",
+          "description": "Показывать подсказки IntelliSense при вводе \\"
+        },
+        "quickSuggestions": {
+          "label": "Быстрые подсказки",
+          "description": "Показывать встроенные подсказки при наборе"
+        }
+      },
+      "editorActions": {
+        "title": "Действия редактора",
+        "description": "Автоматическое форматирование и сохранение",
+        "formatOnSave": {
+          "label": "Форматировать при сохранении",
+          "description": "Автоматически форматировать документ при сохранении"
+        },
+        "scrollBeyondLastLine": {
+          "label": "Прокрутка за последнюю строку",
+          "description": "Разрешить прокрутку за конец документа"
+        }
+      },
+      "cursor": {
+        "title": "Курсор",
+        "description": "Внешний вид и поведение курсора",
+        "style": {
+          "label": "Стиль курсора",
+          "description": "Визуальный стиль текстового курсора",
+          "line": "Линия (|)",
+          "block": "Блок (█)",
+          "underline": "Подчеркивание (_)"
+        },
+        "blinking": {
+          "label": "Мигание курсора",
+          "description": "Стиль анимации курсора",
+          "blink": "Мигание",
+          "smooth": "Плавное",
+          "phase": "Фаза",
+          "expand": "Расширение",
+          "solid": "Сплошной (Без мигания)"
+        }
+      }
+    },
+    "pdfViewer": {
+      "title": "Настройки просмотра PDF",
+      "description": "Настройте поведение и внешний вид просмотрщика PDF.",
+      "display": {
+        "title": "Настройки отображения",
+        "description": "Управление отображением PDF",
+        "defaultZoom": {
+          "label": "Масштаб по умолчанию",
+          "description": "Как отображать PDF по умолчанию",
+          "fitPage": "По размеру страницы",
+          "fitWidth": "По ширине",
+          "actual": "Реальный размер (100%)"
+        },
+        "splitViewMode": {
+          "label": "Режим разделения",
+          "description": "Как располагаются редактор и PDF",
+          "horizontal": "Горизонтально (Рядом)",
+          "vertical": "Вертикально (Сверху/Снизу)",
+          "auto": "Авто (По размеру окна)"
+        }
+      },
+      "behavior": {
+        "title": "Настройки поведения",
+        "description": "Автоматические действия и функции",
+        "showByDefault": {
+          "label": "Показывать PDF по умолчанию",
+          "description": "Автоматически показывать панель PDF при открытии файлов .tex"
+        },
+        "autoRefresh": {
+          "label": "Автообновление PDF",
+          "description": "Автоматически перезагружать PDF после успешной компиляции"
+        }
+      },
+      "prevPage": "Предыдущая страница",
+      "nextPage": "Следующая страница",
+      "zoomOut": "Уменьшить",
+      "zoomIn": "Увеличить",
+      "fitWidth": "По ширине",
+      "fitPage": "По странице",
+      "actualSize": "Реальный размер",
+      "synctex": {
+        "title": "Настройки SyncTeX",
+        "description": "Синхронизация между исходным кодом и PDF",
+        "highlight": {
+          "label": "Подсветка SyncTeX",
+          "description": "Подсвечивать соответствующую позицию в PDF при прямой синхронизации"
+        },
+        "scrollSync": {
+          "label": "Синхронизация прокрутки",
+          "description": "Синхронизировать прокрутку между редактором и просмотрщиком PDF"
+        }
+      }
+    },
+    "database": {
+      "title": "Настройки базы данных",
+      "description": "Настройте внешний вид и поведение базы данных.",
+      "view": {
+        "title": "Настройки просмотра",
+        "description": "Представления по умолчанию и параметры отображения",
+        "defaultView": {
+          "label": "Представление по умолчанию",
+          "description": "Как база данных отображается по умолчанию",
+          "table": "Таблица",
+          "graph": "Граф",
+          "list": "Список"
+        },
+        "showMetadataPanel": {
+          "label": "Показывать панель метаданных",
+          "description": "Показывать панель метаданных по умолчанию при просмотре ресурсов"
+        },
+        "tablePageSize": {
+          "label": "Размер страницы таблицы",
+          "description": "Количество строк на странице в табличном представлении (10-100)"
+        }
+      },
+      "graph": {
+        "title": "Просмотр графа",
+        "description": "Настройки визуализации графа",
+        "physics": {
+          "label": "Включить физическую симуляцию",
+          "description": "Использовать алгоритм force-directed для визуализации графа"
+        },
+        "animation": {
+          "label": "Анимация графа",
+          "description": "Анимировать переходы и взаимодействия графа"
+        }
+      },
+      "advanced": {
+        "title": "Расширенные опции",
+        "description": "Дополнительные функции базы данных",
+        "autoDetectPreambles": {
+          "label": "Автообнаружение преамбул",
+          "description": "Автоматически определять и классифицировать файлы преамбул"
+        },
+        "showFilePreview": {
+          "label": "Показывать превью файла при наведении",
+          "description": "Показывать всплывающую подсказку с превью при наведении на элементы"
+        }
+      }
+    },
+    "accessibility": {
+      "title": "Настройки доступности",
+      "description": "Улучшите читаемость и уменьшите напряжение глаз.",
+      "visual": {
+        "title": "Визуальные улучшения",
+        "description": "Настройки для лучшей видимости",
+        "highContrast": {
+          "label": "Режим высокой контрастности",
+          "description": "Увеличить контрастность для лучшей видимости"
+        },
+        "fontLigatures": {
+          "label": "Лигатуры шрифта",
+          "description": "Использовать специальные комбинации символов (→, ≤, и т.д.)"
+        },
+        "letterSpacing": {
+          "label": "Межбуквенный интервал",
+          "description": "Дополнительное пространство между буквами в пикселях (0-2)"
+        },
+        "lineHeight": {
+          "label": "Высота строки",
+          "description": "Вертикальное пространство между строками (1.0-2.0)"
+        },
+        "renderWhitespace": {
+          "label": "Отображать пробелы",
+          "description": "Показывать невидимые символы пробелов",
+          "none": "Никогда",
+          "boundary": "Границы (Начало/Конец)",
+          "selection": "Только выделение",
+          "all": "Все пробелы"
+        }
+      },
+      "motion": {
+        "title": "Движение и анимация",
+        "description": "Управление движением и переходами",
+        "smoothScrolling": {
+          "label": "Плавная прокрутка",
+          "description": "Включить анимацию плавной прокрутки"
+        },
+        "animationSpeed": {
+          "label": "Скорость анимации",
+          "description": "Скорость анимации интерфейса и переходов",
+          "slow": "Медленно (Расслабленно)",
+          "normal": "Нормально",
+          "fast": "Быстро (Бодро)",
+          "none": "Нет (Мгновенно)"
+        },
+        "reduceMotion": {
+          "label": "Уменьшить движение",
+          "description": "Минимизировать анимацию для чувствительности к движению (переопределяет скорость)"
+        }
+      }
+    },
+    "theme": {
+      "title": "Настройки темы",
+      "description": "Настройте внешний вид приложения.",
+      "uiTheme": {
+        "label": "Тема интерфейса",
+        "description": "Цветовая тема интерфейса приложения.",
+        "custom": "Пользовательская",
+        "light": "Светлая",
+        "dark": "Темная"
+      },
+      "advanced": {
+        "title": "Расширенный редактор тем",
+        "description": "Переопределите конкретные цвета текущей темы. Изменения применяются немедленно.",
+        "appBg": { "label": "Фон приложения", "description": "Основной фон за редактором" },
+        "sidebarBg": { "label": "Фон боковой панели", "description": "Левая боковая панель" },
+        "headerBg": { "label": "Фон заголовка", "description": "Верхняя навигационная панель" },
+        "panelBg": { "label": "Фон панели", "description": "Боковые панели (файлы, база данных)" },
+        "statusBarBg": { "label": "Фон строки состояния", "description": "Нижняя строка состояния" },
+        "primaryColor": { "label": "Основной цвет", "description": "Основной акцентный цвет (кнопки, выделение)" },
+        "accentColor": { "label": "Акцентный цвет", "description": "Вторичный акцент (иконки, активные состояния)" },
+        "borderColor": { "label": "Цвет границ", "description": "Глобальный цвет границ" },
+        "actions": "Действия",
+        "resetOverrides": "Сбросить переопределения",
+        "newThemeName": "Имя новой темы",
+        "saveAsTheme": "Сохранить как тему"
+      }
+    },
+    "shortcuts": {
+      "title": "Горячие клавиши",
+      "description": "Настройте горячие клавиши для частых действий.",
+      "resetAll": "Сбросить все по умолчанию",
+      "categories": {
+        "general": "Общие",
+        "editor": "Редактор",
+        "compilation": "Компиляция",
+        "navigation": "Навигация"
+      },
+      "actions": {
+        "file.save": { "description": "Сохранить текущий файл" },
+        "file.saveAll": { "description": "Сохранить все файлы" },
+        "file.closeTab": { "description": "Закрыть текущую вкладку" },
+        "file.newTemplate": { "description": "Новый файл из шаблона" },
+        "view.openSettings": { "description": "Открыть настройки" },
+        "editor.find": { "description": "Найти в файле" },
+        "editor.replace": { "description": "Найти и заменить" },
+        "compilation.build": { "description": "Скомпилировать текущий документ" },
+        "view.toggleSidebar": { "description": "Переключить боковую панель" },
+        "tools.packageBrowser": { "description": "Открыть браузер пакетов" }
+      },
+      "modified": "Изменено",
+      "edit": "Изменить горячую клавишу",
+      "reset": "Сбросить по умолчанию",
+      "editModal": {
+        "title": "Изменить горячую клавишу",
+        "instruction": "Нажмите желаемую комбинацию клавиш для:",
+        "listening": "Ожидание нажатия...",
+        "save": "Сохранить"
+      }
+    },
+    "common": {
+      "on": "Вкл",
+      "off": "Выкл"
+    },
+    "statusBar": {
+      "ready": "Готов",
+      "wordCount": "Слов",
+      "spellCheck": "Проверка орфографии",
+      "connected": "Подключено",
+      "disconnected": "Отключено",
+      "ln": "Стр",
+      "col": "Кол",
+      "plainText": "Простой текст",
+      "dbPrefix": "DataTex БД:"
+    },
+    "search": {
+      "placeholder": "Поиск по файлам...",
+      "replacePlaceholder": "Заменить...",
+      "replaceAll": "Заменить все",
+      "case": "Регистр",
+      "regex": "Регулярное выражение",
+      "fileTypes": "Типы файлов:",
+      "noMatches": "Совпадений не найдено",
+      "confirmReplace": "Вы уверены, что хотите заменить \"{{search}}\" на \"{{replace}}\" во всех совпадениях? Это действие нельзя отменить.",
+      "replaceSuccess": "Заменено {{count}} вхождений в {{files}} файлах.",
+      "replaceError": "Ошибка замены: {{error}}",
+      "errorPrefix": "Ошибка: {{error}}",
+      "stats": "{{matches}} совпадений в {{files}} файлах ({{duration}}мс)"
+    }
+  },
+  "menu": {
+    "file": {
+      "label": "Файл",
+      "newFile": "Новый Файл",
+      "newFromTemplate": "Новый из Шаблона",
+      "open": "Открыть",
+      "save": "Сохранить",
+      "exportPdf": "Экспорт в PDF",
+      "exit": "Выход"
+    },
+    "edit": {
+      "label": "Правка",
+      "undo": "Отменить",
+      "redo": "Повторить",
+      "cut": "Вырезать",
+      "copy": "Копировать",
+      "paste": "Вставить",
+      "find": "Найти"
+    },
+    "insert": {
+      "label": "Вставка",
+      "image": "Изображение (Figure)"
+    },
+    "view": {
+      "label": "Вид",
+      "databasePanel": "Панель Базы Данных",
+      "rightSidebar": "Правая Панель (PDF)",
+      "wordCount": "Количество Слов",
+      "zoomIn": "Увеличить",
+      "zoomOut": "Уменьшить"
+    },
+    "database": {
+      "label": "База Данных",
+      "open": "Открыть БД / Папку",
+      "addCollection": "Добавить Коллекцию (Папка)",
+      "refresh": "Обновить БД"
+    },
+    "tools": {
+      "label": "Инструменты",
+      "website": "Сайт",
+      "wizards": "Мастера",
+      "preambleWizard": "Мастер Преамбулы",
+      "tableWizard": "Мастер Таблиц",
+      "tikzWizard": "Мастер TikZ",
+      "fancyhdrWizard": "Мастер FancyHDR",
+      "pstricksWizard": "Мастер PSTricks",
+      "packageBrowser": "Браузер Пакетов",
+      "settings": "Настройки",
+      "packageGallery": "Галерея Пакетов"
+    },
+    "build": {
+      "label": "Сборка",
+      "compile": "Компилировать",
+      "stop": "Остановить"
+    },
+    "help": {
+      "label": "Справка",
+      "about": "О DataTex"
+    }
+  },
+  "sidebar": {
+    "database": "База Данных",
+    "structure": "Структура",
+    "symbols": "Символы AMS",
+    "gallery": "Галерея Пакетов",
+    "search": "Поиск",
+    "git": "Контроль Версий",
+    "settings": "Настройки",
+    "openPackageDatabase": "Открыть БД Пакетов",
+    "selectCategory": "Выберите категорию",
+    "noStructure": "Структура не найдена.",
+    "projectFiles": "Папки Проекта",
+    "quickTools": "БЫСТРЫЕ ИНСТРУМЕНТЫ",
+    "noFolderOpened": "Папка не открыта",
+    "openFolder": "Открыть Папку",
+    "labelPrefix": "Метка: "
+  },
+  "header": {
+    "searchPlaceholder": "Поиск DataTex (Ctrl+P)",
+    "showOutline": "Показать структуру",
+    "hideOutline": "Скрыть структуру",
+    "showDatabase": "Показать таблицу БД",
+    "hideDatabase": "Скрыть таблицу БД",
+    "moveDatabaseLeft": "БД влево",
+    "moveDatabaseBottom": "БД вниз",
+    "showRightPanel": "Показать правую панель",
+    "hideRightPanel": "Скрыть правую панель",
+    "aiAssistant": "ИИ Ассистент"
+  },
+  "database": {
+    "title": "Коллекции",
+    "createCollection": "Создать Коллекцию",
+    "importFolderAsCollection": "Импорт папки как коллекции",
+    "searchCollections": "Поиск коллекций...",
+    "searchPlaceholder": "Поиск...",
+    "noCollections": "Коллекции не найдены.",
+    "importFile": "Импорт файла",
+    "addExistingFolder": "Добавить существующую папку",
+    "deleteCollection": "Удалить коллекцию",
+    "collectionsLoaded_one": "Загружена {{count}} коллекция",
+    "collectionsLoaded_other": "Загружено {{count}} коллекций",
+    "deleteCollectionTitle": "Удалить коллекцию",
+    "deleteCollectionConfirm": "Вы уверены, что хотите удалить коллекцию",
+    "deleteCollectionWarning": "ВНИМАНИЕ: Это действие удалит коллекцию и все ее ресурсы из базы данных, но НЕ удалит файлы из вашей файловой системы.",
+    "newCollectionTitle": "Новая Коллекция",
+    "collectionNameLabel": "Имя Коллекции",
+    "collectionNamePlaceholder": "напр., Математика, Физика",
+    "addFolderTo": "Добавить папку в",
+    "selectImportFolder": "Выбрать папку для импорта",
+    "importFileTo": "Импортировать файл в",
+    "cannotCreateInEmptyCollection": "Нельзя создать файл в пустой коллекции. Пожалуйста, импортируйте файл или папку сначала.",
+    "invalidCollectionPath": "Неверный путь коллекции.",
+    "selectCollections": "Выбрать коллекции",
+    "loadedCollections": "Загруженные коллекции",
+    "selectCollectionToView": "Выберите коллекцию для просмотра содержимого",
+    "tabs": {
+      "metadata": "Метаданные",
+      "bibliography": "Библиография"
+    },
+    "inspector": {
+      "title": "Заголовок",
+      "fileType": "Тип файла",
+      "id": "ID",
+      "collection": "Коллекция",
+      "created": "Создан",
+      "bibMessage": "Выберите запись библиографии для просмотра деталей.",
+      "noPdf": "Предпросмотр PDF недоступен.",
+      "fields": {
+        "title": "Заголовок",
+        "fileType": "Тип файла",
+        "id": "ID",
+        "collection": "Коллекция",
+        "created": "Создан"
+      }
+    },
+    "actions": {
+      "emptyFile": "Пустой файл",
+      "fromTemplate": "Из шаблона",
+      "preambleWizard": "Мастер преамбулы",
+      "addExistingFile": "Добавить существующий файл",
+      "openInEditor": "Открыть в редакторе",
+      "revealInExplorer": "Показать в проводнике",
+      "moveToCollection": "Переместить в коллекцию",
+      "moveTo": "Переместить в...",
+      "removeFromDatabase": "Удалить из БД"
+    },
+    "graph": {
+      "title": "Просмотр графа",
+      "controls": {
+        "zoomIn": "Увеличить",
+        "zoomOut": "Уменьшить",
+        "fitToView": "По ширине окна",
+        "hide": "Скрыть"
+      },
+      "filters": "Фильтры",
+      "packages": "Пакеты",
+      "bibliographies": "Библиографии",
+      "images": "Изображения",
+      "classes": "Классы",
+      "dtx": "DTX файлы",
+      "ins": "INS файлы",
+      "layout": "Макет",
+      "free": "Свободный",
+      "treeTD": "Дерево (Сверху-Вниз)",
+      "treeLR": "Дерево (Слева-Направо)",
+      "radial": "Радиальный",
+      "view": "Вид",
+      "focusMode": "Режим фокуса",
+      "physics": "Физика",
+      "linkDistance": "Длина связей",
+      "repulsion": "Отталкивание",
+      "legend": {
+        "title": "Легенда",
+        "document": "Документ",
+        "preamble": "Преамбула",
+        "dependency": "Зависимость",
+        "package": "Пакет",
+        "class": "Класс",
+        "bibliography": "Библиография",
+        "image": "Изображение",
+        "dtx": "DTX",
+        "ins": "INS"
+      }
+    },
+    "newFile": "Новый файл",
+    "newFolder": "Новая папка",
+    "addFolder": "Добавить папку"
+  },
+  "startPage": {
+    "documentation": "Документация",
+    "getStarted": "Начать",
+    "emptyFile": "Пустой Файл",
+    "emptyFileDesc": "Создать пустой документ с нуля.",
+    "preambleWizard": "Мастер Преамбулы",
+    "preambleWizardDesc": "Настройка страницы, пакетов и шрифтов.",
+    "databaseTools": "Инструменты БД",
+    "examGenerator": "Генератор Экзаменов",
+    "examGeneratorDesc": "Автоматически создавать экзамены из упражнений.",
+    "browseDatabase": "Обзор Базы Данных",
+    "browseDatabaseDesc": "Управление файлами, тегами и метаданными.",
+    "packageBrowser": "Браузер Пакетов",
+    "packageBrowserDesc": "Поиск и изучение пакетов CTAN.",
+    "recentProjects": "НЕДАВНИЕ ПРОЕКТЫ",
+    "noRecentProjects": "Недавние проекты не найдены.",
+    "quickResources": "Быстрые Ресурсы",
+    "latexCheatsheet": "Шпаргалка LaTeX",
+    "ctanSearch": "Поиск пакетов CTAN",
+    "detexify": "Detexify (Символы)",
+    "tikzExamples": "Примеры TikZ",
+    "templates": "Шаблоны",
+    "viewAllTemplates": "Показать все шаблоны"
+  },
+  "editorToolbar": {
+    "bold": "Жирный (\\textbf)",
+    "italic": "Курсив (\\textit)",
+    "underline": "Подчеркнутый (\\underline)",
+    "strikethrough": "Зачеркнутый (\\st)",
+    "text": "Текст (\\text)",
+    "highlight": "Выделение (\\hl)",
+    "code": "Код (\\texttt)",
+    "alignLeft": "По левому краю (flushleft)",
+    "alignCenter": "По центру (center)",
+    "alignRight": "По правому краю (flushright)",
+    "justify": "По ширине (default)",
+    "quote": "Цитата",
+    "ellipsis": "Многоточие (\\dots)",
+    "bulletList": "Маркированный список (itemize)",
+    "numberedList": "Нумерованный список (enumerate)",
+    "inlineMath": "Формула в строке ($...$)",
+    "displayMath": "Выносная формула (\\[...\\])",
+    "subscript": "Нижний индекс (_{})",
+    "superscript": "Верхний индекс (^{})",
+    "horizontalSpace": "Гор. пробел (\\hspace)",
+    "verticalSpace": "Верт. пробел (\\vspace)",
+    "link": "Ссылка (\\href)",
+    "unlink": "Удалить ссылку"
+  },
+  "ai": {
+    "settings": {
+      "title": "Настройки ИИ",
+      "provider": "Провайдер",
+      "openaiKey": "Ключ OpenAI API",
+      "geminiKey": "Ключ Gemini API",
+      "ollamaUrl": "URL Ollama",
+      "customAgents": "Пользовательские Агенты",
+      "createNewAgent": "Создать Агента",
+      "disclaimer": "Ключи API хранятся локально в вашем браузере/данных приложения."
+    },
+    "provider": {
+      "mock": "Mock AI (Отладка)",
+      "openai": "OpenAI",
+      "gemini": "Google Gemini",
+      "ollama": "Ollama (Локально)"
+    },
+    "assistantTitle": "ИИ Ассистент",
+    "standardAssistant": "Стандартный Ассистент",
+    "agentPrefix": "Агент:",
+    "fetchModelsTooltip": "Получить доступные модели из API",
+    "fetch": "Получить",
+    "model": "Модель"
+  }
+}

@@ -16,7 +16,48 @@
     "filterFiles": "Φιλτράρισμα αρχείων...",
     "newFile": "Νέο Αρχείο",
     "newFolder": "Νέος Φάκελος",
-    "empty": "Κενό"
+    "empty": "Κενό",
+    "or": "Ή",
+    "noResults": "Δεν βρέθηκαν αποτελέσματα",
+    "download": "Λήψη",
+    "print": "Εκτύπωση"
+  },
+  "tools": {
+    "packageBrowser": {
+      "title": "Πακέτα CTAN",
+      "searchPlaceholder": "Αναζήτηση πακέτων...",
+      "filterTopic": "Φιλτράρισμα ανά θέμα",
+      "loadMore": "Φόρτωση Περισσότερων... (απομένουν {{remaining}})",
+      "noPackages": "Δεν βρέθηκαν πακέτα για \"{{query}}\"",
+      "visitHome": "Επίσκεψη στην Αρχική Σελίδα",
+      "visitCtan": "Επίσκεψη στη σελίδα CTAN",
+      "pkgInfo": "Πληροφορίες {{id}}",
+      "description": "Περιγραφή",
+      "version": "Έκδοση",
+      "insertPkg": "Εισαγωγή \\usepackage{{{id}}}",
+      "insertCount": "Εισαγωγή {{count}}",
+      "wizardAvailable": "Διαθέσιμος Οδηγός",
+      "selectPackage": "Επιλέξτε ένα πακέτο για προβολή λεπτομερειών"
+    }
+  },
+  "wizards": {
+    "insertCode": "Εισαγωγή Κώδικα",
+    "includegraphics": {
+      "source": "Πηγή Εικόνας",
+      "filePath": "Διαδρομή Αρχείου",
+      "dimensions": "Διαστάσεις & Μετασχηματισμός",
+      "width": "Πλάτος",
+      "height": "Ύψος",
+      "keepAspectRatio": "Διατήρηση Αναλογιών",
+      "scale": "Συντελεστής Κλίμακας",
+      "angle": "Γωνία Περιστροφής (μοίρες)",
+      "figureEnv": "Περιβάλλον Figure",
+      "centering": "Κεντράρισμα",
+      "caption": "Λεζάντα",
+      "label": "Ετικέτα",
+      "placement": "Τοποθέτηση",
+      "insertCode": "Εισαγωγή Κώδικα"
+    }
   },
   "settings": {
     "title": "Ρυθμίσεις",
@@ -261,6 +302,13 @@
           "description": "Αυτόματη επαναφόρτωση PDF μετά από επιτυχή μεταγλώττιση"
         }
       },
+      "prevPage": "Προηγούμενη Σελίδα",
+      "nextPage": "Επόμενη Σελίδα",
+      "zoomOut": "Σμίκρυνση",
+      "zoomIn": "Μεγέθυνση",
+      "fitWidth": "Προσαρμογή στο Πλάτος",
+      "fitPage": "Προσαρμογή στη Σελίδα",
+      "actualSize": "Πραγματικό Μέγεθος",
       "synctex": {
         "title": "Ρυθμίσεις SyncTeX",
         "description": "Συγχρονισμός μεταξύ πηγής και PDF",
@@ -476,15 +524,16 @@
     },
     "tools": {
       "label": "Εργαλεία",
+      "website": "Ιστοσελίδα",
       "wizards": "Οδηγοί",
       "preambleWizard": "Οδηγός Προοιμίου",
       "tableWizard": "Οδηγός Πίνακα",
       "tikzWizard": "Οδηγός TikZ",
       "fancyhdrWizard": "Οδηγός FancyHDR",
       "pstricksWizard": "Οδηγός PSTricks",
-      "packageGallery": "Συλλογή Πακέτων",
       "packageBrowser": "Περιηγητής Πακέτων",
-      "settings": "Ρυθμίσεις"
+      "settings": "Ρυθμίσεις",
+      "packageGallery": "Συλλογή Πακέτων"
     },
     "build": {
       "label": "Build",
@@ -510,27 +559,27 @@
     "projectFiles": "Φάκελοι Έργου",
     "quickTools": "ΓΡΗΓΟΡΑ ΕΡΓΑΛΕΙΑ",
     "noFolderOpened": "Κανένας φάκελος δεν έχει ανοίξει",
-    "openFolder": "Άνοιγμα Φακέλου"
+    "openFolder": "Άνοιγμα Φακέλου",
+    "labelPrefix": "Ετικέτα: "
   },
   "header": {
     "searchPlaceholder": "Αναζήτηση DataTex (Ctrl+P)",
-    "tooltips": {
-      "showOutline": "Εμφάνιση δομής",
-      "hideOutline": "Απόκρυψη δομής",
-      "showDatabase": "Εμφάνιση πίνακα βάσης",
-      "hideDatabase": "Απόκρυψη πίνακα βάσης",
-      "moveDatabaseLeft": "Μετακίνηση βάσης αριστερά",
-      "moveDatabaseBottom": "Μετακίνηση βάσης κάτω",
-      "showRightPanel": "Εμφάνιση δεξιού πάνελ",
-      "hideRightPanel": "Απόκρυψη δεξιού πάνελ",
-      "aiAssistant": "Βοηθός AI"
-    }
+    "showOutline": "Εμφάνιση δομής",
+    "hideOutline": "Απόκρυψη δομής",
+    "showDatabase": "Εμφάνιση πίνακα βάσης",
+    "hideDatabase": "Απόκρυψη πίνακα βάσης",
+    "moveDatabaseLeft": "Μετακίνηση βάσης αριστερά",
+    "moveDatabaseBottom": "Μετακίνηση βάσης κάτω",
+    "showRightPanel": "Εμφάνιση δεξιού πάνελ",
+    "hideRightPanel": "Απόκρυψη δεξιού πάνελ",
+    "aiAssistant": "Βοηθός AI"
   },
   "database": {
     "title": "Συλλογές",
     "createCollection": "Δημιουργία Συλλογής",
     "importFolderAsCollection": "Εισαγωγή Φακέλου ως Συλλογή",
     "searchCollections": "Αναζήτηση συλλογών...",
+    "searchPlaceholder": "Αναζήτηση...",
     "noCollections": "Δεν βρέθηκαν συλλογές.",
     "importFile": "Εισαγωγή Αρχείου",
     "addExistingFolder": "Προσθήκη Υπάρχοντος Φακέλου",
@@ -545,9 +594,87 @@
     "collectionNamePlaceholder": "π.χ. Μαθηματικά, Φυσική",
     "addFolderTo": "Προσθήκη Φακέλου σε",
     "selectImportFolder": "Επιλογή Φακέλου για Εισαγωγή",
-    "importFileTo": "Εισαγωγή Αρχείου σε"
+    "importFileTo": "Εισαγωγή Αρχείου σε",
+    "cannotCreateInEmptyCollection": "Δεν είναι δυνατή η δημιουργία αρχείου σε κενή συλλογή. Παρακαλώ εισάγετε ένα αρχείο ή φάκελο πρώτα.",
+    "invalidCollectionPath": "Μη έγκυρη διαδρομή συλλογής.",
+    "selectCollections": "Επιλογή Συλλογών",
+    "loadedCollections": "Φορτωμένες Συλλογές",
+    "selectCollectionToView": "Επιλέξτε μια συλλογή για προβολή περιεχομένου",
+    "tabs": {
+      "metadata": "Μεταδεδομένα",
+      "bibliography": "Βιβλιογραφία"
+    },
+    "inspector": {
+      "title": "Τίτλος",
+      "fileType": "Τύπος Αρχείου",
+      "id": "ID",
+      "collection": "Συλλογή",
+      "created": "Δημιουργήθηκε",
+      "bibMessage": "Επιλέξτε μια εγγραφή βιβλιογραφίας για προβολή.",
+      "noPdf": "Δεν υπάρχει διαθέσιμη προεπισκόπηση PDF.",
+      "fields": {
+        "title": "Τίτλος",
+        "fileType": "Τύπος Αρχείου",
+        "id": "ID",
+        "collection": "Συλλογή",
+        "created": "Δημιουργήθηκε"
+      }
+    },
+    "actions": {
+      "emptyFile": "Κενό Αρχείο",
+      "fromTemplate": "Από Πρότυπο",
+      "preambleWizard": "Οδηγός Προοιμίου",
+      "addExistingFile": "Προσθήκη Υπάρχοντος Αρχείου",
+      "openInEditor": "Άνοιγμα στον Editor",
+      "revealInExplorer": "Εμφάνιση στον Explorer",
+      "moveToCollection": "Μετακίνηση σε Συλλογή",
+      "moveTo": "Μετακίνηση σε...",
+      "removeFromDatabase": "Αφαίρεση από τη Βάση"
+    },
+    "graph": {
+      "title": "Προβολή Γράφου",
+      "controls": {
+        "zoomIn": "Μεγέθυνση",
+        "zoomOut": "Σμίκρυνση",
+        "fitToView": "Προσαρμογή",
+        "hide": "Απόκρυψη"
+      },
+      "filters": "Φίλτρα",
+      "packages": "Πακέτα",
+      "bibliographies": "Βιβλιογραφίες",
+      "images": "Εικόνες",
+      "classes": "Κλάσεις",
+      "dtx": "Αρχεία DTX",
+      "ins": "Αρχεία INS",
+      "layout": "Διάταξη",
+      "free": "Ελεύθερη",
+      "treeTD": "Δέντρο (Κάθετα)",
+      "treeLR": "Δέντρο (Οριζόντια)",
+      "radial": "Ακτινική",
+      "view": "Προβολή",
+      "focusMode": "Εστίαση",
+      "physics": "Φυσική",
+      "linkDistance": "Απόσταση",
+      "repulsion": "Άπωση",
+      "legend": {
+        "title": "Υπόμνημα",
+        "document": "Έγγραφο",
+        "preamble": "Προοίμιο",
+        "dependency": "Εξάρτηση",
+        "package": "Πακέτο",
+        "class": "Κλάση",
+        "bibliography": "Βιβλιογραφία",
+        "image": "Εικόνα",
+        "dtx": "DTX",
+        "ins": "INS"
+      }
+    },
+    "newFile": "Νέο Αρχείο",
+    "newFolder": "Νέος Φάκελος",
+    "addFolder": "Προσθήκη Φακέλου"
   },
   "startPage": {
+    "documentation": "Τεκμηρίωση",
     "getStarted": "Ξεκινηστε",
     "emptyFile": "Κενό Αρχείο",
     "emptyFileDesc": "Ξεκινήστε από την αρχή με ένα κενό έγγραφο.",
@@ -563,7 +690,7 @@
     "recentProjects": "ΠΡΟΣΦΑΤΑ ΕΡΓΑ",
     "noRecentProjects": "Δεν βρέθηκαν πρόσφατα έργα.",
     "quickResources": "Χρησιμα links",
-    "latexCheatsheet": "Σκόνα LaTeX",
+    "latexCheatsheet": "LaTeX Cheatsheet",
     "ctanSearch": "Αναζήτηση Πακέτων CTAN",
     "detexify": "Detexify (Σύμβολα)",
     "tikzExamples": "Παραδείγματα TikZ",
@@ -575,7 +702,11 @@
     "wordCount": "Καταμέτρηση Λέξεων",
     "spellCheck": "Ορθογραφικός Πίνακας",
     "connected": "Συνδεδεμένο",
-    "disconnected": "Αποσυνδεδεμένο"
+    "disconnected": "Αποσυνδεδεμένο",
+    "ln": "Γρ",
+    "col": "Στ",
+    "plainText": "Απλό Κείμενο",
+    "dbPrefix": "DataTex ΒΔ:"
   },
   "editorToolbar": {
     "bold": "Έντονα (\\textbf)",
@@ -601,5 +732,29 @@
     "verticalSpace": "Κάθετο Διάστημα (\\vspace)",
     "link": "Σύνδεσμος (\\href)",
     "unlink": "Αφαίρεση Συνδέσμου"
+  },
+  "ai": {
+    "settings": {
+      "title": "Ρυθμίσεις AI",
+      "provider": "Πάροχος",
+      "openaiKey": "OpenAI API Key",
+      "geminiKey": "Gemini API Key",
+      "ollamaUrl": "Ollama URL",
+      "customAgents": "Προσαρμοσμένοι Agents",
+      "createNewAgent": "Δημιουργία Νέου Agent",
+      "disclaimer": "Τα κλειδιά API αποθηκεύονται τοπικά στο browser/δεδομένα εφαρμογής σας."
+    },
+    "provider": {
+      "mock": "Mock AI (Debug)",
+      "openai": "OpenAI",
+      "gemini": "Google Gemini",
+      "ollama": "Ollama (Τοπικό)"
+    },
+    "assistantTitle": "Βοηθός AI",
+    "standardAssistant": "Τυπικός Βοηθός",
+    "agentPrefix": "Agent:",
+    "fetchModelsTooltip": "Λήψη διαθέσιμων μοντέλων από το API",
+    "fetch": "Λήψη",
+    "model": "Μοντέλο"
   }
 }

@@ -18,10 +18,7 @@ export const baseTheme = createTheme({
           minWidth: rem(42),
           padding: 2,
           transition: "background-color 0.2s, border-color 0.2s",
-          "&[data-checked]": {
-            backgroundColor: "var(--mantine-color-blue-6)",
-            borderColor: "var(--mantine-color-blue-6)",
-          },
+          /* &[data-checked] is not supported in styles (inline styles) */
         },
         thumb: {
           height: rem(16),
