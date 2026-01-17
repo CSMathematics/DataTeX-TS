@@ -4043,6 +4043,15 @@ pub fn run() {
             git_fetch_remote_cmd,
             git_push_remote_cmd,
             git_pull_remote_cmd,
+            // Stash Commands
+            git_list_stashes_cmd,
+            git_create_stash_cmd,
+            git_apply_stash_cmd,
+            git_drop_stash_cmd,
+            git_pop_stash_cmd,
+            // Commit Amend Commands
+            git_get_last_commit_message_cmd,
+            git_commit_amend_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -4268,8 +4277,13 @@ fn git_commit_cmd(repo_path: String, message: String) -> Result<String, String> 
 }
 
 #[tauri::command]
-fn git_log_cmd(repo_path: String, limit: Option<i32>) -> Result<Vec<git::GitCommitInfo>, String> {
-    git::get_log(&repo_path, limit)
+fn git_log_cmd(
+    repo_path: String,
+    limit: Option<i32>,
+    all: Option<bool>,
+) -> Result<Vec<git::GitCommitInfo>, String> {
+    let all = all.unwrap_or(false);
+    git::get_log(&repo_path, limit, all)
 }
 
 #[tauri::command]
@@ -4347,6 +4361,49 @@ fn git_push_remote_cmd(repo_path: String, remote: String, branch: String) -> Res
 #[tauri::command]
 fn git_pull_remote_cmd(repo_path: String, remote: String, branch: String) -> Result<(), String> {
     git::pull_from_remote(&repo_path, &remote, &branch)
+}
+
+// ============================================================================
+// Stash Commands
+// ============================================================================
+
+#[tauri::command]
+fn git_list_stashes_cmd(repo_path: String) -> Result<Vec<git::StashInfo>, String> {
+    git::list_stashes(&repo_path)
+}
+
+#[tauri::command]
+fn git_create_stash_cmd(repo_path: String, message: Option<String>) -> Result<String, String> {
+    git::create_stash(&repo_path, message.as_deref()).map(|oid| oid.to_string())
+}
+
+#[tauri::command]
+fn git_apply_stash_cmd(repo_path: String, index: usize) -> Result<(), String> {
+    git::apply_stash(&repo_path, index)
+}
+
+#[tauri::command]
+fn git_drop_stash_cmd(repo_path: String, index: usize) -> Result<(), String> {
+    git::drop_stash(&repo_path, index)
+}
+
+#[tauri::command]
+fn git_pop_stash_cmd(repo_path: String, index: usize) -> Result<(), String> {
+    git::pop_stash(&repo_path, index)
+}
+
+// ============================================================================
+// Commit Amend Commands
+// ============================================================================
+
+#[tauri::command]
+fn git_get_last_commit_message_cmd(repo_path: String) -> Result<String, String> {
+    git::get_last_commit_message(&repo_path)
+}
+
+#[tauri::command]
+fn git_commit_amend_cmd(repo_path: String, message: String) -> Result<String, String> {
+    git::commit_amend(&repo_path, &message)
 }
 
 fn slugify(s: &str) -> String {

@@ -16,6 +16,7 @@ import {
   Modal,
   Menu,
   TextInput,
+  Checkbox,
 } from "@mantine/core";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -39,6 +40,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useDebouncedCallback } from "use-debounce";
 import { DiffViewer, StructuredDiff } from "./DiffViewer";
+import { GitGraph } from "./GitGraph";
 import { getFileIcon } from "../shared/tree";
 
 // Types from Rust backend
@@ -106,9 +108,30 @@ export const GitPanel: React.FC<GitPanelProps> = ({
   const [createBranchOpen, setCreateBranchOpen] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
 
-  // Gitignore state
   const [gitignoreOpen, setGitignoreOpen] = useState(false);
   const [gitignoreContent, setGitignoreContent] = useState("");
+
+  const [viewMode, setViewMode] = useState<"list" | "graph">("graph");
+
+  // Stash state
+  interface StashInfo {
+    index: number;
+    message: string;
+    commit_id: string;
+  }
+  const [stashes, setStashes] = useState<StashInfo[]>([]);
+  const [showStashes, setShowStashes] = useState(false);
+  const [stashMessage, setStashMessage] = useState("");
+  const [stashModalOpen, setStashModalOpen] = useState(false);
+
+  // Amend state
+  const [amendMode, setAmendMode] = useState(false);
+
+  // Multi-select state
+  const [selectedUnstaged, setSelectedUnstaged] = useState<Set<string>>(
+    new Set(),
+  );
+  const [selectedStaged, setSelectedStaged] = useState<Set<string>>(new Set());
 
   // Detect repo on project path change
   const detectRepo = useCallback(async () => {
@@ -338,13 +361,167 @@ export const GitPanel: React.FC<GitPanelProps> = ({
     }
   };
 
+  // ============================================================================
+  // Stash Handlers
+  // ============================================================================
+
+  const loadStashes = async () => {
+    if (!repoInfo) return;
+    try {
+      const list = await invoke<StashInfo[]>("git_list_stashes_cmd", {
+        repoPath: repoInfo.path,
+      });
+      setStashes(list);
+    } catch (err) {
+      console.error("Failed to load stashes:", err);
+    }
+  };
+
+  const handleCreateStash = async () => {
+    if (!repoInfo) return;
+    try {
+      await invoke("git_create_stash_cmd", {
+        repoPath: repoInfo.path,
+        message: stashMessage || null,
+      });
+      setStashMessage("");
+      setStashModalOpen(false);
+      await refreshStatus(repoInfo.path);
+      await loadStashes();
+    } catch (err) {
+      console.error("Failed to create stash:", err);
+      setError("Failed to create stash: " + String(err));
+    }
+  };
+
+  const handleApplyStash = async (index: number) => {
+    if (!repoInfo) return;
+    try {
+      await invoke("git_apply_stash_cmd", { repoPath: repoInfo.path, index });
+      await refreshStatus(repoInfo.path);
+    } catch (err) {
+      console.error("Failed to apply stash:", err);
+      setError("Failed to apply stash: " + String(err));
+    }
+  };
+
+  const handlePopStash = async (index: number) => {
+    if (!repoInfo) return;
+    try {
+      await invoke("git_pop_stash_cmd", { repoPath: repoInfo.path, index });
+      await refreshStatus(repoInfo.path);
+      await loadStashes();
+    } catch (err) {
+      console.error("Failed to pop stash:", err);
+      setError("Failed to pop stash: " + String(err));
+    }
+  };
+
+  const handleDropStash = async (index: number) => {
+    if (!repoInfo) return;
+    try {
+      await invoke("git_drop_stash_cmd", { repoPath: repoInfo.path, index });
+      await loadStashes();
+    } catch (err) {
+      console.error("Failed to drop stash:", err);
+      setError("Failed to drop stash: " + String(err));
+    }
+  };
+
+  // ============================================================================
+  // Amend Handler
+  // ============================================================================
+
+  const handleAmendToggle = async (checked: boolean) => {
+    setAmendMode(checked);
+    if (checked && repoInfo) {
+      // Pre-fill message from last commit
+      try {
+        const lastMsg = await invoke<string>(
+          "git_get_last_commit_message_cmd",
+          { repoPath: repoInfo.path },
+        );
+        setCommitMessage(lastMsg);
+      } catch (err) {
+        console.error("Failed to get last commit message:", err);
+      }
+    }
+  };
+
+  // ============================================================================
+  // Multi-select Handlers
+  // ============================================================================
+
+  const toggleUnstagedSelection = (path: string) => {
+    setSelectedUnstaged((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
+  const toggleStagedSelection = (path: string) => {
+    setSelectedStaged((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
+  const handleStageSelected = async () => {
+    if (!repoInfo || selectedUnstaged.size === 0) return;
+    setLoading(true);
+    try {
+      for (const path of selectedUnstaged) {
+        await invoke("git_stage_file_cmd", {
+          repoPath: repoInfo.path,
+          filePath: path,
+        });
+      }
+      setSelectedUnstaged(new Set());
+      await refreshStatus(repoInfo.path);
+    } catch (err) {
+      setError("Failed to stage files: " + String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnstageSelected = async () => {
+    if (!repoInfo || selectedStaged.size === 0) return;
+    setLoading(true);
+    try {
+      for (const path of selectedStaged) {
+        await invoke("git_unstage_file_cmd", {
+          repoPath: repoInfo.path,
+          filePath: path,
+        });
+      }
+      setSelectedStaged(new Set());
+      await refreshStatus(repoInfo.path);
+    } catch (err) {
+      setError("Failed to unstage files: " + String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const loadCommitHistory = async () => {
     if (!repoInfo) return;
 
     try {
       const log = await invoke<GitCommitInfo[]>("git_log_cmd", {
         repoPath: repoInfo.path,
-        limit: 50,
+        limit: 200,
+        all: true,
       });
       setCommits(log);
     } catch (err) {
@@ -716,13 +893,35 @@ export const GitPanel: React.FC<GitPanelProps> = ({
         size="xs"
       />
 
+      <Group gap="xs">
+        <Checkbox
+          size="xs"
+          label="Amend"
+          checked={amendMode}
+          onChange={(e) => handleAmendToggle(e.currentTarget.checked)}
+          disabled={commits.length === 0}
+        />
+        <Tooltip label="Stash changes">
+          <Button
+            size="xs"
+            variant="light"
+            onClick={() => setStashModalOpen(true)}
+            disabled={unstagedFiles.length === 0 && stagedFiles.length === 0}
+          >
+            Stash
+          </Button>
+        </Tooltip>
+      </Group>
+
       <Button
         size="xs"
-        disabled={!commitMessage.trim() || stagedFiles.length === 0}
+        disabled={
+          !commitMessage.trim() || (stagedFiles.length === 0 && !amendMode)
+        }
         onClick={handleCommit}
         leftSection={<FontAwesomeIcon icon={faCheck} />}
       >
-        Commit ({stagedFiles.length} staged)
+        {amendMode ? "Amend Commit" : `Commit (${stagedFiles.length} staged)`}
       </Button>
 
       <ScrollArea style={{ flex: 1 }}>
@@ -730,9 +929,40 @@ export const GitPanel: React.FC<GitPanelProps> = ({
           {/* Staged Changes */}
           <Box>
             <Group justify="space-between" mb={4}>
-              <Text size="xs" fw={500} tt="uppercase" c="dimmed">
-                Staged Changes ({stagedFiles.length})
-              </Text>
+              <Group gap="xs">
+                <Checkbox
+                  size="xs"
+                  checked={
+                    selectedStaged.size === stagedFiles.length &&
+                    stagedFiles.length > 0
+                  }
+                  indeterminate={
+                    selectedStaged.size > 0 &&
+                    selectedStaged.size < stagedFiles.length
+                  }
+                  onChange={(e) => {
+                    if (e.currentTarget.checked) {
+                      setSelectedStaged(
+                        new Set(stagedFiles.map((f) => f.path)),
+                      );
+                    } else {
+                      setSelectedStaged(new Set());
+                    }
+                  }}
+                />
+                <Text size="xs" fw={500} tt="uppercase" c="dimmed">
+                  Staged Changes ({stagedFiles.length})
+                </Text>
+              </Group>
+              {selectedStaged.size > 0 && (
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  onClick={handleUnstageSelected}
+                >
+                  Unstage Selected
+                </Button>
+              )}
             </Group>
             {stagedFiles.length === 0 ? (
               <Text size="xs" c="dimmed" fs="italic">
@@ -748,6 +978,11 @@ export const GitPanel: React.FC<GitPanelProps> = ({
                         wrap="nowrap"
                         style={{ overflow: "hidden" }}
                       >
+                        <Checkbox
+                          size="xs"
+                          checked={selectedStaged.has(file.path)}
+                          onChange={() => toggleStagedSelection(file.path)}
+                        />
                         <Badge
                           size="xs"
                           color={getStatusColor(file.status)}
@@ -792,14 +1027,51 @@ export const GitPanel: React.FC<GitPanelProps> = ({
           {/* Unstaged Changes */}
           <Box>
             <Group justify="space-between" mb={4}>
-              <Text size="xs" fw={500} tt="uppercase" c="dimmed">
-                Changes ({unstagedFiles.length})
-              </Text>
-              {unstagedFiles.length > 0 && (
-                <ActionIcon size="xs" variant="subtle" onClick={handleStageAll}>
-                  <FontAwesomeIcon icon={faPlus} />
-                </ActionIcon>
-              )}
+              <Group gap="xs">
+                <Checkbox
+                  size="xs"
+                  checked={
+                    selectedUnstaged.size === unstagedFiles.length &&
+                    unstagedFiles.length > 0
+                  }
+                  indeterminate={
+                    selectedUnstaged.size > 0 &&
+                    selectedUnstaged.size < unstagedFiles.length
+                  }
+                  onChange={(e) => {
+                    if (e.currentTarget.checked) {
+                      setSelectedUnstaged(
+                        new Set(unstagedFiles.map((f) => f.path)),
+                      );
+                    } else {
+                      setSelectedUnstaged(new Set());
+                    }
+                  }}
+                />
+                <Text size="xs" fw={500} tt="uppercase" c="dimmed">
+                  Changes ({unstagedFiles.length})
+                </Text>
+              </Group>
+              <Group gap={2}>
+                {selectedUnstaged.size > 0 && (
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    onClick={handleStageSelected}
+                  >
+                    Stage Selected
+                  </Button>
+                )}
+                {unstagedFiles.length > 0 && (
+                  <ActionIcon
+                    size="xs"
+                    variant="subtle"
+                    onClick={handleStageAll}
+                  >
+                    <FontAwesomeIcon icon={faPlus} />
+                  </ActionIcon>
+                )}
+              </Group>
             </Group>
             {unstagedFiles.length === 0 ? (
               <Text size="xs" c="dimmed" fs="italic">
@@ -815,6 +1087,11 @@ export const GitPanel: React.FC<GitPanelProps> = ({
                         wrap="nowrap"
                         style={{ overflow: "hidden" }}
                       >
+                        <Checkbox
+                          size="xs"
+                          checked={selectedUnstaged.has(file.path)}
+                          onChange={() => toggleUnstagedSelection(file.path)}
+                        />
                         <Badge
                           size="xs"
                           color={getStatusColor(file.status)}
@@ -910,32 +1187,76 @@ export const GitPanel: React.FC<GitPanelProps> = ({
               <Text size="xs" fw={500} tt="uppercase" c="dimmed">
                 History
               </Text>
+              {showHistory && (
+                <Group gap={2} style={{ marginLeft: "auto" }}>
+                  <Tooltip label="Graph View">
+                    <ActionIcon
+                      size="xs"
+                      variant={viewMode === "graph" ? "light" : "subtle"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewMode("graph");
+                      }}
+                    >
+                      <FontAwesomeIcon icon={faCodeBranch} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="List View">
+                    <ActionIcon
+                      size="xs"
+                      variant={viewMode === "list" ? "light" : "subtle"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setViewMode("list");
+                      }}
+                    >
+                      <FontAwesomeIcon icon={faFileCode} />
+                      {/* Using faFileCode as list icon placeholder, maybe faList better but not imported */}
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+              )}
             </Group>
             <Collapse in={showHistory}>
-              <Stack gap={2}>
-                {commits.slice(0, 20).map((commit) => (
-                  <Paper key={commit.id} p={4} withBorder>
-                    <Group gap="xs" wrap="nowrap">
-                      <Badge size="xs" variant="light" color="gray">
-                        {commit.short_id}
-                      </Badge>
-                      <Text
-                        size="xs"
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {commit.message.split("\n")[0]}
-                      </Text>
-                    </Group>
-                    <Text size="xs" c="dimmed">
-                      {commit.author_name} • {formatTimestamp(commit.timestamp)}
-                    </Text>
-                  </Paper>
-                ))}
-              </Stack>
+              <Box h={400} style={{ position: "relative" }}>
+                {/* Fixed height for graph container, or use flex if possible */}
+                {viewMode === "graph" ? (
+                  <GitGraph
+                    commits={commits}
+                    activeCommitId={repoInfo?.head_commit || null}
+                    onSelectCommit={(commit) => {
+                      // Handle commit selection (maybe show details modal?)
+                      console.log("Selected commit", commit);
+                    }}
+                  />
+                ) : (
+                  <Stack gap={2}>
+                    {commits.slice(0, 50).map((commit) => (
+                      <Paper key={commit.id} p={4} withBorder>
+                        <Group gap="xs" wrap="nowrap">
+                          <Badge size="xs" variant="light" color="gray">
+                            {commit.short_id}
+                          </Badge>
+                          <Text
+                            size="xs"
+                            style={{
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {commit.message.split("\n")[0]}
+                          </Text>
+                        </Group>
+                        <Text size="xs" c="dimmed">
+                          {commit.author_name} •{" "}
+                          {formatTimestamp(commit.timestamp)}
+                        </Text>
+                      </Paper>
+                    ))}
+                  </Stack>
+                )}
+              </Box>
             </Collapse>
           </Box>
         </Stack>
@@ -1001,6 +1322,93 @@ export const GitPanel: React.FC<GitPanelProps> = ({
           </Group>
         </Stack>
       </Modal>
+
+      {/* Stash Modal */}
+      <Modal
+        opened={stashModalOpen}
+        onClose={() => setStashModalOpen(false)}
+        title="Create Stash"
+        size="sm"
+      >
+        <Stack gap="md">
+          <TextInput
+            label="Stash Message (optional)"
+            placeholder="WIP on feature..."
+            value={stashMessage}
+            onChange={(e) => setStashMessage(e.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setStashModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateStash}>Create Stash</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Stash List Section - Collapsible */}
+      {stashes.length > 0 && (
+        <Box mt="xs">
+          <Group
+            gap="xs"
+            mb={4}
+            style={{ cursor: "pointer" }}
+            onClick={() => setShowStashes(!showStashes)}
+          >
+            <FontAwesomeIcon
+              icon={showStashes ? faChevronDown : faChevronRight}
+              size="xs"
+            />
+            <Text size="xs" fw={500} tt="uppercase" c="dimmed">
+              Stashes ({stashes.length})
+            </Text>
+          </Group>
+          <Collapse in={showStashes}>
+            <Stack gap={2}>
+              {stashes.map((stash) => (
+                <Paper key={stash.commit_id} p={4} withBorder>
+                  <Group justify="space-between" wrap="nowrap">
+                    <Text size="xs" truncate flex={1}>
+                      {stash.message}
+                    </Text>
+                    <Group gap={2}>
+                      <Tooltip label="Apply">
+                        <ActionIcon
+                          size="xs"
+                          variant="subtle"
+                          onClick={() => handleApplyStash(stash.index)}
+                        >
+                          <FontAwesomeIcon icon={faCheck} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Pop">
+                        <ActionIcon
+                          size="xs"
+                          variant="subtle"
+                          color="green"
+                          onClick={() => handlePopStash(stash.index)}
+                        >
+                          <FontAwesomeIcon icon={faUndo} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Drop">
+                        <ActionIcon
+                          size="xs"
+                          variant="subtle"
+                          color="red"
+                          onClick={() => handleDropStash(stash.index)}
+                        >
+                          <FontAwesomeIcon icon={faTrash} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                  </Group>
+                </Paper>
+              ))}
+            </Stack>
+          </Collapse>
+        </Box>
+      )}
     </Stack>
   );
 };

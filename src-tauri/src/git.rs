@@ -220,14 +220,31 @@ pub fn commit(repo_path: &str, message: &str) -> Result<String, String> {
 }
 
 /// Get commit log
-pub fn get_log(repo_path: &str, limit: Option<i32>) -> Result<Vec<GitCommitInfo>, String> {
+pub fn get_log(
+    repo_path: &str,
+    limit: Option<i32>,
+    all: bool,
+) -> Result<Vec<GitCommitInfo>, String> {
     let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
-    let limit = limit.unwrap_or(50) as usize;
+    let limit = limit.unwrap_or(200) as usize; // Increase default limit for graph
 
     let mut revwalk = repo.revwalk().map_err(|e| e.to_string())?;
-    revwalk.push_head().map_err(|e| e.to_string())?;
+
+    if all {
+        revwalk
+            .push_glob("refs/heads/*")
+            .map_err(|e| e.to_string())?;
+        // Optional: push remotes too?
+        // revwalk.push_glob("refs/remotes/*").map_err(|e| e.to_string())?;
+        // For now let's just do local heads + HEAD to be safe, or just pushes glob.
+        // If HEAD is detached, push_glob might miss it?
+        let _ = revwalk.push_head();
+    } else {
+        revwalk.push_head().map_err(|e| e.to_string())?;
+    }
+
     revwalk
-        .set_sorting(git2::Sort::TIME)
+        .set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)
         .map_err(|e| e.to_string())?;
 
     let mut result = Vec::new();
@@ -774,4 +791,118 @@ pub fn write_gitignore(repo_path: &str, content: &str) -> Result<(), String> {
     let gitignore_path = Path::new(repo_path).join(".gitignore");
 
     std::fs::write(gitignore_path, content).map_err(|e| e.to_string())
+}
+
+// ============================================================================
+// Stash Support
+// ============================================================================
+
+/// Stash entry information
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct StashInfo {
+    pub index: usize,
+    pub message: String,
+    pub commit_id: String,
+}
+
+/// List all stashes
+pub fn list_stashes(repo_path: &str) -> Result<Vec<StashInfo>, String> {
+    let mut repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+    let mut stashes = Vec::new();
+
+    repo.stash_foreach(|index, message, oid| {
+        stashes.push(StashInfo {
+            index,
+            message: message.to_string(),
+            commit_id: oid.to_string(),
+        });
+        true // continue iteration
+    })
+    .map_err(|e| e.to_string())?;
+
+    Ok(stashes)
+}
+
+/// Create a new stash
+pub fn create_stash(repo_path: &str, message: Option<&str>) -> Result<Oid, String> {
+    let mut repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    let sig = repo
+        .signature()
+        .unwrap_or_else(|_| Signature::now("DataTeX User", "user@datatex.local").unwrap());
+
+    let oid = repo
+        .stash_save(&sig, message.unwrap_or("WIP on stash"), None)
+        .map_err(|e| e.to_string())?;
+
+    Ok(oid)
+}
+
+/// Apply a stash by index (keeps stash in list)
+pub fn apply_stash(repo_path: &str, index: usize) -> Result<(), String> {
+    let mut repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    repo.stash_apply(index, None).map_err(|e| e.to_string())
+}
+
+/// Drop a stash by index
+pub fn drop_stash(repo_path: &str, index: usize) -> Result<(), String> {
+    let mut repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    repo.stash_drop(index).map_err(|e| e.to_string())
+}
+
+/// Pop a stash (apply + drop)
+pub fn pop_stash(repo_path: &str, index: usize) -> Result<(), String> {
+    let mut repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    repo.stash_pop(index, None).map_err(|e| e.to_string())
+}
+
+// ============================================================================
+// Commit Amend
+// ============================================================================
+
+/// Get the message of the last commit
+pub fn get_last_commit_message(repo_path: &str) -> Result<String, String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    let head = repo.head().map_err(|e| e.to_string())?;
+    let commit = head.peel_to_commit().map_err(|e| e.to_string())?;
+
+    Ok(commit.message().unwrap_or("").to_string())
+}
+
+/// Amend the last commit with new message
+pub fn commit_amend(repo_path: &str, message: &str) -> Result<String, String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    // Get HEAD commit
+    let head = repo.head().map_err(|e| e.to_string())?;
+    let commit = head.peel_to_commit().map_err(|e| e.to_string())?;
+
+    // Get current index (staged changes)
+    let mut index = repo.index().map_err(|e| e.to_string())?;
+    let tree_oid = index.write_tree().map_err(|e| e.to_string())?;
+    let tree = repo.find_tree(tree_oid).map_err(|e| e.to_string())?;
+
+    // Keep original author, update committer
+    let author = commit.author();
+    let committer = repo
+        .signature()
+        .unwrap_or_else(|_| Signature::now("DataTeX User", "user@datatex.local").unwrap());
+
+    // Amend: create new commit with same parents as old commit
+    let new_oid = commit
+        .amend(
+            Some("HEAD"),
+            Some(&author),
+            Some(&committer),
+            None, // encoding
+            Some(message),
+            Some(&tree),
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(new_oid.to_string())
 }
