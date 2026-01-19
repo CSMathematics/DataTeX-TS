@@ -74,6 +74,12 @@ importers:
       '@types/lodash':
         specifier: ^4.17.21
         version: 4.17.21
+      '@types/react-virtualized-auto-sizer':
+        specifier: ^1.0.8
+        version: 1.0.8(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@types/react-window':
+        specifier: ^2.0.0
+        version: 2.0.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@types/uuid':
         specifier: ^11.0.0
         version: 11.0.0
@@ -134,6 +140,12 @@ importers:
       react-pdf:
         specifier: ^10.2.0
         version: 10.2.0(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react-virtualized-auto-sizer:
+        specifier: ^2.0.2
+        version: 2.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react-window:
+        specifier: ^2.2.5
+        version: 2.2.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       rehype-katex:
         specifier: ^7.0.1
         version: 7.0.1
@@ -1329,6 +1341,14 @@ packages:
     peerDependencies:
       '@types/react': ^19.2.0
 
+  '@types/react-virtualized-auto-sizer@1.0.8':
+    resolution: {integrity: sha512-keJpNyhiwfl2+N12G1ocCVA5ZDBArbPLe/S90X3kt7fam9naeHdaYYWbpe2sHczp70JWJ+2QLhBE8kLvLuVNjA==}
+    deprecated: This is a stub types definition. react-virtualized-auto-sizer provides its own type definitions, so you do not need this installed.
+
+  '@types/react-window@2.0.0':
+    resolution: {integrity: sha512-E8hMDtImEpMk1SjswSvqoSmYvk7GEtyVaTa/GJV++FdDNuMVVEzpAClyJ0nqeKYBrMkGiyH6M1+rPLM0Nu1exQ==}
+    deprecated: This is a stub types definition. react-window provides its own type definitions, so you do not need this installed.
+
   '@types/react@19.2.7':
     resolution: {integrity: sha512-MWtvHrGZLFttgeEj28VXHxpmwYbor/ATPYbBfSFZEIRK0ecCFLl2Qo55z52Hss+UV9CRN7trSeq1zbgx7YDWWg==}
 
@@ -2331,6 +2351,18 @@ packages:
     peerDependencies:
       react: '>=16.6.0'
       react-dom: '>=16.6.0'
+
+  react-virtualized-auto-sizer@2.0.2:
+    resolution: {integrity: sha512-FvnVDed3nn7Xt2m2ioo+O1VBpP1uMIl8ygtpkzfhYoRb1e06on6hp2DEBg9AquCXqtP1bhgVT4lS+xpBwrXq7Q==}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+
+  react-window@2.2.5:
+    resolution: {integrity: sha512-6viWvPSZvVuMIe9hrl4IIZoVfO/npiqOb03m4Z9w+VihmVzBbiudUrtUqDpsWdKvd/Ai31TCR25CBcFFAUm28w==}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
 
   react@19.2.3:
     resolution: {integrity: sha512-Ku/hhYbVjOQnXDZFv2+RibmLFGwFdeeKHFcOTlrt7xplBnya5OGn/hIRDsqDiSUcfORsDC7MPxwork8jBwsIWA==}
@@ -3947,6 +3979,20 @@ snapshots:
     dependencies:
       '@types/react': 19.2.7
 
+  '@types/react-virtualized-auto-sizer@1.0.8(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+    dependencies:
+      react-virtualized-auto-sizer: 2.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+    transitivePeerDependencies:
+      - react
+      - react-dom
+
+  '@types/react-window@2.0.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+    dependencies:
+      react-window: 2.2.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+    transitivePeerDependencies:
+      - react
+      - react-dom
+
   '@types/react@19.2.7':
     dependencies:
       csstype: 3.2.3
@@ -5294,6 +5340,16 @@ snapshots:
       dom-helpers: 5.2.1
       loose-envify: 1.4.0
       prop-types: 15.8.1
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
+
+  react-virtualized-auto-sizer@2.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+    dependencies:
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
+
+  react-window@2.2.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+    dependencies:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 

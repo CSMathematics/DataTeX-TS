@@ -265,14 +265,3 @@ pub async fn cleanup_old_snapshots(
 
     Ok(result.rows_affected() as usize)
 }
-
-/// Get total snapshot count for a file
-pub async fn get_snapshot_count(pool: &Pool<Sqlite>, file_path: &str) -> Result<i32, String> {
-    let count: i32 = sqlx::query_scalar("SELECT COUNT(*) FROM file_history WHERE file_path = ?")
-        .bind(file_path)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(count)
-}

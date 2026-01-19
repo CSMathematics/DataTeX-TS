@@ -4052,6 +4052,25 @@ pub fn run() {
             // Commit Amend Commands
             git_get_last_commit_message_cmd,
             git_commit_amend_cmd,
+            // Checkout & Cherry-pick
+            git_checkout_commit_cmd,
+            git_cherry_pick_cmd,
+            // Blame, Tags, Revert
+            git_blame_cmd,
+            git_list_tags_cmd,
+            git_create_tag_cmd,
+            git_delete_tag_cmd,
+            git_revert_commit_cmd,
+            // Conflict Detection & Side-by-side Diff
+            git_has_conflicts_cmd,
+            git_get_conflict_files_cmd,
+            git_get_blob_content_cmd,
+            git_mark_conflict_resolved_cmd,
+            git_get_side_by_side_diff_cmd,
+            // Advanced Branch Ops
+            git_merge_branch_cmd,
+            git_rename_branch_cmd,
+            git_rebase_branch_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -4344,6 +4363,25 @@ fn git_delete_branch_cmd(repo_path: String, name: String) -> Result<(), String> 
 }
 
 #[tauri::command]
+fn git_merge_branch_cmd(repo_path: String, branch_name: String) -> Result<String, String> {
+    git::merge_branch(&repo_path, &branch_name)
+}
+
+#[tauri::command]
+fn git_rename_branch_cmd(
+    repo_path: String,
+    old_name: String,
+    new_name: String,
+) -> Result<(), String> {
+    git::rename_branch(&repo_path, &old_name, &new_name)
+}
+
+#[tauri::command]
+fn git_rebase_branch_cmd(repo_path: String, upstream_branch: String) -> Result<(), String> {
+    git::rebase_branch(&repo_path, &upstream_branch)
+}
+
+#[tauri::command]
 fn git_list_remotes_cmd(repo_path: String) -> Result<Vec<git::RemoteInfo>, String> {
     git::list_remotes(&repo_path)
 }
@@ -4404,6 +4442,82 @@ fn git_get_last_commit_message_cmd(repo_path: String) -> Result<String, String> 
 #[tauri::command]
 fn git_commit_amend_cmd(repo_path: String, message: String) -> Result<String, String> {
     git::commit_amend(&repo_path, &message)
+}
+
+#[tauri::command]
+fn git_checkout_commit_cmd(repo_path: String, commit_id: String) -> Result<(), String> {
+    git::checkout_commit(&repo_path, &commit_id)
+}
+
+#[tauri::command]
+fn git_cherry_pick_cmd(repo_path: String, commit_id: String) -> Result<String, String> {
+    git::cherry_pick(&repo_path, &commit_id)
+}
+
+// ============================================================================
+// Git Blame, Tags, Revert Commands
+// ============================================================================
+
+#[tauri::command]
+fn git_blame_cmd(repo_path: String, file_path: String) -> Result<Vec<git::BlameInfo>, String> {
+    git::git_blame(&repo_path, &file_path)
+}
+
+#[tauri::command]
+fn git_list_tags_cmd(repo_path: String) -> Result<Vec<git::TagInfo>, String> {
+    git::list_tags(&repo_path)
+}
+
+#[tauri::command]
+fn git_create_tag_cmd(
+    repo_path: String,
+    name: String,
+    commit_id: Option<String>,
+    message: Option<String>,
+) -> Result<(), String> {
+    git::create_tag(&repo_path, &name, commit_id.as_deref(), message.as_deref())
+}
+
+#[tauri::command]
+fn git_delete_tag_cmd(repo_path: String, name: String) -> Result<(), String> {
+    git::delete_tag(&repo_path, &name)
+}
+
+#[tauri::command]
+fn git_revert_commit_cmd(repo_path: String, commit_id: String) -> Result<String, String> {
+    git::revert_commit(&repo_path, &commit_id)
+}
+
+// ============================================================================
+// Conflict Detection & Side-by-side Diff Commands
+// ============================================================================
+
+#[tauri::command]
+fn git_has_conflicts_cmd(repo_path: String) -> Result<bool, String> {
+    git::has_conflicts(&repo_path)
+}
+
+#[tauri::command]
+fn git_get_conflict_files_cmd(repo_path: String) -> Result<Vec<git::ConflictFile>, String> {
+    git::get_conflict_files(&repo_path)
+}
+
+#[tauri::command]
+fn git_get_blob_content_cmd(repo_path: String, blob_oid: String) -> Result<String, String> {
+    git::get_blob_content(&repo_path, &blob_oid)
+}
+
+#[tauri::command]
+fn git_mark_conflict_resolved_cmd(repo_path: String, file_path: String) -> Result<(), String> {
+    git::mark_conflict_resolved(&repo_path, &file_path)
+}
+
+#[tauri::command]
+fn git_get_side_by_side_diff_cmd(
+    repo_path: String,
+    file_path: String,
+) -> Result<Vec<git::SideBySideLine>, String> {
+    git::get_side_by_side_diff(&repo_path, &file_path)
 }
 
 fn slugify(s: &str) -> String {

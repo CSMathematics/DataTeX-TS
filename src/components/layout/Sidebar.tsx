@@ -78,11 +78,16 @@ export interface FileSystemNode {
 export interface AppTab {
   id: string;
   title: string;
-  type: "editor" | "table" | "start-page" | "settings" | "wizard";
+  type: "editor" | "table" | "start-page" | "settings" | "wizard" | "git-view";
   content?: string;
   tableName?: string;
   language?: string;
   isDirty?: boolean;
+  gitData?: {
+    repoPath: string;
+    filePath: string;
+    initialView: "diff" | "blame";
+  };
 }
 
 interface SidebarProps {

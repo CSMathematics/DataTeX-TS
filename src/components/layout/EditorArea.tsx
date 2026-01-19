@@ -56,6 +56,7 @@ import { LogEntry } from "../../utils/logParser";
 import { TexlabLspClient } from "../../services/lspClient";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import { getMonacoKeyBinding } from "../../utils/ShortcutUtils";
+import { GitFileViewer } from "../git/GitFileViewer";
 
 interface EditorAreaProps {
   files: AppTab[];
@@ -293,7 +294,7 @@ const TabItem = React.memo(
         </Menu.Dropdown>
       </Menu>
     );
-  }
+  },
 );
 
 export const EditorArea = React.memo<EditorAreaProps>(
@@ -348,15 +349,15 @@ export const EditorArea = React.memo<EditorAreaProps>(
     // --- Memoized Handlers for Performance ---
     const handleSelectEngine = useCallback(
       (engine: string) => setSelectedEngine(engine),
-      []
+      [],
     );
     const handleToggleTopToolbar = useCallback(
       () => setShowTopEditorToolbar((prev) => !prev),
-      []
+      [],
     );
     const handleToggleMathToolbar = useCallback(
       () => setShowLeftMathToolbar((prev) => !prev),
-      []
+      [],
     );
     const handleSaveClick = useCallback(() => onSave?.(), [onSave]);
 
@@ -369,7 +370,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
 
     const currentResource = useMemo(
       () => allResources.find((r) => r.path === activeFileId),
-      [allResources, activeFileId]
+      [allResources, activeFileId],
     );
 
     const handleEditorMount: OnMount = (editor, monaco) => {
@@ -396,7 +397,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                   lineNumber,
                   1,
                   lineNumber,
-                  Number.MAX_VALUE
+                  Number.MAX_VALUE,
                 ),
                 options: {
                   isWholeLine: true,
@@ -405,7 +406,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                   className: "synctex-highlight-line",
                 },
               },
-            ]
+            ],
           );
 
           // Remove decoration after animation
@@ -458,7 +459,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
           if (textArea) {
             textArea.setAttribute(
               "spellcheck",
-              spellCheckEnabled ? "true" : "false"
+              spellCheckEnabled ? "true" : "false",
             );
           }
           // Attempt to enable spellcheck on the container as well.
@@ -479,7 +480,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
           idsToClose.forEach((id) => onFileClose(id));
         }
       },
-      [files, onCloseFiles, onFileClose]
+      [files, onCloseFiles, onFileClose],
     );
 
     const handleCloseRight = useCallback(
@@ -498,7 +499,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
           }
         }
       },
-      [files, onCloseFiles, onFileClose]
+      [files, onCloseFiles, onFileClose],
     );
 
     const handleCopyPath = useCallback((path: string) => {
@@ -521,7 +522,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
         wordWrap: editorSettings?.wordWrap ?? "on",
         lineNumbers: editorSettings?.lineNumbers ?? "on",
       }),
-      [editorSettings]
+      [editorSettings],
     );
 
     const handleCompileClick = () => {
@@ -1124,7 +1125,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                             onClick={async () => {
                               if (
                                 confirm(
-                                  "Remove file from collection? (File will not be deleted)"
+                                  "Remove file from collection? (File will not be deleted)",
                                 )
                               ) {
                                 await deleteResource(currentResource.id);
@@ -1137,7 +1138,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                           <Menu.Label>Move to...</Menu.Label>
                           {collections
                             .filter(
-                              (c) => c.name !== currentResource.collection
+                              (c) => c.name !== currentResource.collection,
                             )
                             .map((c) => (
                               <Menu.Item
@@ -1151,7 +1152,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                                 onClick={async () => {
                                   await moveResource(
                                     currentResource.id,
-                                    c.name
+                                    c.name,
                                   );
                                 }}
                               >
@@ -1341,6 +1342,8 @@ export const EditorArea = React.memo<EditorAreaProps>(
               onOpenPackageBrowser={onOpenPackageBrowser!}
               onOpenTemplateModal={onOpenTemplateModal!}
             />
+          ) : activeFile?.type === "git-view" && activeFile.gitData ? (
+            <GitFileViewer data={activeFile.gitData} />
           ) : (
             <Box
               h="100%"
@@ -1363,5 +1366,5 @@ export const EditorArea = React.memo<EditorAreaProps>(
         </Box>
       </Stack>
     );
-  }
+  },
 );

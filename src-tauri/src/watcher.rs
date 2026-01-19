@@ -36,7 +36,7 @@ impl GitWatcher {
         std::thread::spawn(move || {
             for res in rx {
                 match res {
-                    Ok(event) => {
+                    Ok(_) => {
                         // Debounce logic could be here, or frontend can debounce.
                         // For simply telling frontend "something changed", we emit event.
                         // Filter for relevant git events if needed, but monitoring whole repo is safer.

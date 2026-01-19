@@ -1,6 +1,13 @@
-import React, { useMemo } from "react";
-import { Box, Text } from "@mantine/core";
+import React, { useMemo, useState } from "react";
+import { Box, Text, Badge, Group, Tooltip, Menu } from "@mantine/core";
 import { formatDistanceToNow } from "date-fns";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faCopy,
+  faCodeBranch,
+  faCheck,
+  faUndo,
+} from "@fortawesome/free-solid-svg-icons";
 
 // Types
 export interface GitCommitInfo {
@@ -11,12 +18,16 @@ export interface GitCommitInfo {
   author_email: string;
   timestamp: number;
   parent_ids: string[];
+  refs?: string[];
 }
 
 interface GitGraphProps {
   commits: GitCommitInfo[];
   onSelectCommit: (commit: GitCommitInfo) => void;
   activeCommitId: string | null;
+  onCheckoutCommit?: (commitId: string) => void;
+  onCherryPick?: (commitId: string) => void;
+  onRevertCommit?: (commitId: string) => void;
 }
 
 interface GraphNode {
@@ -31,6 +42,7 @@ interface GraphEdge {
   p1: { x: number; y: number };
   p2: { x: number; y: number };
   color: string;
+  isMerge?: boolean;
 }
 
 const LANES_COLORS = [
@@ -43,44 +55,31 @@ const LANES_COLORS = [
   "#ffeb3b", // Yellow
 ];
 
-const ROW_HEIGHT = 28; // Compact row height
-const X_SPACING = 16;
-const CIRCLE_RADIUS = 4;
+const ROW_HEIGHT = 32;
+const X_SPACING = 20;
+const CIRCLE_RADIUS = 5;
 const PADDING_TOP = ROW_HEIGHT / 2;
 
 export const GitGraph: React.FC<GitGraphProps> = ({
   commits,
   onSelectCommit,
   activeCommitId,
+  onCheckoutCommit,
+  onCherryPick,
+  onRevertCommit,
 }) => {
-  const { nodes, edges, height } = useMemo(() => {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [contextMenuId, setContextMenuId] = useState<string | null>(null);
+
+  const { nodes, edges, height, maxLane } = useMemo(() => {
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
 
-    // Map types:
-    // laneId -> commitId (last commit in this lane)
     const lanes: (string | null)[] = [];
     const commitLaneMap: Record<string, number> = {};
 
     commits.forEach((commit, index) => {
-      // Determine lane
       let laneIndex = -1;
-
-      // 1. Check if this commit is the first parent of any active lane
-      // (Simpler: if any existing lane expects this commit)
-
-      // Algorithm adaptation:
-      // We need to know which lane tracks which branch "flow".
-      // A commit roughly continues the lane of its first child (in reverse chrono order).
-      // But here we iterate commits NEWEST first (Topological).
-
-      // So:
-      // A commit continues the lane if one of the 'active' lanes has this commit as a parent.
-      // If multiple lanes point to this commit (merge), we merge them.
-      // If no lane points to this commit, it's a new branch tip (or we just started).
-
-      // Let's look at "active paths" coming from top.
-      // `lanes` array stores the `next_parent_id` expected for that lane.
 
       const existingLaneIndex = lanes.findIndex(
         (parent_id) => parent_id === commit.id,
@@ -88,10 +87,8 @@ export const GitGraph: React.FC<GitGraphProps> = ({
 
       if (existingLaneIndex !== -1) {
         laneIndex = existingLaneIndex;
-        lanes[laneIndex] = null; // Consumed
+        lanes[laneIndex] = null;
       } else {
-        // New lane (tip of a branch we haven't seen, or disjoint history)
-        // Find empty slot
         let freeSlot = lanes.findIndex((l) => l === null);
         if (freeSlot === -1) {
           lanes.push(null);
@@ -108,42 +105,17 @@ export const GitGraph: React.FC<GitGraphProps> = ({
 
       nodes.push({ commit, x, y, color, lane: laneIndex });
 
-      // Process parents to propagate lanes
-      // Commit can have multiple parents (Merge)
-      // parent[0] usually continues the same lane (main line)
-      // parent[1..n] branch off/merge in. (In reverse view: they split out)
-
       const parentIds = commit.parent_ids;
 
       if (parentIds.length > 0) {
-        // First parent continues the current lane
         lanes[laneIndex] = parentIds[0];
-
-        // Draw edge to NEXT node (which we don't know coords yet? No, we draw lines BACKWARDS?
-        // Wait, standard way is to draw connection when we visit the parent, or draw from child to potential parent.
-        // In React, we can just calculate edges after nodes? No, we need topology.)
-
-        // Actually, for a static graph:
-        // We know this node (child) is at (x, y).
-        // We need to draw lines to its parents. But parents might be far away.
-        // We track "active connections".
-
-        // Simplified for MVP:
-        // We generate nodes. Edges are tricky in single pass without knowing parent coords.
-        // BUT, if we just process all nodes, we can calculate edges in a second pass or just look up?
-        // Using a map for node coordinates.
       }
 
-      // Handle merge parents (secondary parents)
+      // Track merge parents in separate lanes
       for (let i = 1; i < parentIds.length; i++) {
         const pId = parentIds[i];
-        // This parent needs its own lane.
-        // Check if it's already expected?
         const existing = lanes.findIndex((pid) => pid === pId);
-        if (existing !== -1) {
-          // Already tracked
-        } else {
-          // Start a new lane for this parent
+        if (existing === -1) {
           let freeSlot = lanes.findIndex((l) => l === null);
           if (freeSlot === -1) {
             lanes.push(pId);
@@ -151,39 +123,75 @@ export const GitGraph: React.FC<GitGraphProps> = ({
             lanes[freeSlot] = pId;
           }
         }
-        // We need to draw a connector from current node to this new lane?
-        // It gets complex.
       }
     });
 
-    // Second pass for edges?
-    // Since we have all nodes now, we can iterate nodes and draw lines to their parents.
-    // We need a quick lookup for nodes
     const nodeMap = new Map(nodes.map((n) => [n.commit.id, n]));
 
     nodes.forEach((node) => {
-      node.commit.parent_ids.forEach((pid) => {
+      node.commit.parent_ids.forEach((pid, pidIndex) => {
         const parentNode = nodeMap.get(pid);
+        const isMerge = pidIndex > 0; // Secondary parents are merge parents
+
         if (parentNode) {
+          // Use parent's color for merge edges to show where they came from
+          const edgeColor = isMerge ? parentNode.color : node.color;
           edges.push({
             p1: { x: node.x, y: node.y },
             p2: { x: parentNode.x, y: parentNode.y },
-            color: node.color, // Or parent color? Usually child color or gradient
+            color: edgeColor,
+            isMerge,
           });
         } else {
-          // Parent not in list (limit reached or detached history)
-          // Draw a stub?
           edges.push({
             p1: { x: node.x, y: node.y },
-            p2: { x: node.x, y: node.y + ROW_HEIGHT }, // fade out
+            p2: { x: node.x, y: node.y + ROW_HEIGHT },
             color: node.color,
+            isMerge: false,
           });
         }
       });
     });
 
-    return { nodes, edges, height: commits.length * ROW_HEIGHT };
+    const maxLane = Math.max(...nodes.map((n) => n.lane), 0);
+
+    return { nodes, edges, height: commits.length * ROW_HEIGHT, maxLane };
   }, [commits]);
+
+  const contentPadding = (maxLane + 1) * X_SPACING + 10;
+
+  const handleCopySha = (id: string) => {
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const formatTooltipContent = (commit: GitCommitInfo) => (
+    <Box style={{ maxWidth: 350 }}>
+      <Text size="sm" fw={600} mb={4}>
+        {commit.message}
+      </Text>
+      <Text size="xs" c="dimmed">
+        SHA: {commit.id}
+      </Text>
+      <Text size="xs" c="dimmed">
+        Author: {commit.author_name} &lt;{commit.author_email}&gt;
+      </Text>
+      <Text size="xs" c="dimmed">
+        Date: {new Date(commit.timestamp * 1000).toLocaleString()}
+      </Text>
+      {commit.parent_ids.length > 0 && (
+        <Text size="xs" c="dimmed">
+          Parents: {commit.parent_ids.map((p) => p.slice(0, 7)).join(", ")}
+        </Text>
+      )}
+      {commit.refs && commit.refs.length > 0 && (
+        <Text size="xs" c="dimmed">
+          Refs: {commit.refs.join(", ")}
+        </Text>
+      )}
+    </Box>
+  );
 
   return (
     <Box
@@ -205,16 +213,32 @@ export const GitGraph: React.FC<GitGraphProps> = ({
           minWidth: 200,
         }}
       >
-        {edges.map((edge, i) => (
-          <path
-            key={`edge-${i}`}
-            d={`M ${edge.p1.x} ${edge.p1.y} C ${edge.p1.x} ${edge.p1.y + ROW_HEIGHT / 2}, ${edge.p2.x} ${edge.p2.y - ROW_HEIGHT / 2}, ${edge.p2.x} ${edge.p2.y}`}
-            stroke={edge.color}
-            strokeWidth="2"
-            fill="none"
-            opacity={0.6}
-          />
-        ))}
+        {/* Draw non-merge edges first, then merge edges on top */}
+        {edges
+          .filter((e) => !e.isMerge)
+          .map((edge, i) => (
+            <path
+              key={`edge-${i}`}
+              d={`M ${edge.p1.x} ${edge.p1.y} C ${edge.p1.x} ${edge.p1.y + ROW_HEIGHT / 2}, ${edge.p2.x} ${edge.p2.y - ROW_HEIGHT / 2}, ${edge.p2.x} ${edge.p2.y}`}
+              stroke={edge.color}
+              strokeWidth="2"
+              fill="none"
+              opacity={0.6}
+            />
+          ))}
+        {edges
+          .filter((e) => e.isMerge)
+          .map((edge, i) => (
+            <path
+              key={`merge-edge-${i}`}
+              d={`M ${edge.p1.x} ${edge.p1.y} C ${edge.p1.x} ${edge.p1.y + ROW_HEIGHT / 2}, ${edge.p2.x} ${edge.p2.y - ROW_HEIGHT / 2}, ${edge.p2.x} ${edge.p2.y}`}
+              stroke={edge.color}
+              strokeWidth="2"
+              strokeDasharray="4,2"
+              fill="none"
+              opacity={0.8}
+            />
+          ))}
         {nodes.map((node) => (
           <circle
             key={`node-${node.commit.id}`}
@@ -230,42 +254,143 @@ export const GitGraph: React.FC<GitGraphProps> = ({
 
       <Box style={{ position: "relative", width: "100%" }}>
         {nodes.map((node) => (
-          <Box
+          <Menu
             key={node.commit.id}
-            onClick={() => onSelectCommit(node.commit)}
-            style={{
-              height: ROW_HEIGHT,
-              display: "flex",
-              alignItems: "center",
-              paddingLeft: Math.max(...nodes.map((n) => n.x)) + 20, // Offset by graph width
-              cursor: "pointer",
-              backgroundColor:
-                activeCommitId === node.commit.id
-                  ? "var(--mantine-color-blue-light)"
-                  : "transparent",
-              borderBottom: "1px solid var(--mantine-color-default-border)",
-            }}
+            shadow="md"
+            width={200}
+            position="bottom-start"
+            opened={contextMenuId === node.commit.id}
+            onClose={() => setContextMenuId(null)}
           >
-            <Text
-              size="xs"
-              c="dimmed"
-              w={80}
-              style={{ fontFamily: "monospace" }}
-            >
-              {node.commit.short_id}
-            </Text>
-            <Text size="sm" truncate flex={1} style={{ paddingRight: 10 }}>
-              {node.commit.message}
-            </Text>
-            <Text size="xs" c="dimmed" w={100} truncate>
-              {node.commit.author_name}
-            </Text>
-            <Text size="xs" c="dimmed" w={80} ta="right">
-              {formatDistanceToNow(new Date(node.commit.timestamp * 1000), {
-                addSuffix: true,
-              })}
-            </Text>
-          </Box>
+            <Menu.Target>
+              <Tooltip
+                label={formatTooltipContent(node.commit)}
+                position="right"
+                withArrow
+                multiline
+                openDelay={300}
+              >
+                <Box
+                  onClick={() => onSelectCommit(node.commit)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setContextMenuId(node.commit.id);
+                  }}
+                  style={{
+                    height: ROW_HEIGHT,
+                    display: "flex",
+                    alignItems: "center",
+                    paddingLeft: contentPadding,
+                    cursor: "pointer",
+                    backgroundColor:
+                      activeCommitId === node.commit.id
+                        ? "var(--mantine-color-blue-light)"
+                        : "transparent",
+                    borderBottom:
+                      "1px solid var(--mantine-color-default-border)",
+                  }}
+                >
+                  <Group
+                    gap="xs"
+                    wrap="nowrap"
+                    style={{ width: "100%", overflow: "hidden" }}
+                  >
+                    <Text
+                      size="xs"
+                      c="dimmed"
+                      style={{ fontFamily: "monospace", minWidth: 60 }}
+                    >
+                      {node.commit.short_id}
+                    </Text>
+
+                    {/* Refs (Branches/Tags) */}
+                    {node.commit.refs && node.commit.refs.length > 0 && (
+                      <Group gap={4} wrap="nowrap">
+                        {node.commit.refs.map((ref) => (
+                          <Badge
+                            key={ref}
+                            size="xs"
+                            variant="filled"
+                            color="yellow"
+                            style={{ textTransform: "none" }}
+                          >
+                            {ref}
+                          </Badge>
+                        ))}
+                      </Group>
+                    )}
+
+                    <Text size="sm" truncate style={{ flex: 1 }}>
+                      {node.commit.message.split("\n")[0]}
+                    </Text>
+
+                    <Text
+                      size="xs"
+                      c="dimmed"
+                      style={{ minWidth: 100 }}
+                      truncate
+                    >
+                      {node.commit.author_name}
+                    </Text>
+
+                    <Text
+                      size="xs"
+                      c="dimmed"
+                      style={{ minWidth: 80 }}
+                      ta="right"
+                    >
+                      {formatDistanceToNow(
+                        new Date(node.commit.timestamp * 1000),
+                        {
+                          addSuffix: true,
+                        },
+                      )}
+                    </Text>
+                  </Group>
+                </Box>
+              </Tooltip>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Label>Commit Actions</Menu.Label>
+              <Menu.Item
+                leftSection={
+                  copiedId === node.commit.id ? (
+                    <FontAwesomeIcon icon={faCheck} />
+                  ) : (
+                    <FontAwesomeIcon icon={faCopy} />
+                  )
+                }
+                onClick={() => handleCopySha(node.commit.id)}
+              >
+                {copiedId === node.commit.id ? "Copied!" : "Copy SHA"}
+              </Menu.Item>
+              {onCheckoutCommit && (
+                <Menu.Item
+                  leftSection={<FontAwesomeIcon icon={faCodeBranch} />}
+                  onClick={() => onCheckoutCommit(node.commit.id)}
+                >
+                  Checkout this commit
+                </Menu.Item>
+              )}
+              {onCherryPick && (
+                <Menu.Item
+                  leftSection={<FontAwesomeIcon icon={faCheck} />}
+                  onClick={() => onCherryPick(node.commit.id)}
+                >
+                  Cherry-pick
+                </Menu.Item>
+              )}
+              {onRevertCommit && (
+                <Menu.Item
+                  leftSection={<FontAwesomeIcon icon={faUndo} />}
+                  onClick={() => onRevertCommit(node.commit.id)}
+                  color="red"
+                >
+                  Revert this commit
+                </Menu.Item>
+              )}
+            </Menu.Dropdown>
+          </Menu>
         ))}
       </Box>
     </Box>

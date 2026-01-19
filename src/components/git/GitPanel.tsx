@@ -18,6 +18,7 @@ import {
   TextInput,
   Checkbox,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCodeBranch,
@@ -35,13 +36,18 @@ import {
   faArrowUp,
   faArrowDown,
   faFileCode,
+  faTriangleExclamation,
+  faHistory,
+  faPencilAlt,
 } from "@fortawesome/free-solid-svg-icons";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useDebouncedCallback } from "use-debounce";
-import { DiffViewer, StructuredDiff } from "./DiffViewer";
+
 import { GitGraph } from "./GitGraph";
+import { ConflictResolver, ConflictFile } from "./ConflictResolver";
 import { getFileIcon } from "../shared/tree";
+import { useTabsStore } from "../../stores/useTabsStore";
 
 // Types from Rust backend
 interface GitRepoInfo {
@@ -66,6 +72,7 @@ interface GitCommitInfo {
   author_email: string;
   timestamp: number;
   parent_ids: string[];
+  refs?: string[];
 }
 
 interface BranchInfo {
@@ -98,10 +105,6 @@ export const GitPanel: React.FC<GitPanelProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [commitMessage, setCommitMessage] = useState("");
   const [showHistory, setShowHistory] = useState(false);
-  const [structuredDiff, setStructuredDiff] = useState<StructuredDiff | null>(
-    null,
-  );
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [initLoading, setInitLoading] = useState(false);
 
   // Branch state
@@ -127,11 +130,132 @@ export const GitPanel: React.FC<GitPanelProps> = ({
   // Amend state
   const [amendMode, setAmendMode] = useState(false);
 
+  // Tags state
+  interface TagInfo {
+    name: string;
+    commit_id: string;
+    message: string | null;
+    tagger: string | null;
+    timestamp: number | null;
+  }
+  const [tags, setTags] = useState<TagInfo[]>([]);
+  const [showTags, setShowTags] = useState(false);
+  const [createTagOpen, setCreateTagOpen] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagMessage, setNewTagMessage] = useState("");
+
   // Multi-select state
   const [selectedUnstaged, setSelectedUnstaged] = useState<Set<string>>(
     new Set(),
   );
   const [selectedStaged, setSelectedStaged] = useState<Set<string>>(new Set());
+
+  const [conflicts, setConflicts] = useState<ConflictFile[]>([]);
+  const [showConflictResolver, setShowConflictResolver] = useState(false);
+
+  // Branch Ops
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
+  const [branchToRename, setBranchToRename] = useState("");
+  const [renameBranchName, setRenameBranchName] = useState("");
+
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [branchToMerge, setBranchToMerge] = useState("");
+  const [availableBranches, setAvailableBranches] = useState<BranchInfo[]>([]);
+
+  // We reuse availableBranches from local state but might want to refresh before opening modal
+  useEffect(() => {
+    setAvailableBranches(branches);
+  }, [branches]);
+
+  const handleRenameBranch = async () => {
+    if (!branchToRename || !newBranchName) return;
+    try {
+      await invoke("git_rename_branch_cmd", {
+        repoPath: repoInfo?.path,
+        oldName: branchToRename,
+        newName: newBranchName,
+      });
+      notifications.show({
+        title: "Success",
+        message: `Renamed branch ${branchToRename} to ${newBranchName}`,
+        color: "green",
+      });
+      setRenameModalOpen(false);
+      setNewBranchName("");
+      if (repoInfo?.path) refreshStatus(repoInfo.path);
+    } catch (err) {
+      notifications.show({
+        title: "Error",
+        message: `Failed to rename branch: ${err}`,
+        color: "red",
+      });
+    }
+  };
+
+  const handleMergeBranch = async () => {
+    if (!branchToMerge || !repoInfo) return;
+    try {
+      const result = await invoke<string>("git_merge_branch_cmd", {
+        repoPath: repoInfo.path,
+        branchName: branchToMerge,
+      });
+      notifications.show({
+        title: "Merge Result",
+        message: result,
+        color: result.includes("Conflict") ? "orange" : "green",
+      });
+      setMergeModalOpen(false);
+      setBranchToMerge("");
+      // Check conflicts immediately if result indicates conflicts
+      if (result.includes("Conflict") || result.includes("conflict")) {
+        checkConflicts(repoInfo.path);
+      }
+      refreshStatus(repoInfo.path);
+    } catch (err) {
+      notifications.show({
+        title: "Error",
+        message: `Merge failed: ${err}`,
+        color: "red",
+      });
+    }
+  };
+
+  const openRenameModal = (branchName: string) => {
+    setBranchToRename(branchName);
+    setNewBranchName(branchName);
+    setRenameModalOpen(true);
+  };
+
+  const openMergeModal = () => {
+    setBranchToMerge("");
+    setMergeModalOpen(true);
+  };
+
+  // Tabs store
+  const openTab = useTabsStore((state) => state.openTab);
+
+  const checkConflicts = useCallback(async (path: string) => {
+    try {
+      const hasConflicts = await invoke<boolean>("git_has_conflicts_cmd", {
+        repoPath: path,
+      });
+
+      if (hasConflicts) {
+        const conflictFiles = await invoke<ConflictFile[]>(
+          "git_get_conflict_files_cmd",
+          {
+            repoPath: path,
+          },
+        );
+        setConflicts(conflictFiles);
+      } else {
+        setConflicts([]);
+        setShowConflictResolver(false);
+      }
+    } catch (err) {
+      console.error("Failed to check conflicts:", err);
+    }
+  }, []);
 
   // Detect repo on project path change
   const detectRepo = useCallback(async () => {
@@ -230,10 +354,47 @@ export const GitPanel: React.FC<GitPanelProps> = ({
         path: repoPath,
       });
       if (info) setRepoInfo(info);
+
+      // Check for conflicts
+      checkConflicts(repoPath);
     } catch (err) {
       console.error("Failed to get status:", err);
     }
   };
+
+  const handleViewDiff = useCallback(
+    (file: GitFileStatus) => {
+      if (!repoInfo) return;
+      openTab({
+        id: `git-diff-${file.path}`,
+        title: file.path.split("/").pop() || "Diff",
+        type: "git-view",
+        gitData: {
+          repoPath: repoInfo.path,
+          filePath: file.path,
+          initialView: "diff",
+        },
+      });
+    },
+    [repoInfo, openTab],
+  );
+
+  const handleBlame = useCallback(
+    (filePath: string) => {
+      if (!repoInfo) return;
+      openTab({
+        id: `git-blame-${filePath}`,
+        title: filePath.split("/").pop() || "Blame",
+        type: "git-view",
+        gitData: {
+          repoPath: repoInfo.path,
+          filePath: filePath,
+          initialView: "blame",
+        },
+      });
+    },
+    [repoInfo, openTab],
+  );
 
   const handleCreateBranch = async () => {
     if (!repoInfo || !newBranchName.trim()) return;
@@ -529,6 +690,110 @@ export const GitPanel: React.FC<GitPanelProps> = ({
     }
   };
 
+  // ============================================================================
+  // Checkout & Cherry-pick Handlers
+  // ============================================================================
+
+  const handleCheckoutCommit = async (commitId: string) => {
+    if (!repoInfo) return;
+    try {
+      await invoke("git_checkout_commit_cmd", {
+        repoPath: repoInfo.path,
+        commitId,
+      });
+      await refreshStatus(repoInfo.path);
+      await loadCommitHistory();
+    } catch (err) {
+      console.error("Failed to checkout commit:", err);
+      setError("Failed to checkout commit: " + String(err));
+    }
+  };
+
+  const handleCherryPick = async (commitId: string) => {
+    if (!repoInfo) return;
+    try {
+      await invoke("git_cherry_pick_cmd", {
+        repoPath: repoInfo.path,
+        commitId,
+      });
+      await refreshStatus(repoInfo.path);
+      await loadCommitHistory();
+    } catch (err) {
+      console.error("Failed to cherry-pick:", err);
+      setError("Failed to cherry-pick: " + String(err));
+    }
+  };
+
+  const handleRevertCommit = async (commitId: string) => {
+    if (!repoInfo) return;
+    try {
+      await invoke("git_revert_commit_cmd", {
+        repoPath: repoInfo.path,
+        commitId,
+      });
+      await refreshStatus(repoInfo.path);
+      await loadCommitHistory();
+    } catch (err) {
+      console.error("Failed to revert commit:", err);
+      setError("Failed to revert commit: " + String(err));
+    }
+  };
+
+  // ============================================================================
+  // Tags Handlers
+  // ============================================================================
+
+  const loadTags = async () => {
+    if (!repoInfo) return;
+    try {
+      const list = await invoke<TagInfo[]>("git_list_tags_cmd", {
+        repoPath: repoInfo.path,
+      });
+      setTags(list);
+    } catch (err) {
+      console.error("Failed to load tags:", err);
+    }
+  };
+
+  const handleCreateTag = async () => {
+    if (!repoInfo || !newTagName.trim()) return;
+    try {
+      await invoke("git_create_tag_cmd", {
+        repoPath: repoInfo.path,
+        name: newTagName.trim(),
+        commitId: null, // Tag current HEAD
+        message: newTagMessage.trim() || null,
+      });
+      setNewTagName("");
+      setNewTagMessage("");
+      setCreateTagOpen(false);
+      await loadTags();
+    } catch (err) {
+      console.error("Failed to create tag:", err);
+      setError("Failed to create tag: " + String(err));
+    }
+  };
+
+  const handleDeleteTag = async (name: string) => {
+    if (!repoInfo) return;
+    try {
+      await invoke("git_delete_tag_cmd", {
+        repoPath: repoInfo.path,
+        name,
+      });
+      await loadTags();
+    } catch (err) {
+      console.error("Failed to delete tag:", err);
+      setError("Failed to delete tag: " + String(err));
+    }
+  };
+
+  useEffect(() => {
+    if (showTags && repoInfo) {
+      loadTags();
+    }
+  }, [showTags, repoInfo]);
+
   useEffect(() => {
     if (showHistory && repoInfo) {
       loadCommitHistory();
@@ -623,22 +888,6 @@ export const GitPanel: React.FC<GitPanelProps> = ({
       setError(String(err));
     } finally {
       setInitLoading(false);
-    }
-  };
-
-  const handleViewDiff = async (file: GitFileStatus) => {
-    if (!repoInfo) return;
-
-    setSelectedFile(file.path);
-    try {
-      const diff = await invoke<StructuredDiff>("git_get_structured_diff_cmd", {
-        repoPath: repoInfo.path,
-        filePath: file.path,
-      });
-      setStructuredDiff(diff);
-    } catch (err) {
-      console.error("Failed to get diff:", err);
-      setError("Failed to load diff: " + String(err));
     }
   };
 
@@ -789,17 +1038,30 @@ export const GitPanel: React.FC<GitPanelProps> = ({
                       rightSection={
                         !branch.is_head &&
                         !branch.is_remote && (
-                          <ActionIcon
-                            size="xs"
-                            color="red"
-                            variant="subtle"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteBranch(branch.name);
-                            }}
-                          >
-                            <FontAwesomeIcon icon={faTrash} />
-                          </ActionIcon>
+                          <Group gap={4}>
+                            <ActionIcon
+                              size="xs"
+                              variant="subtle"
+                              color="blue"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openRenameModal(branch.name);
+                              }}
+                            >
+                              <FontAwesomeIcon icon={faPencilAlt} />
+                            </ActionIcon>
+                            <ActionIcon
+                              size="xs"
+                              color="red"
+                              variant="subtle"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteBranch(branch.name);
+                              }}
+                            >
+                              <FontAwesomeIcon icon={faTrash} />
+                            </ActionIcon>
+                          </Group>
                         )
                       }
                     >
@@ -816,6 +1078,12 @@ export const GitPanel: React.FC<GitPanelProps> = ({
                 onClick={() => setCreateBranchOpen(true)}
               >
                 Create Branch...
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<FontAwesomeIcon icon={faCodeBranch} />}
+                onClick={openMergeModal}
+              >
+                Merge Branch...
               </Menu.Item>
             </Menu.Dropdown>
           </Menu>
@@ -964,6 +1232,20 @@ export const GitPanel: React.FC<GitPanelProps> = ({
                 </Button>
               )}
             </Group>
+
+            {/* Conflict Warning */}
+            {conflicts.length > 0 && (
+              <Button
+                color="red"
+                fullWidth
+                mb="xs"
+                leftSection={<FontAwesomeIcon icon={faTriangleExclamation} />}
+                onClick={() => setShowConflictResolver(true)}
+              >
+                Resolve {conflicts.length} Conflicts
+              </Button>
+            )}
+
             {stagedFiles.length === 0 ? (
               <Text size="xs" c="dimmed" fs="italic">
                 No staged changes
@@ -1007,6 +1289,15 @@ export const GitPanel: React.FC<GitPanelProps> = ({
                         </Text>
                       </Group>
                       <Group gap={2}>
+                        <Tooltip label="Blame">
+                          <ActionIcon
+                            size="xs"
+                            variant="subtle"
+                            onClick={() => handleBlame(file.path)}
+                          >
+                            <FontAwesomeIcon icon={faHistory} />
+                          </ActionIcon>
+                        </Tooltip>
                         <Tooltip label="Unstage">
                           <ActionIcon
                             size="xs"
@@ -1120,6 +1411,15 @@ export const GitPanel: React.FC<GitPanelProps> = ({
                         </Text>
                       </Group>
                       <Group gap={2}>
+                        <Tooltip label="Blame">
+                          <ActionIcon
+                            size="xs"
+                            variant="subtle"
+                            onClick={() => handleBlame(file.path)}
+                          >
+                            <FontAwesomeIcon icon={faHistory} />
+                          </ActionIcon>
+                        </Tooltip>
                         <Tooltip label="View diff">
                           <ActionIcon
                             size="xs"
@@ -1157,20 +1457,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
           </Box>
 
           {/* Diff Modal */}
-          <Modal
-            opened={structuredDiff !== null}
-            onClose={() => {
-              setStructuredDiff(null);
-              setSelectedFile(null);
-            }}
-            title={`Diff: ${selectedFile?.split("/").pop() || "File"}`}
-            size="90%"
-            styles={{
-              body: { height: "70vh", padding: 0 },
-            }}
-          >
-            {structuredDiff && <DiffViewer diff={structuredDiff} />}
-          </Modal>
+          {/* Modals removed */}
 
           {/* Commit History */}
           <Box>
@@ -1218,16 +1505,18 @@ export const GitPanel: React.FC<GitPanelProps> = ({
               )}
             </Group>
             <Collapse in={showHistory}>
-              <Box h={400} style={{ position: "relative" }}>
-                {/* Fixed height for graph container, or use flex if possible */}
+              <Box h={400} style={{ position: "relative", overflow: "auto" }}>
+                {/* Fixed height for graph container */}
                 {viewMode === "graph" ? (
                   <GitGraph
                     commits={commits}
                     activeCommitId={repoInfo?.head_commit || null}
                     onSelectCommit={(commit) => {
-                      // Handle commit selection (maybe show details modal?)
                       console.log("Selected commit", commit);
                     }}
+                    onCheckoutCommit={handleCheckoutCommit}
+                    onCherryPick={handleCherryPick}
+                    onRevertCommit={handleRevertCommit}
                   />
                 ) : (
                   <Stack gap={2}>
@@ -1323,6 +1612,94 @@ export const GitPanel: React.FC<GitPanelProps> = ({
         </Stack>
       </Modal>
 
+      {/* Conflict Resolver Modal */}
+      <Modal
+        opened={showConflictResolver}
+        onClose={() => setShowConflictResolver(false)}
+        title="Resolve Conflicts"
+        size="xl"
+      >
+        {repoInfo && (
+          <ConflictResolver
+            repoPath={repoInfo.path}
+            files={conflicts}
+            onResolve={() => {
+              setShowConflictResolver(false);
+              refreshStatus(repoInfo.path);
+              checkConflicts(repoInfo.path);
+            }}
+            onCancel={() => setShowConflictResolver(false)}
+          />
+        )}
+      </Modal>
+
+      {/* Rename Branch Modal */}
+      <Modal
+        opened={renameModalOpen}
+        onClose={() => setRenameModalOpen(false)}
+        title="Rename Branch"
+        size="sm"
+      >
+        <Stack>
+          <Text size="sm">
+            Renaming branch: <b>{branchToRename}</b>
+          </Text>
+          <TextInput
+            label="New Name"
+            value={renameBranchName}
+            onChange={(e) => setRenameBranchName(e.currentTarget.value)}
+            data-autofocus
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setRenameModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRenameBranch}>Rename</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Merge Branch Modal */}
+      <Modal
+        opened={mergeModalOpen}
+        onClose={() => setMergeModalOpen(false)}
+        title="Merge Branch"
+        size="sm"
+      >
+        <Stack>
+          <Text size="sm">
+            Select a branch to merge into <b>{repoInfo?.branch || "HEAD"}</b>:
+          </Text>
+          <ScrollArea.Autosize mah={200}>
+            <Stack gap="xs">
+              {availableBranches
+                .filter((b) => b.name !== repoInfo?.branch)
+                .map((b) => (
+                  <Button
+                    key={b.name}
+                    variant={branchToMerge === b.name ? "filled" : "outline"}
+                    color={b.is_remote ? "red" : "blue"}
+                    size="xs"
+                    onClick={() => setBranchToMerge(b.name)}
+                    fullWidth
+                    justify="flex-start"
+                  >
+                    {b.name} {b.is_remote ? "(Remote)" : ""}
+                  </Button>
+                ))}
+            </Stack>
+          </ScrollArea.Autosize>
+          <Group justify="flex-end" mt="md">
+            <Button variant="default" onClick={() => setMergeModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleMergeBranch} disabled={!branchToMerge}>
+              Merge
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       {/* Stash Modal */}
       <Modal
         opened={stashModalOpen}
@@ -1409,6 +1786,100 @@ export const GitPanel: React.FC<GitPanelProps> = ({
           </Collapse>
         </Box>
       )}
+
+      {/* Tags Section */}
+      <Box mt="xs">
+        <Group
+          gap="xs"
+          mb={4}
+          style={{ cursor: "pointer" }}
+          onClick={() => setShowTags(!showTags)}
+        >
+          <FontAwesomeIcon
+            icon={showTags ? faChevronDown : faChevronRight}
+            size="xs"
+          />
+          <Text size="xs" fw={500} tt="uppercase" c="dimmed">
+            Tags ({tags.length})
+          </Text>
+          <ActionIcon
+            size="xs"
+            variant="subtle"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCreateTagOpen(true);
+            }}
+          >
+            <FontAwesomeIcon icon={faPlus} />
+          </ActionIcon>
+        </Group>
+        <Collapse in={showTags}>
+          <Stack gap={2}>
+            {tags.length === 0 ? (
+              <Text size="xs" c="dimmed">
+                No tags
+              </Text>
+            ) : (
+              tags.map((tag) => (
+                <Paper key={tag.name} p={4} withBorder>
+                  <Group justify="space-between" wrap="nowrap">
+                    <Text size="xs" truncate flex={1}>
+                      {tag.name}
+                    </Text>
+                    <Group gap={2}>
+                      <Badge size="xs" variant="light" color="gray">
+                        {tag.commit_id.slice(0, 7)}
+                      </Badge>
+                      <Tooltip label="Delete">
+                        <ActionIcon
+                          size="xs"
+                          variant="subtle"
+                          color="red"
+                          onClick={() => handleDeleteTag(tag.name)}
+                        >
+                          <FontAwesomeIcon icon={faTrash} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                  </Group>
+                </Paper>
+              ))
+            )}
+          </Stack>
+        </Collapse>
+      </Box>
+
+      {/* Create Tag Modal */}
+      <Modal
+        opened={createTagOpen}
+        onClose={() => setCreateTagOpen(false)}
+        title="Create Tag"
+        size="sm"
+      >
+        <Stack gap="md">
+          <TextInput
+            label="Tag Name"
+            placeholder="v1.0.0"
+            value={newTagName}
+            onChange={(e) => setNewTagName(e.currentTarget.value)}
+            data-autofocus
+          />
+          <TextInput
+            label="Message (optional)"
+            placeholder="Release notes..."
+            value={newTagMessage}
+            onChange={(e) => setNewTagMessage(e.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setCreateTagOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateTag} disabled={!newTagName.trim()}>
+              Create Tag
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 };

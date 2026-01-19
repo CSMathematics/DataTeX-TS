@@ -5,11 +5,16 @@ import { subscribeWithSelector } from "zustand/middleware";
 export interface AppTab {
   id: string;
   title: string;
-  type: "editor" | "start-page" | "settings" | "wizard" | "table";
+  type: "editor" | "start-page" | "settings" | "wizard" | "table" | "git-view";
   content?: string;
   tableName?: string;
   language?: string;
   isDirty?: boolean;
+  gitData?: {
+    repoPath: string;
+    filePath: string;
+    initialView: "diff" | "blame";
+  };
 }
 
 interface TabsState {
@@ -138,7 +143,7 @@ export const useTabsStore = create<TabsState>()(
     markDirty: (id: string, isDirty: boolean) => {
       set((state) => ({
         tabs: state.tabs.map((t) =>
-          t.id === id && t.isDirty !== isDirty ? { ...t, isDirty } : t
+          t.id === id && t.isDirty !== isDirty ? { ...t, isDirty } : t,
         ),
       }));
     },
@@ -148,7 +153,7 @@ export const useTabsStore = create<TabsState>()(
       const { activeTabId } = get();
       set((state) => ({
         tabs: state.tabs.map((t) =>
-          t.id === oldId ? { ...t, id: newId, title: newTitle } : t
+          t.id === oldId ? { ...t, id: newId, title: newTitle } : t,
         ),
         activeTabId: activeTabId === oldId ? newId : activeTabId,
       }));
@@ -167,7 +172,7 @@ export const useTabsStore = create<TabsState>()(
     hasTab: (id: string) => {
       return get().tabs.some((t) => t.id === id);
     },
-  }))
+  })),
 );
 
 // Selector hooks for optimized subscriptions

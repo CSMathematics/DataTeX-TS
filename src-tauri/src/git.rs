@@ -36,6 +36,7 @@ pub struct GitCommitInfo {
     pub author_email: String,
     pub timestamp: i64,
     pub parent_ids: Vec<String>,
+    pub refs: Vec<String>,
 }
 
 /// Detect Git repository from a path (searches upward)
@@ -228,16 +229,66 @@ pub fn get_log(
     let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
     let limit = limit.unwrap_or(200) as usize; // Increase default limit for graph
 
+    // NEW: Pre-fetch refs (branches and tags)
+    let mut refs_map: std::collections::HashMap<Oid, Vec<String>> =
+        std::collections::HashMap::new();
+
+    // Get local branches
+    if let Ok(branches) = repo.branches(None) {
+        for branch in branches {
+            if let Ok((b, _)) = branch {
+                if let Ok(Some(name)) = b.name() {
+                    // branches(None) gives local & remote.
+                    // Local: "master", Remote: "origin/master"
+                    if let Some(target) = b.get().target() {
+                        refs_map.entry(target).or_default().push(name.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    // Get tags
+    if let Ok(tags) = repo.tag_names(None) {
+        for tag_name in tags.iter().flatten() {
+            if let Ok(obj) = repo.revparse_single(tag_name) {
+                // For annotated tags, peel to commit
+                let target_id = if let Ok(peeled) = obj.peel_to_commit() {
+                    peeled.id()
+                } else {
+                    obj.id()
+                };
+                // Tag names in `tag_names` are just the suffix (e.g. "v1.0"), but maybe full ref?
+                // usually just "v1.0". Let's verify. `tag_names` returns simple names.
+                refs_map
+                    .entry(target_id)
+                    .or_default()
+                    .push(tag_name.to_string());
+            }
+        }
+    }
+
+    // Also add explicit HEAD if detached?
+    // HEAD usually points to a branch, so it's covered.
+    // If detached, HEAD points to a commit. We might want to label it "HEAD".
+    if let Ok(head) = repo.head() {
+        if !head.is_branch() {
+            if let Some(target) = head.target() {
+                refs_map.entry(target).or_default().push("HEAD".to_string());
+            }
+        }
+    }
+
     let mut revwalk = repo.revwalk().map_err(|e| e.to_string())?;
 
     if all {
         revwalk
             .push_glob("refs/heads/*")
             .map_err(|e| e.to_string())?;
-        // Optional: push remotes too?
-        // revwalk.push_glob("refs/remotes/*").map_err(|e| e.to_string())?;
-        // For now let's just do local heads + HEAD to be safe, or just pushes glob.
-        // If HEAD is detached, push_glob might miss it?
+        // Also push tags to make sure they are included?
+        // revwalk.push_glob("refs/tags/*").ok();
+        // If we want graph to show all tags even if not on main branches:
+        let _ = revwalk.push_glob("refs/tags/*");
         let _ = revwalk.push_head();
     } else {
         revwalk.push_head().map_err(|e| e.to_string())?;
@@ -261,6 +312,8 @@ pub fn get_log(
 
         let parent_ids: Vec<String> = commit.parent_ids().map(|id| id.to_string()).collect();
 
+        let commit_refs = refs_map.get(&oid).cloned().unwrap_or_default();
+
         result.push(GitCommitInfo {
             id: oid.to_string(),
             short_id,
@@ -269,6 +322,7 @@ pub fn get_log(
             author_email: commit.author().email().unwrap_or("").to_string(),
             timestamp: commit.time().seconds(),
             parent_ids,
+            refs: commit_refs,
         });
     }
 
@@ -616,6 +670,144 @@ pub fn delete_branch(repo_path: &str, name: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Merge a branch into the current HEAD
+pub fn merge_branch(repo_path: &str, branch_name: &str) -> Result<String, String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    // 1. Resolve the branch to commit
+    let (_, reference) = repo
+        .revparse_ext(branch_name)
+        .map_err(|e| format!("Branch not found: {}", e))?;
+
+    let annotated_commit = repo
+        .reference_to_annotated_commit(&reference.unwrap())
+        .map_err(|e| e.to_string())?;
+
+    // 2. Analyze merge possibility
+    let analysis = repo
+        .merge_analysis(&[&annotated_commit])
+        .map_err(|e| e.to_string())?;
+
+    if analysis.0.is_fast_forward() {
+        // Fast-forward
+        let reference = repo.find_reference("HEAD").map_err(|e| e.to_string())?;
+        let ref_target = reference.symbolic_target().unwrap().to_string();
+        let mut target_ref = repo
+            .find_reference(&ref_target)
+            .map_err(|e| e.to_string())?;
+
+        target_ref
+            .set_target(annotated_commit.id(), "Fast-Forward")
+            .map_err(|e| e.to_string())?;
+
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .map_err(|e| e.to_string())?;
+
+        return Ok("Fast-forward merge successful".to_string());
+    }
+
+    if analysis.0.is_normal() {
+        // Normal merge
+        repo.merge(&[&annotated_commit], None, None)
+            .map_err(|e| e.to_string())?;
+
+        // Check for conflicts
+        if repo.index().unwrap().has_conflicts() {
+            return Ok("Merge result: Conflicts detected. Please resolve them.".to_string());
+        }
+
+        // Auto-commit if clean
+        let mut index = repo.index().map_err(|e| e.to_string())?;
+        if !index.has_conflicts() {
+            let sig = repo
+                .signature()
+                .unwrap_or_else(|_| Signature::now("DataTeX", "user@datatex.local").unwrap());
+            let head_commit = repo.head().unwrap().peel_to_commit().unwrap();
+            let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+            let commit_msg = format!("Merge branch '{}' into HEAD", branch_name);
+            let other_commit = repo.find_commit(annotated_commit.id()).unwrap();
+
+            repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                &commit_msg,
+                &tree,
+                &[&head_commit, &other_commit],
+            )
+            .map_err(|e| e.to_string())?;
+
+            return Ok("Merge successful".to_string());
+        } else {
+            return Ok("Merge resulted in conflicts. Please resolve and commit.".to_string());
+        }
+    }
+
+    if analysis.0.is_up_to_date() {
+        return Ok("Already up to date.".to_string());
+    }
+
+    Err("Merge analysis failed or unsupported merge type".to_string())
+}
+
+/// Rename a branch
+pub fn rename_branch(repo_path: &str, old_name: &str, new_name: &str) -> Result<(), String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    let mut branch = repo
+        .find_branch(old_name, git2::BranchType::Local)
+        .map_err(|_| format!("Branch {} not found", old_name))?;
+
+    branch
+        .rename(new_name, false)
+        .map_err(|e| format!("Failed to rename: {}", e))?;
+
+    Ok(())
+}
+
+/// Rebase current branch onto uppercase (Simplified)
+pub fn rebase_branch(repo_path: &str, upstream_branch: &str) -> Result<(), String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    let upstream_ref = repo
+        .find_reference(&format!("refs/heads/{}", upstream_branch))
+        .or_else(|_| repo.find_reference(upstream_branch))
+        .map_err(|_| format!("Upstream {} not found", upstream_branch))?;
+
+    let annotated_upstream = repo
+        .reference_to_annotated_commit(&upstream_ref)
+        .map_err(|e| e.to_string())?;
+
+    let mut rebase = repo
+        .rebase(None, Some(&annotated_upstream), None, None)
+        .map_err(|e| format!("Failed to init rebase: {}", e))?;
+
+    while let Some(op) = rebase.next() {
+        if let Err(e) = op {
+            rebase.abort().ok();
+            return Err(format!("Rebase error: {}", e));
+        }
+
+        // Commit this operation
+        let sig = repo
+            .signature()
+            .unwrap_or_else(|_| Signature::now("DataTeX", "user@datatex.local").unwrap());
+        if let Err(e) = rebase.commit(None, &sig, None) {
+            // Conflict?
+            return Err(format!(
+                "Rebase stopped at conflict: {}. Resolve manually.",
+                e
+            ));
+        }
+    }
+
+    rebase
+        .finish(None)
+        .map_err(|e| format!("Failed to finish rebase: {}", e))?;
+
+    Ok(())
+}
+
 /// Remote Info
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RemoteInfo {
@@ -738,9 +930,6 @@ pub fn pull_from_remote(
             .map_err(|e| e.to_string())?;
     } else if analysis.0.is_normal() {
         // Merge
-        let head_commit = repo
-            .reference_to_annotated_commit(&repo.head().unwrap())
-            .unwrap();
         repo.merge(&[&fetch_commit], None, None)
             .map_err(|e| e.to_string())?;
 
@@ -905,4 +1094,431 @@ pub fn commit_amend(repo_path: &str, message: &str) -> Result<String, String> {
         .map_err(|e| e.to_string())?;
 
     Ok(new_oid.to_string())
+}
+
+/// Checkout a specific commit (detached HEAD)
+pub fn checkout_commit(repo_path: &str, commit_id: &str) -> Result<(), String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    let oid = Oid::from_str(commit_id).map_err(|e| e.to_string())?;
+    let commit = repo.find_commit(oid).map_err(|e| e.to_string())?;
+
+    // Checkout the commit's tree
+    let tree = commit.tree().map_err(|e| e.to_string())?;
+
+    repo.checkout_tree(tree.as_object(), None)
+        .map_err(|e| e.to_string())?;
+
+    // Set HEAD to the commit (detached)
+    repo.set_head_detached(oid).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+/// Cherry-pick a commit onto current HEAD
+pub fn cherry_pick(repo_path: &str, commit_id: &str) -> Result<String, String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    let oid = Oid::from_str(commit_id).map_err(|e| e.to_string())?;
+    let commit = repo.find_commit(oid).map_err(|e| e.to_string())?;
+
+    // Get current HEAD
+    let head = repo.head().map_err(|e| e.to_string())?;
+    let head_commit = head.peel_to_commit().map_err(|e| e.to_string())?;
+
+    // Perform cherry-pick (creates an index with the changes)
+    let mut index = repo
+        .cherrypick_commit(&commit, &head_commit, 0, None)
+        .map_err(|e| e.to_string())?;
+
+    if index.has_conflicts() {
+        return Err("Cherry-pick resulted in conflicts. Please resolve manually.".to_string());
+    }
+
+    // Write index to tree
+    let tree_oid = index.write_tree_to(&repo).map_err(|e| e.to_string())?;
+    let tree = repo.find_tree(tree_oid).map_err(|e| e.to_string())?;
+
+    // Create the new commit
+    let sig = repo
+        .signature()
+        .unwrap_or_else(|_| Signature::now("DataTeX User", "user@datatex.local").unwrap());
+
+    let new_commit_oid = repo
+        .commit(
+            Some("HEAD"),
+            &commit.author(),
+            &sig,
+            commit.message().unwrap_or(""),
+            &tree,
+            &[&head_commit],
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(new_commit_oid.to_string())
+}
+
+/// Blame line information
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct BlameInfo {
+    pub line_number: usize,
+    pub commit_id: String,
+    pub short_id: String,
+    pub author: String,
+    pub timestamp: i64,
+    pub line_content: String,
+}
+
+/// Get blame information for a file
+pub fn git_blame(repo_path: &str, file_path: &str) -> Result<Vec<BlameInfo>, String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    // Get the relative path
+    let repo_root = repo.workdir().ok_or("No workdir")?;
+    let abs_path = Path::new(file_path);
+    let rel_path = if abs_path.is_absolute() {
+        abs_path
+            .strip_prefix(repo_root)
+            .map_err(|_| "File not in repo")?
+    } else {
+        abs_path
+    };
+
+    let blame = repo.blame_file(rel_path, None).map_err(|e| e.to_string())?;
+
+    // Read file content to get line content
+    let full_path = repo_root.join(rel_path);
+    let content = std::fs::read_to_string(&full_path).unwrap_or_default();
+    let lines: Vec<&str> = content.lines().collect();
+
+    let mut result = Vec::new();
+
+    for hunk in blame.iter() {
+        let sig = hunk.final_signature();
+        let commit_id = hunk.final_commit_id();
+
+        // Git blame hunks can span multiple lines
+        let start_line = hunk.final_start_line();
+        let num_lines = hunk.lines_in_hunk();
+
+        for offset in 0..num_lines {
+            let line_num = start_line + offset;
+            let line_content = lines
+                .get(line_num.saturating_sub(1))
+                .unwrap_or(&"")
+                .to_string();
+
+            result.push(BlameInfo {
+                line_number: line_num,
+                commit_id: commit_id.to_string(),
+                short_id: commit_id.to_string()[..7.min(commit_id.to_string().len())].to_string(),
+                author: sig.name().unwrap_or("Unknown").to_string(),
+                timestamp: sig.when().seconds(),
+                line_content,
+            });
+        }
+    }
+
+    // Sort by line number
+    result.sort_by_key(|b| b.line_number);
+
+    Ok(result)
+}
+
+/// Tag information
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TagInfo {
+    pub name: String,
+    pub commit_id: String,
+    pub message: Option<String>,
+    pub tagger: Option<String>,
+    pub timestamp: Option<i64>,
+}
+
+/// List all tags
+pub fn list_tags(repo_path: &str) -> Result<Vec<TagInfo>, String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+    let mut tags = Vec::new();
+
+    repo.tag_foreach(|oid, name_bytes| {
+        let name = String::from_utf8_lossy(name_bytes)
+            .trim_start_matches("refs/tags/")
+            .to_string();
+
+        // Try to get tag object (annotated tag) or commit (lightweight tag)
+        if let Ok(obj) = repo.find_object(oid, None) {
+            if let Some(tag) = obj.as_tag() {
+                // Annotated tag
+                tags.push(TagInfo {
+                    name: name.clone(),
+                    commit_id: tag.target_id().to_string(),
+                    message: tag.message().map(|s| s.to_string()),
+                    tagger: tag.tagger().and_then(|t| t.name().map(|n| n.to_string())),
+                    timestamp: tag.tagger().map(|t| t.when().seconds()),
+                });
+            } else if let Ok(commit) = obj.peel_to_commit() {
+                // Lightweight tag
+                tags.push(TagInfo {
+                    name: name.clone(),
+                    commit_id: commit.id().to_string(),
+                    message: None,
+                    tagger: None,
+                    timestamp: Some(commit.time().seconds()),
+                });
+            }
+        }
+        true // Continue iteration
+    })
+    .map_err(|e| e.to_string())?;
+
+    // Sort by name
+    tags.sort_by(|a, b| a.name.cmp(&b.name));
+
+    Ok(tags)
+}
+
+/// Create a new tag
+pub fn create_tag(
+    repo_path: &str,
+    name: &str,
+    commit_id: Option<&str>,
+    message: Option<&str>,
+) -> Result<(), String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    let target_commit = if let Some(id) = commit_id {
+        let oid = Oid::from_str(id).map_err(|e| e.to_string())?;
+        repo.find_commit(oid).map_err(|e| e.to_string())?
+    } else {
+        // Tag current HEAD
+        let head = repo.head().map_err(|e| e.to_string())?;
+        head.peel_to_commit().map_err(|e| e.to_string())?
+    };
+
+    if let Some(msg) = message {
+        // Annotated tag
+        let sig = repo
+            .signature()
+            .unwrap_or_else(|_| Signature::now("DataTeX User", "user@datatex.local").unwrap());
+        repo.tag(name, target_commit.as_object(), &sig, msg, false)
+            .map_err(|e| e.to_string())?;
+    } else {
+        // Lightweight tag
+        repo.tag_lightweight(name, target_commit.as_object(), false)
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+/// Delete a tag
+pub fn delete_tag(repo_path: &str, name: &str) -> Result<(), String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+    repo.tag_delete(name).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Revert a commit
+pub fn revert_commit(repo_path: &str, commit_id: &str) -> Result<String, String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+
+    let oid = Oid::from_str(commit_id).map_err(|e| e.to_string())?;
+    let commit = repo.find_commit(oid).map_err(|e| e.to_string())?;
+
+    // Get current HEAD
+    let head = repo.head().map_err(|e| e.to_string())?;
+    let head_commit = head.peel_to_commit().map_err(|e| e.to_string())?;
+
+    // Revert the commit
+    let mut revert_index = repo
+        .revert_commit(&commit, &head_commit, 0, None)
+        .map_err(|e| e.to_string())?;
+
+    if revert_index.has_conflicts() {
+        return Err("Revert resulted in conflicts. Please resolve manually.".to_string());
+    }
+
+    // Write the index to a tree
+    let tree_oid = revert_index
+        .write_tree_to(&repo)
+        .map_err(|e| e.to_string())?;
+    let tree = repo.find_tree(tree_oid).map_err(|e| e.to_string())?;
+
+    // Create revert commit
+    let sig = repo
+        .signature()
+        .unwrap_or_else(|_| Signature::now("DataTeX User", "user@datatex.local").unwrap());
+
+    let revert_msg = format!(
+        "Revert \"{}\"",
+        commit.message().unwrap_or("").lines().next().unwrap_or("")
+    );
+
+    let new_oid = repo
+        .commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            &revert_msg,
+            &tree,
+            &[&head_commit],
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(new_oid.to_string())
+}
+
+// ============================================================================
+// Conflict Detection
+// ============================================================================
+
+/// Check if there are merge conflicts in the repository
+pub fn has_conflicts(repo_path: &str) -> Result<bool, String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+    let index = repo.index().map_err(|e| e.to_string())?;
+    Ok(index.has_conflicts())
+}
+
+/// Conflict file info
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ConflictFile {
+    pub path: String,
+    pub ancestor_oid: Option<String>,
+    pub our_oid: Option<String>,
+    pub their_oid: Option<String>,
+}
+
+/// Get list of files with conflicts
+pub fn get_conflict_files(repo_path: &str) -> Result<Vec<ConflictFile>, String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+    let index = repo.index().map_err(|e| e.to_string())?;
+
+    let mut conflicts = Vec::new();
+
+    if let Ok(conflict_iter) = index.conflicts() {
+        for conflict in conflict_iter {
+            if let Ok(entry) = conflict {
+                let path = entry
+                    .ancestor
+                    .as_ref()
+                    .or(entry.our.as_ref())
+                    .or(entry.their.as_ref())
+                    .map(|e| String::from_utf8_lossy(&e.path).to_string())
+                    .unwrap_or_default();
+
+                conflicts.push(ConflictFile {
+                    path,
+                    ancestor_oid: entry.ancestor.map(|e| e.id.to_string()),
+                    our_oid: entry.our.map(|e| e.id.to_string()),
+                    their_oid: entry.their.map(|e| e.id.to_string()),
+                });
+            }
+        }
+    }
+
+    Ok(conflicts)
+}
+
+/// Get content of a blob for conflict resolution
+pub fn get_blob_content(repo_path: &str, blob_oid: &str) -> Result<String, String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+    let oid = Oid::from_str(blob_oid).map_err(|e| e.to_string())?;
+    let blob = repo.find_blob(oid).map_err(|e| e.to_string())?;
+
+    let content = std::str::from_utf8(blob.content())
+        .map_err(|_| "Binary file or invalid UTF-8")?
+        .to_string();
+
+    Ok(content)
+}
+
+/// Mark a conflict as resolved by staging the file
+pub fn mark_conflict_resolved(repo_path: &str, file_path: &str) -> Result<(), String> {
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+    let mut index = repo.index().map_err(|e| e.to_string())?;
+
+    // Remove conflict entries and add the working directory version
+    let rel_path = Path::new(file_path);
+    index.add_path(rel_path).map_err(|e| e.to_string())?;
+    index.write().map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+// ============================================================================
+// Side-by-side Diff (Enhanced)
+// ============================================================================
+
+/// Side-by-side diff line
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SideBySideLine {
+    pub left_line_num: Option<usize>,
+    pub right_line_num: Option<usize>,
+    pub left_content: String,
+    pub right_content: String,
+    pub change_type: String, // "unchanged", "added", "removed", "modified"
+}
+
+/// Generate side-by-side diff between two strings
+pub fn generate_side_by_side_diff(old_content: &str, new_content: &str) -> Vec<SideBySideLine> {
+    use similar::{ChangeTag, TextDiff};
+
+    let diff = TextDiff::from_lines(old_content, new_content);
+    let mut result = Vec::new();
+    let mut left_num = 1usize;
+    let mut right_num = 1usize;
+
+    for change in diff.iter_all_changes() {
+        match change.tag() {
+            ChangeTag::Equal => {
+                result.push(SideBySideLine {
+                    left_line_num: Some(left_num),
+                    right_line_num: Some(right_num),
+                    left_content: change.value().trim_end().to_string(),
+                    right_content: change.value().trim_end().to_string(),
+                    change_type: "unchanged".to_string(),
+                });
+                left_num += 1;
+                right_num += 1;
+            }
+            ChangeTag::Delete => {
+                result.push(SideBySideLine {
+                    left_line_num: Some(left_num),
+                    right_line_num: None,
+                    left_content: change.value().trim_end().to_string(),
+                    right_content: String::new(),
+                    change_type: "removed".to_string(),
+                });
+                left_num += 1;
+            }
+            ChangeTag::Insert => {
+                result.push(SideBySideLine {
+                    left_line_num: None,
+                    right_line_num: Some(right_num),
+                    left_content: String::new(),
+                    right_content: change.value().trim_end().to_string(),
+                    change_type: "added".to_string(),
+                });
+                right_num += 1;
+            }
+        }
+    }
+
+    result
+}
+
+/// Get side-by-side diff for a file against HEAD
+pub fn get_side_by_side_diff(
+    repo_path: &str,
+    file_path: &str,
+) -> Result<Vec<SideBySideLine>, String> {
+    let old_content = get_head_file_content(repo_path, file_path).unwrap_or_default();
+
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+    let workdir = repo.workdir().ok_or("No workdir")?;
+    let full_path = workdir.join(file_path);
+
+    let new_content = std::fs::read_to_string(&full_path).map_err(|e| e.to_string())?;
+
+    Ok(generate_side_by_side_diff(&old_content, &new_content))
 }
