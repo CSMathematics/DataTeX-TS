@@ -2,6 +2,7 @@
 
 DataTex is a next-generation LaTeX editor built for speed and usability, leveraging the power of **Tauri**, **React**, and **Rust**. It goes beyond standard editing by offering a suite of visual tools that simplify complex LaTeX tasks.
 
+![[Pasted image 20260120135255.png]]
 ## 🚀 Unique Features
 
 ### ✨ Visual Generators (Wizards)
