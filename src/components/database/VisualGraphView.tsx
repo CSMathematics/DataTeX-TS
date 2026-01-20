@@ -125,7 +125,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
 
   // Fetch graph data from Rust backend when filters or loaded collections change
   const loadedCollections = useDatabaseStore(
-    (state) => state.loadedCollections
+    (state) => state.loadedCollections,
   );
 
   useEffect(() => {
@@ -150,19 +150,13 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
               showDtx: filters.showDtx,
               showIns: filters.showIns,
             },
-          }
-        );
-        console.log(
-          "Graph data from Rust:",
-          data,
-          "collections:",
-          loadedCollections
+          },
         );
         if (active) {
           setGraphData(data);
         }
       } catch (err) {
-        console.error("Failed to fetch graph data:", err);
+        // Failed to fetch graph data
       }
     };
 
@@ -201,7 +195,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
     if (graphRef.current) {
       if (activeResourceId) {
         const node = graphData.nodes.find(
-          (n) => n.id === activeResourceId
+          (n) => n.id === activeResourceId,
         ) as any;
         if (node) {
           // Zoom to node with transition
@@ -242,7 +236,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
         graphRef.current.zoom(4, 2000);
       }
     },
-    [onOpenFile, selectResource]
+    [onOpenFile, selectResource],
   );
 
   const getAccentColor = useCallback(() => {
@@ -617,11 +611,22 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
           width={dimensions.width}
           height={dimensions.height}
           graphData={graphData}
-          dagMode={dagMode as any}
+          dagMode={
+            dagMode as
+              | "td"
+              | "bu"
+              | "lr"
+              | "rl"
+              | "zout"
+              | "zin"
+              | "radialout"
+              | "radialin"
+              | undefined
+          }
           nodeCanvasObject={(
             node: any,
             ctx: CanvasRenderingContext2D,
-            globalScale: number
+            globalScale: number,
           ) => {
             // Node Sizing Application
             const sizeMult = Math.sqrt(node.val || 1);
@@ -660,7 +665,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
                 y,
                 bckgDimensions[0],
                 bckgDimensions[1],
-                4 * sizeMult
+                4 * sizeMult,
               );
             } else {
               ctx.rect(x, y, bckgDimensions[0], bckgDimensions[1]);
@@ -690,7 +695,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
           nodePointerAreaPaint={(
             node: any,
             color: string,
-            ctx: CanvasRenderingContext2D
+            ctx: CanvasRenderingContext2D,
           ) => {
             // Must match the shape drawn in nodeCanvasObject for correct hover detection
             ctx.fillStyle = color;
@@ -700,7 +705,7 @@ export const VisualGraphView = ({ onOpenFile }: VisualGraphViewProps) => {
                 node.x - bckgDimensions[0] / 2,
                 node.y - bckgDimensions[1] / 2,
                 bckgDimensions[0],
-                bckgDimensions[1]
+                bckgDimensions[1],
               );
             }
           }}

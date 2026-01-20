@@ -401,8 +401,7 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
         relationType,
       });
     } catch (err: any) {
-      console.error("Failed to get linked resources", err);
-      console.error("Failed to get linked resources", err);
+      // Failed to get linked resources
       return [];
     }
   },

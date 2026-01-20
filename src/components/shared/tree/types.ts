@@ -119,7 +119,7 @@ export interface UnifiedTreeItemProps {
   onCommitCreation?: (
     name: string,
     type: "file" | "folder",
-    parentPath: string
+    parentPath: string,
   ) => void;
   onCancelCreation?: () => void;
 }
@@ -168,3 +168,6 @@ export interface TreeStateActions {
   toggleExpandState: () => void;
   filterNodes: <T extends TreeNode>(nodes: T[], query: string) => T[];
 }
+// Combined return type for useTreeState hook
+export interface UseTreeReturnType<T extends TreeNode = TreeNode>
+  extends TreeState<T>, TreeStateActions {}

@@ -165,7 +165,7 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
   // Plots
   const [plotExpr, setPlotExpr] = useState("sin(x)");
   const [plotSource, setPlotSource] = useState<"expression" | "data">(
-    "expression"
+    "expression",
   );
   const [plotData, setPlotData] = useState("-2 4\n-1 1\n0 0\n1 1\n2 4");
 
@@ -213,7 +213,7 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
     localStorage.setItem("datatex_wizard_elements", JSON.stringify(elements));
     localStorage.setItem(
       "datatex_wizard_axisParams",
-      JSON.stringify(axisParams)
+      JSON.stringify(axisParams),
     );
     localStorage.setItem("datatex_wizard_shapeType", shapeType);
   }, [elements, axisParams, shapeType]);
@@ -317,7 +317,7 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
 
   const handleUpdateElement = (
     id: string,
-    updates: Partial<SceneElement> | { params: any } | { style: any }
+    updates: Partial<SceneElement> | { params: any } | { style: any },
   ) => {
     setElements((prev) =>
       prev.map((el) => {
@@ -328,9 +328,8 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
         if ("style" in updates && updates.style) {
           return { ...el, style: { ...el.style, ...updates.style } };
         }
-        // @ts-ignore
-        return { ...el, ...updates };
-      })
+        return { ...el, ...updates } as SceneElement;
+      }),
     );
     shouldSkipUpdate.current = false;
   };
@@ -354,7 +353,7 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
     const axes = elements.filter((e) => e.type === "axis");
     // const loosePlots = elements.filter(e => e.type === "plot" && !e.parentId); // Unused currently
     const shapes = elements.filter(
-      (e) => e.type === "shape" || e.type === "text"
+      (e) => e.type === "shape" || e.type === "text",
     );
 
     const getStyleStr = (s: ElementStyle, type: string) => {
@@ -1489,7 +1488,8 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
 
                     const largeArc =
                       Math.abs(
-                        (el.params.angleEnd || 90) - (el.params.angleStart || 0)
+                        (el.params.angleEnd || 90) -
+                          (el.params.angleStart || 0),
                       ) > 180
                         ? 1
                         : 0;

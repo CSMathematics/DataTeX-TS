@@ -44,7 +44,6 @@ export const GraphicxWizard: React.FC<GraphicxWizardProps> = ({ onInsert }) => {
   // --- Handlers ---
   const handleBrowse = async () => {
     try {
-      // @ts-ignore
       const { open } = await import("@tauri-apps/plugin-dialog");
       const selected = await open({
         multiple: false,

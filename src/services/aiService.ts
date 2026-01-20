@@ -16,7 +16,7 @@ export const mockAIProvider: AIProvider = {
   chat: async (_messages) => {
     // ... existing implementation ...
     return new Promise((resolve) =>
-      setTimeout(() => resolve("Mock Response"), 1000)
+      setTimeout(() => resolve("Mock Response"), 1000),
     );
   },
   explainError: async () => "Mock Explanation",
@@ -42,12 +42,10 @@ class OpenAIProvider implements AIProvider {
       });
       if (!response.ok) throw new Error("Failed to fetch OpenAI models");
       const data = await response.json();
-      console.log("[OpenAI] Raw response:", data);
       const models = data.data
         .filter((m: any) => m.id.includes("gpt")) // Filter for relevant models
         .map((m: any) => m.id)
         .sort();
-      console.log("[OpenAI] Filtered models:", models);
       return models;
     } catch (e) {
       console.error(e);
@@ -103,18 +101,16 @@ class GeminiProvider implements AIProvider {
     if (!this.apiKey) return [];
     try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${this.apiKey}`,
       );
       if (!response.ok) throw new Error("Failed to fetch Gemini models");
       const data = await response.json();
-      console.log("[Gemini] Raw response:", data);
       const models = data.models
         .filter((m: any) =>
-          m.supportedGenerationMethods?.includes("generateContent")
+          m.supportedGenerationMethods?.includes("generateContent"),
         )
         .map((m: any) => m.name.replace("models/", "")) // Remove 'models/' prefix
         .sort();
-      console.log("[Gemini] Filtered models:", models);
       return models;
     } catch (e) {
       console.error(e);
@@ -178,9 +174,7 @@ class OllamaProvider implements AIProvider {
       const response = await fetch(endpoint);
       if (!response.ok) throw new Error("Failed to fetch Ollama models");
       const data = await response.json();
-      console.log("[Ollama] Raw response:", data);
       const models = data.models.map((m: any) => m.name).sort();
-      console.log("[Ollama] Filtered models:", models);
       return models;
     } catch (e) {
       console.error(e);
@@ -260,11 +254,6 @@ export const aiProxy = {
           const toolCall = JSON.parse(jsonStr);
 
           if (toolCall.tool && tools[toolCall.tool]) {
-            console.log(
-              `[Agent] Executing tool: ${toolCall.tool}`,
-              toolCall.args
-            );
-
             // Add "Thought" (the raw JSON or surrounding text) to history
             history.push({ role: "assistant", content: response });
 
@@ -283,7 +272,7 @@ export const aiProxy = {
         // Not valid JSON or other error, assume final response
         console.warn(
           "Failed to parse agent response as tool call, assuming final text.",
-          e
+          e,
         );
       }
 

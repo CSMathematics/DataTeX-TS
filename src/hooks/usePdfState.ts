@@ -26,7 +26,6 @@ export function usePdfState({
   onRequirePanelOpen,
 }: UsePdfStateOptions): UsePdfStateReturn {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  // @ts-ignore
   const [syncTexCoords, setSyncTexCoords] = useState<{
     page: number;
     x: number;
@@ -47,7 +46,6 @@ export function usePdfState({
         const pdfPath = filePath.replace(/\.tex$/i, ".pdf");
 
         // Use Tauri to read the file as binary
-        // @ts-ignore
         const { readFile, exists } = await import("@tauri-apps/plugin-fs");
 
         // Add a small delay to ensure file system is flushed
@@ -91,7 +89,6 @@ export function usePdfState({
         const cwd = texPath.substring(0, lastSlash);
 
         // Check if PDF file actually exists on disk
-        // @ts-ignore
         const { exists } = await import("@tauri-apps/plugin-fs");
         const pdfExists = await exists(pdfPath);
 
@@ -114,7 +111,6 @@ export function usePdfState({
           args,
           cwd,
         });
-        console.log("SyncTeX View Result:", result);
 
         // Validate regex matches
         const pageMatch = result.match(/Page:(\d+)/);

@@ -623,7 +623,6 @@ export const EditorArea = React.memo<EditorAreaProps>(
     const handleInsertImage = useCallback(async () => {
       if (!editorInstance) return;
       try {
-        // @ts-ignore
         const { open } = await import("@tauri-apps/plugin-dialog");
         const selectedPath = await open({
           multiple: false,
@@ -663,7 +662,6 @@ export const EditorArea = React.memo<EditorAreaProps>(
 
     const handleOpenFile = useCallback(async () => {
       try {
-        // @ts-ignore
         const { open } = await import("@tauri-apps/plugin-dialog");
         const selectedPath = await open({
           multiple: false,

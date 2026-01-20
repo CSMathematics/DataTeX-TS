@@ -23,18 +23,12 @@ import { PreambleWizard } from "../wizards/PreambleWizard";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import { DynamicMetadataEditor } from "../metadata/DynamicMetadataEditor";
 import { useTypedMetadataStore } from "../../stores/typedMetadataStore";
-// @ts-ignore
 import { readFile, exists } from "@tauri-apps/plugin-fs";
 import { PdfViewerContainer } from "./PdfViewerContainer";
 import { LoadingState, EmptyState, PanelHeader, ToolbarButton } from "../ui";
 import Editor from "@monaco-editor/react";
 import { faCode } from "@fortawesome/free-solid-svg-icons";
 import "../../styles/pdf-viewer.css";
-
-interface ResourceInspectorProps {
-  /** PDF URL from main editor */
-  mainEditorPdfUrl?: string | null;
-}
 
 // Classification Options
 const RESOURCE_KINDS = [
@@ -165,7 +159,6 @@ export const ResourceInspector = ({
 
       setCodeLoading(true);
       try {
-        // @ts-ignore
         const { readTextFile } = await import("@tauri-apps/plugin-fs");
         const content = await readTextFile(resource.path);
         setCodeContent(content);
@@ -388,7 +381,7 @@ export const ResourceInspector = ({
                     resourceId={resource.id}
                     resourceType={resource.kind as any}
                     onSave={() => {
-                      console.log("Metadata saved for", resource.id);
+                      // Metadata saved successfully
                     }}
                   />
                 </Stack>

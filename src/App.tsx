@@ -278,7 +278,6 @@ export default function App() {
       }
 
       try {
-        // @ts-ignore
         const { writeTextFile } = await import("@tauri-apps/plugin-fs");
         await writeTextFile(tab.id, contentToSave);
 
@@ -376,7 +375,6 @@ export default function App() {
           const client = new TexlabLspClient();
           await client.initialize(`file://${rootPath}`);
           lspClientRef.current = client;
-          console.log("LSP client initialized for:", rootPath);
         } catch (error) {
           console.error("Failed to initialize LSP:", error);
         }
@@ -462,7 +460,6 @@ export default function App() {
       try {
         let filePath: string | null = null;
         try {
-          // @ts-ignore
           const { save } = await import("@tauri-apps/plugin-dialog");
           filePath = await save({
             defaultPath: defaultTitle,
@@ -476,7 +473,6 @@ export default function App() {
         if (!filePath) return;
 
         try {
-          // @ts-ignore
           const { writeTextFile } = await import("@tauri-apps/plugin-fs");
           await writeTextFile(filePath, code);
         } catch (e) {
@@ -621,7 +617,6 @@ export default function App() {
 
       let content = "";
       try {
-        // @ts-ignore
         const { readTextFile } = await import("@tauri-apps/plugin-fs");
         content = await readTextFile(node.path);
       } catch (e) {

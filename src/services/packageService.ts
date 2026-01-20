@@ -77,11 +77,14 @@ function getDescription(pkg: CTANPackage): string {
   if (!pkg.descriptions) return pkg.caption || "";
 
   if (Array.isArray(pkg.descriptions)) {
-    // @ts-ignore
-    return pkg.descriptions[0]?.text || pkg.caption || "";
+    // Handle array case (assuming array of objects with text property)
+    const descArray = pkg.descriptions as { text: string }[];
+    return descArray[0]?.text || pkg.caption || "";
   }
-  // @ts-ignore
-  return pkg.descriptions?.description || pkg.caption || "";
+
+  // Handle object case
+  const descObj = pkg.descriptions as { description: string };
+  return descObj.description || pkg.caption || "";
 }
 
 function stripHtml(html: string): string {
@@ -162,7 +165,7 @@ export async function getAllPackages(
   query?: string,
   topic?: string,
   limit: number = 100,
-  offset: number = 0
+  offset: number = 0,
 ): Promise<{ packages: ListPackage[]; total: number }> {
   try {
     const response = await invoke<PackageResponse>("get_packages", {
@@ -193,7 +196,7 @@ export async function getAllPackages(
  * Get package by ID from Rust backend
  */
 export async function getPackageById(
-  id: string
+  id: string,
 ): Promise<EnhancedPackage | undefined> {
   const ctanPkg = await invoke<CTANPackage | null>("get_package_by_id", { id });
   if (!ctanPkg) return undefined;
@@ -213,7 +216,7 @@ export async function getPackagesWithWizards(): Promise<EnhancedPackage[]> {
  * Get packages by category (from wizard registry)
  */
 export async function getPackagesByCategory(
-  category: WizardCategory
+  category: WizardCategory,
 ): Promise<EnhancedPackage[]> {
   const packages = await getPackagesWithWizards();
   return packages.filter((pkg) => pkg.category === category);
@@ -223,7 +226,7 @@ export async function getPackagesByCategory(
  * Get packages by topic (from CTAN data)
  */
 export async function getPackagesByTopic(
-  topicKey: string
+  topicKey: string,
 ): Promise<ListPackage[]> {
   const result = await getAllPackages(undefined, topicKey, 1000); // Higher limit for topics
   return result.packages;
@@ -249,13 +252,11 @@ export async function getAllTopics(): Promise<
 
 /**
  * Get total package count
- * Approximation or new command needed.
- * For now, let's return a hardcoded high number or implement count command.
- * Using 6000+ as placeholder.
+ * Uses the existing get_packages command which returns total count.
  */
 export async function getPackageCount(): Promise<number> {
-  // TODO: Add get_package_count command
-  return 6000;
+  const result = await getAllPackages(undefined, undefined, 1, 0);
+  return result.total;
 }
 
 /**

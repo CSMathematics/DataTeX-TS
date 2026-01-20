@@ -67,7 +67,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
   const [debouncedSearch] = useDebouncedValue(search, 150);
   // Selected package for detail view (null = none selected, storing just the ID)
   const [selectedPackageId, setSelectedPackageId] = useState<string | null>(
-    null
+    null,
   );
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -90,24 +90,17 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
   // Fetch packages when search or topic changes
   useEffect(() => {
     const fetchData = async () => {
-      const startTime = performance.now();
       try {
         const result = await getAllPackages(
           debouncedSearch,
           selectedTopic || undefined,
           ITEMS_PER_PAGE,
-          0
-        );
-        const elapsed = performance.now() - startTime;
-        console.log(
-          `[PackageBrowser] Fetched ${
-            result.total
-          } packages in ${elapsed.toFixed(1)}ms`
+          0,
         );
         setFilteredPackages(result.packages);
         setTotalPackages(result.total);
       } catch (error) {
-        console.error("Failed to fetch packages:", error);
+        // Failed to fetch packages
       }
     };
 
@@ -121,7 +114,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
         debouncedSearch,
         selectedTopic || undefined,
         ITEMS_PER_PAGE,
-        nextOffset
+        nextOffset,
       );
       setFilteredPackages((prev) => [...prev, ...result.packages]);
     } catch (err) {
@@ -362,7 +355,7 @@ export const PackageBrowser: React.FC<PackageBrowserProps> = ({
         {selectedPackageId ? (
           (() => {
             const pkg = filteredPackages.find(
-              (p) => p.id === selectedPackageId
+              (p) => p.id === selectedPackageId,
             );
             if (!pkg) return null;
             return (

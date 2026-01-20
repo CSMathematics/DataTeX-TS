@@ -33,6 +33,7 @@ import { HierarchyEditor } from "./HierarchyEditor";
 import { ManageableSelect } from "./ManageableSelect";
 
 import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { useDatabaseStore } from "../../stores/databaseStore";
 
 // Bibliography Entry Types
 const BIB_ENTRY_TYPES = [
@@ -79,7 +80,7 @@ export const BibliographyMetadataForm: React.FC<
 
   const handleChange = <K extends keyof BibliographyMetadata>(
     field: K,
-    value: BibliographyMetadata[K]
+    value: BibliographyMetadata[K],
   ) => {
     const updated = { ...metadata, [field]: value };
     setMetadata(updated);
@@ -89,14 +90,14 @@ export const BibliographyMetadataForm: React.FC<
   // Helper for list management (Authors, Editors, Translators)
   const handleListChange = (
     field: "authors" | "editors" | "translators",
-    newList: string[]
+    newList: string[],
   ) => {
     handleChange(field, newList.length > 0 ? newList : undefined);
   };
 
   const renderPersonList = (
     label: string,
-    field: "authors" | "editors" | "translators"
+    field: "authors" | "editors" | "translators",
   ) => {
     const list = metadata[field] || [];
     return (
@@ -391,18 +392,33 @@ export const DocumentMetadataForm: React.FC<DocumentMetadataFormProps> = ({
   const [metadata, setMetadata] = useState<DocumentMetadata>(initialMetadata);
   const documentTypes = useTypedMetadataStore((state) => state.documentTypes);
   const createDocumentType = useTypedMetadataStore(
-    (state) => state.createDocumentType
+    (state) => state.createDocumentType,
   );
   const renameDocumentType = useTypedMetadataStore(
-    (state) => state.renameDocumentType
+    (state) => state.renameDocumentType,
   );
   const deleteDocumentType = useTypedMetadataStore(
-    (state) => state.deleteDocumentType
+    (state) => state.deleteDocumentType,
   );
+
+  // Get preambles and documents from loaded resources
+  const allLoadedResources = useDatabaseStore((s) => s.allLoadedResources);
+  const preambleOptions = allLoadedResources
+    .filter((r) => r.kind === "preamble")
+    .map((r) => ({
+      id: r.id,
+      name: r.title || r.path.split(/[\/\\]/).pop() || r.id,
+    }));
+  const documentOptions = allLoadedResources
+    .filter((r) => r.kind === "document")
+    .map((r) => ({
+      id: r.id,
+      name: r.title || r.path.split(/[\/\\]/).pop() || r.id,
+    }));
 
   const handleChange = <K extends keyof DocumentMetadata>(
     field: K,
-    value: DocumentMetadata[K]
+    value: DocumentMetadata[K],
   ) => {
     const updated = { ...metadata, [field]: value };
     setMetadata(updated);
@@ -473,7 +489,7 @@ export const DocumentMetadataForm: React.FC<DocumentMetadataFormProps> = ({
       <CreatableSelect
         label="Preamble"
         placeholder="Select preamble..."
-        data={[]} // TODO: Load preambles from resources
+        data={preambleOptions}
         value={metadata.preambleId}
         onChange={(value) => handleChange("preambleId", value)}
         onCreate={async (name) => ({ id: name, name })}
@@ -537,7 +553,7 @@ export const DocumentMetadataForm: React.FC<DocumentMetadataFormProps> = ({
       <CreatableSelect
         label="Solution Document"
         placeholder="Link to solution document..."
-        data={[]} // TODO: Load documents from resources
+        data={documentOptions}
         value={metadata.solutionDocumentId}
         onChange={(value) => handleChange("solutionDocumentId", value)}
         onCreate={async (name) => ({ id: name, name })}
@@ -570,18 +586,18 @@ export const TableMetadataForm: React.FC<TableMetadataFormProps> = ({
   const [metadata, setMetadata] = useState<TableMetadata>(initialMetadata);
   const tableTypes = useTypedMetadataStore((state) => state.tableTypes);
   const createTableType = useTypedMetadataStore(
-    (state) => state.createTableType
+    (state) => state.createTableType,
   );
   const renameTableType = useTypedMetadataStore(
-    (state) => state.renameTableType
+    (state) => state.renameTableType,
   );
   const deleteTableType = useTypedMetadataStore(
-    (state) => state.deleteTableType
+    (state) => state.deleteTableType,
   );
 
   const handleChange = <K extends keyof TableMetadata>(
     field: K,
-    value: TableMetadata[K]
+    value: TableMetadata[K],
   ) => {
     const updated = { ...metadata, [field]: value };
     setMetadata(updated);
@@ -739,18 +755,18 @@ export const FigureMetadataForm: React.FC<FigureMetadataFormProps> = ({
   const [metadata, setMetadata] = useState<FigureMetadata>(initialMetadata);
   const figureTypes = useTypedMetadataStore((state) => state.figureTypes);
   const createFigureType = useTypedMetadataStore(
-    (state) => state.createFigureType
+    (state) => state.createFigureType,
   );
   const renameFigureType = useTypedMetadataStore(
-    (state) => state.renameFigureType
+    (state) => state.renameFigureType,
   );
   const deleteFigureType = useTypedMetadataStore(
-    (state) => state.deleteFigureType
+    (state) => state.deleteFigureType,
   );
 
   const handleChange = <K extends keyof FigureMetadata>(
     field: K,
-    value: FigureMetadata[K]
+    value: FigureMetadata[K],
   ) => {
     const updated = { ...metadata, [field]: value };
     setMetadata(updated);
@@ -927,18 +943,18 @@ export const CommandMetadataForm: React.FC<CommandMetadataFormProps> = ({
   // Store hooks
   const commandTypes = useTypedMetadataStore((state) => state.commandTypes);
   const createCommandType = useTypedMetadataStore(
-    (state) => state.createCommandType
+    (state) => state.createCommandType,
   );
   const renameCommandType = useTypedMetadataStore(
-    (state) => state.renameCommandType
+    (state) => state.renameCommandType,
   );
   const deleteCommandType = useTypedMetadataStore(
-    (state) => state.deleteCommandType
+    (state) => state.deleteCommandType,
   );
 
   const handleChange = <K extends keyof CommandMetadata>(
     field: K,
-    value: CommandMetadata[K]
+    value: CommandMetadata[K],
   ) => {
     const updated = { ...metadata, [field]: value };
     setMetadata(updated);
@@ -977,7 +993,7 @@ export const CommandMetadataForm: React.FC<CommandMetadataFormProps> = ({
           onChange={(val) =>
             handleChange(
               "argumentsNum",
-              typeof val === "number" ? val : undefined
+              typeof val === "number" ? val : undefined,
             )
           }
         />
@@ -1072,12 +1088,12 @@ export const PackageMetadataForm: React.FC<PackageMetadataFormProps> = ({
   const [metadata, setMetadata] = useState<PackageMetadata>(initialMetadata);
   const packageTopics = useTypedMetadataStore((state) => state.packageTopics);
   const createPackageTopic = useTypedMetadataStore(
-    (state) => state.createPackageTopic
+    (state) => state.createPackageTopic,
   );
 
   const handleChange = <K extends keyof PackageMetadata>(
     field: K,
-    value: PackageMetadata[K]
+    value: PackageMetadata[K],
   ) => {
     const updated = { ...metadata, [field]: value };
     setMetadata(updated);
@@ -1207,25 +1223,25 @@ export const PreambleMetadataForm: React.FC<PreambleMetadataFormProps> = ({
   const [metadata, setMetadata] = useState<PreambleMetadata>(initialMetadata);
   const preambleTypes = useTypedMetadataStore((state) => state.preambleTypes);
   const createPreambleType = useTypedMetadataStore(
-    (state) => state.createPreambleType
+    (state) => state.createPreambleType,
   );
   const renamePreambleType = useTypedMetadataStore(
-    (state) => state.renamePreambleType
+    (state) => state.renamePreambleType,
   );
   const deletePreambleType = useTypedMetadataStore(
-    (state) => state.deletePreambleType
+    (state) => state.deletePreambleType,
   );
 
   const macroCommandTypes = useTypedMetadataStore(
-    (state) => state.macroCommandTypes
+    (state) => state.macroCommandTypes,
   );
   const createMacroCommandType = useTypedMetadataStore(
-    (state) => state.createMacroCommandType
+    (state) => state.createMacroCommandType,
   );
 
   const handleChange = <K extends keyof PreambleMetadata>(
     field: K,
-    value: PreambleMetadata[K]
+    value: PreambleMetadata[K],
   ) => {
     const updated = { ...metadata, [field]: value };
     setMetadata(updated);
@@ -1300,7 +1316,7 @@ export const PreambleMetadataForm: React.FC<PreambleMetadataFormProps> = ({
           onChange={(value) =>
             handleChange(
               "fontSize",
-              typeof value === "number" ? value : undefined
+              typeof value === "number" ? value : undefined,
             )
           }
         />
@@ -1476,7 +1492,7 @@ export const ClassMetadataForm: React.FC<ClassMetadataFormProps> = ({
 
   const handleChange = <K extends keyof ClassMetadata>(
     field: K,
-    value: ClassMetadata[K]
+    value: ClassMetadata[K],
   ) => {
     const updated = { ...metadata, [field]: value };
     setMetadata(updated);
@@ -1527,7 +1543,7 @@ export const ClassMetadataForm: React.FC<ClassMetadataFormProps> = ({
           onChange={(value) =>
             handleChange(
               "fontSize",
-              typeof value === "number" ? value : undefined
+              typeof value === "number" ? value : undefined,
             )
           }
         />
@@ -1630,7 +1646,7 @@ export const DtxMetadataForm: React.FC<DtxMetadataFormProps> = ({
 
   const handleChange = <K extends keyof DtxMetadata>(
     field: K,
-    value: DtxMetadata[K]
+    value: DtxMetadata[K],
   ) => {
     const updated = { ...metadata, [field]: value };
     setMetadata(updated);
@@ -1703,7 +1719,7 @@ export const DtxMetadataForm: React.FC<DtxMetadataFormProps> = ({
         onChange={(e) =>
           handleChange(
             "documentationChecksum",
-            e.currentTarget.value || undefined
+            e.currentTarget.value || undefined,
           )
         }
       />
@@ -1726,7 +1742,7 @@ export const InsMetadataForm: React.FC<InsMetadataFormProps> = ({
 
   const handleChange = <K extends keyof InsMetadata>(
     field: K,
-    value: InsMetadata[K]
+    value: InsMetadata[K],
   ) => {
     const updated = { ...metadata, [field]: value };
     setMetadata(updated);

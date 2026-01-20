@@ -1,18 +1,10 @@
-// @ts-ignore
 import examTemplate from "../templates/latex/exam.tex?raw";
-// @ts-ignore
 import worksheetTemplate from "../templates/latex/worksheet.tex?raw";
-// @ts-ignore
 import notesTemplate from "../templates/latex/notes.tex?raw";
-// @ts-ignore
 import presentationTemplate from "../templates/latex/presentation.tex?raw";
-// @ts-ignore
 import bookTemplate from "../templates/latex/book.tex?raw";
-// @ts-ignore
 import standaloneTemplate from "../templates/latex/standalone.tex?raw";
-// @ts-ignore
 import articleTemplate from "../templates/latex/article.tex?raw";
-// @ts-ignore
 import thesisTemplate from "../templates/latex/thesis.tex?raw";
 
 export interface Template {

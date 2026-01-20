@@ -1,4 +1,4 @@
-import { createTheme, rem } from "@mantine/core";
+import { createTheme } from "@mantine/core";
 
 export const baseTheme = createTheme({
   defaultRadius: "sm",

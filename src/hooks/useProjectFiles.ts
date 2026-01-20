@@ -31,7 +31,7 @@ interface UseProjectFilesReturn {
   handleCreateItem: (
     name: string,
     type: "file" | "folder",
-    parentPath: string
+    parentPath: string,
   ) => Promise<void>;
   handleRenameItem: (node: FileSystemNode, newName: string) => Promise<void>;
   handleDeleteItem: (node: FileSystemNode) => Promise<void>;
@@ -53,7 +53,6 @@ export function useProjectFiles({
 
   // --- HELPER: Load Project Files ---
   const loadFolderNode = async (rootPath: string): Promise<FileSystemNode> => {
-    // @ts-ignore
     const { readDir } = await import("@tauri-apps/plugin-fs");
     const ignoredExtensions = [
       "aux",
@@ -85,8 +84,8 @@ export function useProjectFiles({
           dirPath.endsWith("/") || dirPath.endsWith("\\")
             ? ""
             : dirPath.includes("\\")
-            ? "\\"
-            : "/";
+              ? "\\"
+              : "/";
         const fullPath = `${dirPath}${separator}${name}`;
 
         if (entry.isDirectory) {
@@ -114,8 +113,8 @@ export function useProjectFiles({
         a.type === b.type
           ? a.name.localeCompare(b.name)
           : a.type === "folder"
-          ? -1
-          : 1
+            ? -1
+            : 1,
       );
     };
 
@@ -160,7 +159,6 @@ export function useProjectFiles({
 
   const handleOpenFolder = useCallback(async () => {
     try {
-      // @ts-ignore
       const { open } = await import("@tauri-apps/plugin-dialog");
       const selectedPath = await open({
         directory: true,
@@ -183,7 +181,6 @@ export function useProjectFiles({
 
   const handleAddFolder = useCallback(async () => {
     try {
-      // @ts-ignore
       const { open } = await import("@tauri-apps/plugin-dialog");
       const selectedPath = await open({
         directory: true,
@@ -214,7 +211,7 @@ export function useProjectFiles({
       });
       if (rootPath === folderPath) setRootPath(null);
     },
-    [rootPath]
+    [rootPath],
   );
 
   const handleOpenRecent = useCallback(
@@ -230,7 +227,7 @@ export function useProjectFiles({
         onSetCompileError("Failed to open recent project: " + String(e));
       }
     },
-    [onAddToRecent, onSetActiveActivity, onSetCompileError]
+    [onAddToRecent, onSetActiveActivity, onSetCompileError],
   );
 
   const handleCreateItem = useCallback(
@@ -243,7 +240,6 @@ export function useProjectFiles({
         }
         const separator = basePath.includes("\\") ? "\\" : "/";
         const fullPath = `${basePath}${separator}${name}`;
-        // @ts-ignore
         const { writeTextFile, mkdir } = await import("@tauri-apps/plugin-fs");
         if (type === "file") {
           await writeTextFile(fullPath, "");
@@ -266,17 +262,16 @@ export function useProjectFiles({
         onSetCompileError(`Failed to create ${type}: ${String(e)}`);
       }
     },
-    [rootPath, openTab, onSetCompileError]
+    [rootPath, openTab, onSetCompileError],
   );
 
   const handleRenameItem = useCallback(
     async (node: FileSystemNode, newName: string) => {
       try {
-        // @ts-ignore
         const { rename: renameFs } = await import("@tauri-apps/plugin-fs");
 
         const lastSlashIndex = node.path.lastIndexOf(
-          node.path.includes("\\") ? "\\" : "/"
+          node.path.includes("\\") ? "\\" : "/",
         );
         const parentDir = node.path.substring(0, lastSlashIndex);
         const separator = node.path.includes("\\") ? "\\" : "/";
@@ -296,20 +291,18 @@ export function useProjectFiles({
         onSetCompileError(`Failed to rename: ${String(e)}`);
       }
     },
-    [renameTab, onSetCompileError]
+    [renameTab, onSetCompileError],
   );
 
   const handleDeleteItem = useCallback(
     async (node: FileSystemNode) => {
       try {
-        // @ts-ignore
         const { remove } = await import("@tauri-apps/plugin-fs");
-        // @ts-ignore
         const { confirm } = await import("@tauri-apps/plugin-dialog");
 
         const confirmed = await confirm(
           `Are you sure you want to delete '${node.name}'?`,
-          { title: "Delete Item", kind: "warning" }
+          { title: "Delete Item", kind: "warning" },
         );
         if (!confirmed) return;
 
@@ -327,13 +320,12 @@ export function useProjectFiles({
         onSetCompileError(`Failed to delete: ${String(e)}`);
       }
     },
-    [closeTab, onSetCompileError]
+    [closeTab, onSetCompileError],
   );
 
   const handleMoveItem = useCallback(
     async (sourcePath: string, targetPath: string) => {
       try {
-        // @ts-ignore
         const { rename: renameFs } = await import("@tauri-apps/plugin-fs");
 
         const sourceName = sourcePath.split(/[/\\]/).pop();
@@ -360,7 +352,7 @@ export function useProjectFiles({
         onSetCompileError(`Failed to move item: ${String(e)}`);
       }
     },
-    [renameTab, onSetCompileError]
+    [renameTab, onSetCompileError],
   );
 
   return {

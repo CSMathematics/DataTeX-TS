@@ -36,9 +36,6 @@ export function useCompilation({
   const handleCompile = useCallback(
     async (engine?: string) => {
       if (!activeTab || !activeTab.id || !isTexFile) {
-        console.warn(
-          "[COMPILER DEBUG] Compile aborted: No active tab or not a tex file."
-        );
         return;
       }
 
@@ -46,11 +43,6 @@ export function useCompilation({
       await onSave(activeTab.id);
 
       const filePath = activeTab.id;
-      console.log(
-        `[COMPILER DEBUG] Starting compilation for: ${filePath} with engine: ${
-          engine || "default"
-        }`
-      );
 
       try {
         setIsCompiling(true);
@@ -77,10 +69,7 @@ export function useCompilation({
               if (config.synctex) args.push("-synctex=1");
               if (config.shellEscape) args.push("-shell-escape");
             } catch (e) {
-              console.warn(
-                "[COMPILER DEBUG] Failed to parse config, using defaults",
-                e
-              );
+              // Failed to parse config, using defaults
             }
           }
         }
@@ -91,9 +80,7 @@ export function useCompilation({
         const resource = allResources.find((r) => r.path === filePath);
 
         if (resource && resource.metadata && resource.metadata.preamble) {
-          console.log(
-            `[COMPILER DEBUG] Modular resource detected (Preamble: ${resource.metadata.preamble}). Using compile_resource_cmd.`
-          );
+          // Modular resource detected, using compile_resource_cmd
           // Use the specific command that handles wrapping
           // We can ignore the returned path since we forced it to be standard filename.pdf
           await invoke("compile_resource_cmd", { id: resource.id });
@@ -109,17 +96,11 @@ export function useCompilation({
 
         setPdfRefreshTrigger((prev) => prev + 1);
       } catch (error: any) {
-        console.error(
-          "[COMPILER DEBUG] Compilation Failed (Rust Error):",
-          error
-        );
         setCompileError(String(error));
       } finally {
         try {
-          // @ts-ignore
-          const { exists, readTextFile } = await import(
-            "@tauri-apps/plugin-fs"
-          );
+          const { exists, readTextFile } =
+            await import("@tauri-apps/plugin-fs");
           const logPath = filePath.replace(/\.tex$/i, ".log");
           const doesLogExist = await exists(logPath);
           if (doesLogExist) {
@@ -130,12 +111,12 @@ export function useCompilation({
             if (hasErrors) setShowLogPanel(true);
           }
         } catch (e) {
-          console.error("[COMPILER DEBUG] Failed to read/parse log file:", e);
+          // Failed to read/parse log file
         }
         setIsCompiling(false);
       }
     },
-    [activeTab, isTexFile, onSave]
+    [activeTab, isTexFile, onSave],
   );
 
   const handleStopCompile = useCallback(() => {

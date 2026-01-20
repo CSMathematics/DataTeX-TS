@@ -76,7 +76,7 @@ const PdfToolbar = memo(
           }
         }
       },
-      [numPages, onPageChange]
+      [numPages, onPageChange],
     );
 
     return (
@@ -223,7 +223,7 @@ const PdfToolbar = memo(
         </Group>
       </Group>
     );
-  }
+  },
 );
 
 PdfToolbar.displayName = "PdfToolbar";
@@ -268,7 +268,6 @@ export const PdfViewerContainer = memo(
 
     // Reset page when URL changes
     useEffect(() => {
-      console.log("PdfViewerContainer: pdfUrl changed to:", pdfUrl);
       setCurrentPage(1);
       setLoading(true);
       setError(null);
@@ -299,7 +298,7 @@ export const PdfViewerContainer = memo(
               maxRatio = entry.intersectionRatio;
               const pageNum = parseInt(
                 entry.target.getAttribute("data-page-num") || "1",
-                10
+                10,
               );
               visiblePage = pageNum;
             }
@@ -312,7 +311,7 @@ export const PdfViewerContainer = memo(
         {
           root: containerRef.current,
           threshold: [0.1, 0.3, 0.5, 0.7],
-        }
+        },
       );
 
       // Observe all pages
@@ -339,7 +338,7 @@ export const PdfViewerContainer = memo(
           }, 500);
         }
       },
-      [numPages]
+      [numPages],
     );
 
     const onDocumentLoadSuccess = useCallback(
@@ -348,7 +347,7 @@ export const PdfViewerContainer = memo(
         setLoading(false);
         setError(null);
       },
-      []
+      [],
     );
 
     const onDocumentLoadError = useCallback((err: Error) => {
@@ -370,7 +369,7 @@ export const PdfViewerContainer = memo(
           height: page.originalHeight,
         });
       },
-      []
+      [],
     );
 
     const handleZoomIn = useCallback(() => {
@@ -431,13 +430,13 @@ export const PdfViewerContainer = memo(
             const y = e.clientY - rect.top;
             const pageNum = parseInt(
               pageElement.getAttribute("data-page-number") || "1",
-              10
+              10,
             );
             onSyncTexInverse(pageNum, x, y);
           }
         }
       },
-      [onSyncTexInverse]
+      [onSyncTexInverse],
     );
 
     if (!pdfUrl) {
@@ -556,7 +555,7 @@ export const PdfViewerContainer = memo(
         </Box>
       </Box>
     );
-  }
+  },
 );
 
 PdfViewerContainer.displayName = "PdfViewerContainer";
