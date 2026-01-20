@@ -271,7 +271,7 @@ export function getColumnsForKind(kind: string): ColumnDef[] {
 // Merge schema columns with any extra metadata keys found in resources
 export function getColumnsWithDiscoveredMeta(
   kind: string,
-  metaKeys: Set<string>
+  metaKeys: Set<string>,
 ): ColumnDef[] {
   const schemaColumns = getColumnsForKind(kind);
   const schemaKeys = new Set(schemaColumns.map((c) => c.key));
@@ -290,7 +290,7 @@ export function getColumnsWithDiscoveredMeta(
   });
 
   return [...schemaColumns, ...extraColumns].sort(
-    (a, b) => a.priority - b.priority
+    (a, b) => a.priority - b.priority,
   );
 }
 
@@ -304,7 +304,7 @@ export function loadColumnPreferences(): {
 } {
   try {
     const visibleColumns = JSON.parse(
-      localStorage.getItem(STORAGE_KEY_VISIBLE_COLUMNS) || "[]"
+      localStorage.getItem(STORAGE_KEY_VISIBLE_COLUMNS) || "[]",
     );
     const kindFilter = localStorage.getItem(STORAGE_KEY_KIND_FILTER) || "all";
     return { visibleColumns, kindFilter };
@@ -315,11 +315,11 @@ export function loadColumnPreferences(): {
 
 export function saveColumnPreferences(
   visibleColumns: string[],
-  kindFilter: string
+  kindFilter: string,
 ): void {
   localStorage.setItem(
     STORAGE_KEY_VISIBLE_COLUMNS,
-    JSON.stringify(visibleColumns)
+    JSON.stringify(visibleColumns),
   );
   localStorage.setItem(STORAGE_KEY_KIND_FILTER, kindFilter);
 }

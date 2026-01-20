@@ -29,7 +29,7 @@
      inkscape:document-units="mm"
      showgrid="false"
      inkscape:zoom="5.0770192"
-     inkscape:cx="22.355637"
+     inkscape:cx="22.060188"
      inkscape:cy="17.529971"
      inkscape:window-width="1920"
      inkscape:window-height="1009"
@@ -67,7 +67,10 @@
        style="fill:url(#linearGradient4);stroke-width:0.504674;stroke-linejoin:bevel;paint-order:stroke markers fill"
        d="m 323.39015,-383.71924 h 7.83167 c 0.76221,0 1.37583,0.61362 1.37583,1.37584 v 7.83166 c 0,0.76222 -0.61362,1.37584 -1.37583,1.37584 h -7.83167 c -0.76222,0 -1.37584,-0.61362 -1.37584,-1.37584 v -7.83166 c 0,-0.76222 0.61362,-1.37584 1.37584,-1.37584 z" /><g
        id="g10"
-       style="fill:#b3f3ff;fill-opacity:1"><g
+       style="fill:#b3f3ff;fill-opacity:1"
+       inkscape:export-filename="./datatex_icon.png"
+       inkscape:export-xdpi="144.11"
+       inkscape:export-ydpi="144.11"><g
          id="g8631-5-3"
          transform="matrix(0.10906299,0,0,0.10906299,316.43005,-392.59167)"
          style="fill:#b3f3ff;fill-opacity:1"><path

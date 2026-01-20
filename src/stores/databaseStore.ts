@@ -98,6 +98,12 @@ interface DatabaseState {
   // Graph
   graphLinks: GraphLink[];
   fetchGraphLinks: () => Promise<void>;
+
+  // Insert Mode
+  insertMode: boolean;
+  insertTargetDocumentId: string | null;
+  setInsertMode: (active: boolean, targetDocId?: string | null) => void;
+  toggleInsertMode: (targetDocId?: string | null) => void;
 }
 
 export interface GraphLink {
@@ -474,5 +480,22 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
     } catch (err) {
       console.error("Failed to fetch graph links", err);
     }
+  },
+
+  // Insert Mode
+  insertMode: false,
+  insertTargetDocumentId: null,
+  setInsertMode: (active: boolean, targetDocId?: string | null) => {
+    set({
+      insertMode: active,
+      insertTargetDocumentId: active ? (targetDocId ?? null) : null,
+    });
+  },
+  toggleInsertMode: (targetDocId?: string | null) => {
+    const { insertMode } = get();
+    set({
+      insertMode: !insertMode,
+      insertTargetDocumentId: !insertMode ? (targetDocId ?? null) : null,
+    });
   },
 }));

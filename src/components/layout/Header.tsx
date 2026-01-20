@@ -10,7 +10,6 @@ import {
 } from "@mantine/core";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faDatabase,
   faSave,
   faFolderOpen,
   faFileCirclePlus,
@@ -31,6 +30,7 @@ import {
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { IconSparkles2 } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
+import { DataTeXLogo } from "../icons/DataTeXLogo";
 
 interface HeaderProps {
   onNewFile: () => void;
@@ -120,17 +120,8 @@ export const HeaderContent: React.FC<HeaderProps> = ({
       data-tauri-drag-region
     >
       <Group data-tauri-drag-region>
-        <Group gap={6} mr="lg" style={{ userSelect: "none" }}>
-          <FontAwesomeIcon
-            icon={faDatabase}
-            style={{ width: 18, height: 18, color: "var(--app-accent-color)" }}
-          />
-          <Text fw={700} size="sm" c="dimmed">
-            DataTex{" "}
-            <Text span size="xs" c="dimmed">
-              v2.0
-            </Text>
-          </Text>
+        <Group gap={0} mr="lg" style={{ userSelect: "none" }}>
+          <DataTeXLogo size={24} color="var(--mantine-primary-color-filled)" />
         </Group>
         <Group gap={0} visibleFrom="sm">
           {/* FILE MENU */}
@@ -531,7 +522,7 @@ export const HeaderContent: React.FC<HeaderProps> = ({
             <ActionIcon
               variant="subtle"
               size="sm"
-              color={showLeftSidebar ? "blue" : "gray.7"}
+              color={showLeftSidebar ? "blue" : "gray.5"}
               onClick={onToggleLeftSidebar}
             >
               <IconLayoutSidebarFilled size={16} />
@@ -551,7 +542,7 @@ export const HeaderContent: React.FC<HeaderProps> = ({
             <ActionIcon
               variant="subtle"
               size="sm"
-              color={showDatabasePanel ? "blue" : "gray.7"}
+              color={showDatabasePanel ? "blue" : "gray.5"}
               onClick={onToggleDatabasePanel}
             >
               <IconDatabase size={16} />
@@ -571,7 +562,7 @@ export const HeaderContent: React.FC<HeaderProps> = ({
             <ActionIcon
               variant="subtle"
               size="sm"
-              color="gray.7"
+              color="gray.5"
               onClick={onToggleDatabasePosition}
             >
               <FontAwesomeIcon
@@ -596,7 +587,7 @@ export const HeaderContent: React.FC<HeaderProps> = ({
             <ActionIcon
               variant="subtle"
               size="sm"
-              color={showRightSidebar ? "blue" : "gray.7"}
+              color={showRightSidebar ? "blue" : "gray.5"}
               onClick={onToggleRightSidebar}
             >
               {showRightSidebar ? (

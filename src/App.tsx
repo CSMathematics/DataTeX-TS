@@ -57,6 +57,7 @@ import { PackageBrowser } from "./components/tools/PackageBrowser";
 import { templates, getTemplateById } from "./services/templateService";
 
 import { AISidebar } from "./components/ai/AISidebar";
+import { UnsavedChangesModal } from "./components/modals/UnsavedChangesModal";
 
 import {
   latexLanguage,
@@ -256,6 +257,10 @@ export default function App() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
     null,
   );
+
+  // --- Unsaved Changes Modal State ---
+  const [unsavedChangesModalOpen, setUnsavedChangesModalOpen] = useState(false);
+  const [tabToCloseId, setTabToCloseId] = useState<string | null>(null);
 
   // --- Derived State (from Zustand selectors) ---
   const activeTab = useActiveTab();
@@ -572,18 +577,9 @@ export default function App() {
 
       const tab = tabs.find((t) => t.id === id);
       if (tab && tab.isDirty) {
-        // @ts-ignore
-        const { confirm } = await import("@tauri-apps/plugin-dialog");
-        const confirmed = await confirm(
-          `You have unsaved changes in '${tab.title}'.\nAre you sure you want to close it?`,
-          {
-            title: "Unsaved Changes",
-            kind: "warning",
-            okLabel: "Close",
-            cancelLabel: "Cancel",
-          },
-        );
-        if (!confirmed) return;
+        setTabToCloseId(id);
+        setUnsavedChangesModalOpen(true);
+        return;
       }
 
       // Use store's closeTab - it handles everything
@@ -593,6 +589,28 @@ export default function App() {
     },
     [tabs, closeTabStore],
   );
+
+  const handleConfirmSave = useCallback(async () => {
+    if (tabToCloseId) {
+      await handleSave(tabToCloseId);
+      closeTabStore(tabToCloseId);
+      setUnsavedChangesModalOpen(false);
+      setTabToCloseId(null);
+    }
+  }, [tabToCloseId, handleSave, closeTabStore]);
+
+  const handleConfirmDiscard = useCallback(() => {
+    if (tabToCloseId) {
+      closeTabStore(tabToCloseId);
+      setUnsavedChangesModalOpen(false);
+      setTabToCloseId(null);
+    }
+  }, [tabToCloseId, closeTabStore]);
+
+  const handleCancelClose = useCallback(() => {
+    setUnsavedChangesModalOpen(false);
+    setTabToCloseId(null);
+  }, []);
 
   const handleOpenFileNode = useCallback(
     async (node: FileSystemNode) => {
@@ -1190,7 +1208,32 @@ export default function App() {
                         overflow: "hidden",
                       }}
                     >
-                      <DatabaseView onOpenFile={handleOpenFileFromTable} />
+                      <DatabaseView
+                        onOpenFile={handleOpenFileFromTable}
+                        canInsert={(() => {
+                          if (!activeTab) return false;
+
+                          // 1. Check Metadata
+                          const resource = useDatabaseStore
+                            .getState()
+                            .allLoadedResources.find(
+                              (r) =>
+                                r.path === activeTab.id ||
+                                r.id === activeTab.id,
+                            );
+                          if (resource && resource.kind === "document")
+                            return true;
+
+                          // 2. Fallback: Check content
+                          if (
+                            activeTab.content &&
+                            activeTab.content.includes("\\documentclass")
+                          )
+                            return true;
+
+                          return false;
+                        })()}
+                      />
                     </Box>
                     <ResizerHandle
                       onMouseDown={startResizeDatabase}
@@ -1306,7 +1349,32 @@ export default function App() {
                             overflow: "hidden",
                           }}
                         >
-                          <DatabaseView onOpenFile={handleOpenFileFromTable} />
+                          <DatabaseView
+                            onOpenFile={handleOpenFileFromTable}
+                            canInsert={(() => {
+                              if (!activeTab) return false;
+
+                              // 1. Check Metadata
+                              const resource = useDatabaseStore
+                                .getState()
+                                .allLoadedResources.find(
+                                  (r) =>
+                                    r.path === activeTab.id ||
+                                    r.id === activeTab.id,
+                                );
+                              if (resource && resource.kind === "document")
+                                return true;
+
+                              // 2. Fallback: Check content
+                              if (
+                                activeTab.content &&
+                                activeTab.content.includes("\\documentclass")
+                              )
+                                return true;
+
+                              return false;
+                            })()}
+                          />
                         </Box>
                       </>
                     )}
@@ -1449,6 +1517,30 @@ export default function App() {
                         mainEditorPdfUrl={pdfUrl}
                         syncTexCoords={syncTexCoords}
                         pdfRefreshTrigger={pdfRefreshTrigger}
+                        onInsertFragment={handleInsertSnippet}
+                        canInsert={(() => {
+                          if (!activeTab) return false;
+
+                          // 1. Check Metadata
+                          const resource = useDatabaseStore
+                            .getState()
+                            .allLoadedResources.find(
+                              (r) =>
+                                r.path === activeTab.id ||
+                                r.id === activeTab.id,
+                            );
+                          if (resource && resource.kind === "document")
+                            return true;
+
+                          // 2. Fallback: Check content
+                          if (
+                            activeTab.content &&
+                            activeTab.content.includes("\\documentclass")
+                          )
+                            return true;
+
+                          return false;
+                        })()}
                       />
                     )}
                   </Box>
@@ -1651,6 +1743,13 @@ export default function App() {
           </Modal>
         </AppShell>
       </DndContext>
+      <UnsavedChangesModal
+        opened={unsavedChangesModalOpen}
+        onClose={handleCancelClose}
+        onDiscard={handleConfirmDiscard}
+        onSave={handleConfirmSave}
+        fileName={tabs.find((t) => t.id === tabToCloseId)?.title || "this file"}
+      />
     </MantineProvider>
   );
 }

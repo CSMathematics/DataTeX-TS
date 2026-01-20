@@ -270,9 +270,9 @@ const GraphicxConfig = ({ onChange }: { onChange: (code: string) => void }) => {
   useEffect(
     () =>
       onChange(
-        `\\begin{figure}[h]\n  \\centering\n  \\includegraphics[width=0.8\\textwidth]{image.png}\n  \\caption{Caption}\n  \\label{fig:my_label}\n\\end{figure}`
+        `\\begin{figure}[h]\n  \\centering\n  \\includegraphics[width=0.8\\textwidth]{image.png}\n  \\caption{Caption}\n  \\label{fig:my_label}\n\\end{figure}`,
       ),
-    []
+    [],
   );
   return (
     <Text c="dimmed" size="sm" fs="italic">
@@ -294,7 +294,7 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({
   // --- PACKAGE DATABASE STATE ---
   const [showPackageDB, setShowPackageDB] = useState(false);
   const [selectedPackages, setSelectedPackages] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [pkgSearch, setPkgSearch] = useState("");
   const [dbPackages, setDbPackages] = useState<ListPackage[]>([]);
@@ -304,7 +304,7 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({
     if (showPackageDB) {
       const timeout = setTimeout(() => {
         getAllPackages(pkgSearch, undefined, 100).then((res) =>
-          setDbPackages(res.packages)
+          setDbPackages(res.packages),
         );
       }, 300);
       return () => clearTimeout(timeout);
@@ -719,7 +719,7 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({
           )}
           {activePackage?.hasWizard &&
             !["amsmath", "listings", "minted", "graphicx"].includes(
-              selectedPkgId
+              selectedPkgId,
             ) && (
               <Stack align="center" mt="xl">
                 <Text>This package has a dedicated Full Wizard.</Text>

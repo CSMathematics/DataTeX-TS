@@ -1003,7 +1003,7 @@ export const DatabaseSidebar = ({ onOpenFileNode }: DatabaseSidebarProps) => {
               }
             }}
             style={{
-              paddingLeft: `calc(${level * indentSize}rem + 4px)`,
+              paddingLeft: `calc(${level * indentSize}rem + 0px)`,
               paddingTop: 2,
               paddingBottom: 2,
               cursor: "pointer",
@@ -1056,21 +1056,18 @@ export const DatabaseSidebar = ({ onOpenFileNode }: DatabaseSidebarProps) => {
             </Text>
 
             {isCollectionRoot && (
-              <Group gap={0} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
+              <Group gap={1} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
                 <Tooltip label={t("database.newFile")} withArrow position="top">
                   <ActionIcon
-                    size="sm"
+                    size="xs"
                     variant="subtle"
-                    color="gray"
+                    color="gray.4"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleStartCreation(node.label as string, "file");
                     }}
                   >
-                    <FontAwesomeIcon
-                      icon={faFile}
-                      style={{ width: 12, height: 12 }}
-                    />
+                    <FontAwesomeIcon icon={faFile} style={{ height: 12 }} />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip
@@ -1079,18 +1076,15 @@ export const DatabaseSidebar = ({ onOpenFileNode }: DatabaseSidebarProps) => {
                   position="top"
                 >
                   <ActionIcon
-                    size="sm"
+                    size="xs"
                     variant="subtle"
-                    color="gray"
+                    color="gray.4"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleStartCreation(node.label as string, "folder");
                     }}
                   >
-                    <FontAwesomeIcon
-                      icon={faFolder}
-                      style={{ width: 12, height: 12 }}
-                    />
+                    <FontAwesomeIcon icon={faFolder} style={{ height: 12 }} />
                   </ActionIcon>
                 </Tooltip>
                 {/* Import Actions */}
@@ -1100,18 +1094,15 @@ export const DatabaseSidebar = ({ onOpenFileNode }: DatabaseSidebarProps) => {
                   position="top"
                 >
                   <ActionIcon
-                    size="sm"
+                    size="xs"
                     variant="subtle"
-                    color="blue"
+                    color="gray.4"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleImportFileToCollection(node.label as string);
                     }}
                   >
-                    <FontAwesomeIcon
-                      icon={faPlus}
-                      style={{ width: 12, height: 12 }}
-                    />
+                    <FontAwesomeIcon icon={faPlus} style={{ height: 12 }} />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip
@@ -1120,9 +1111,9 @@ export const DatabaseSidebar = ({ onOpenFileNode }: DatabaseSidebarProps) => {
                   position="top"
                 >
                   <ActionIcon
-                    size="sm"
+                    size="xs"
                     variant="subtle"
-                    color="blue"
+                    color="gray.4"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleAddFolderToCollection(node.label as string);
@@ -1130,14 +1121,14 @@ export const DatabaseSidebar = ({ onOpenFileNode }: DatabaseSidebarProps) => {
                   >
                     <FontAwesomeIcon
                       icon={faFolderOpen}
-                      style={{ width: 12, height: 12 }}
+                      style={{ height: 12 }}
                     />
                   </ActionIcon>
                 </Tooltip>
 
                 <Tooltip label={t("common.delete")} withArrow position="top">
                   <ActionIcon
-                    size="sm"
+                    size="xs"
                     variant="subtle"
                     color="red"
                     disabled={
@@ -1151,10 +1142,7 @@ export const DatabaseSidebar = ({ onOpenFileNode }: DatabaseSidebarProps) => {
                       handleDeleteSelected();
                     }}
                   >
-                    <FontAwesomeIcon
-                      icon={faTrash}
-                      style={{ width: 12, height: 12 }}
-                    />
+                    <FontAwesomeIcon icon={faTrash} style={{ height: 12 }} />
                   </ActionIcon>
                 </Tooltip>
               </Group>

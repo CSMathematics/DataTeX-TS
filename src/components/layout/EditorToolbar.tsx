@@ -134,9 +134,13 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
         render: () => (
           <Group
             gap={2}
-            bg="var(--mantine-color-body)"
+            bg="var(--app-panel-bg)"
             p={2}
-            style={{ borderRadius: 4, flexShrink: 0 }}
+            style={{
+              borderRadius: 4,
+              flexShrink: 0,
+              border: "1px solid var(--mantine-color-default-border)",
+            }}
           >
             <Tooltip label={t("editorToolbar.bold")}>
               <ActionIcon
@@ -145,7 +149,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapSelection("\\textbf{", "}")}
               >
-                <FontAwesomeIcon icon={faBold} />
+                <FontAwesomeIcon icon={faBold} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.italic")}>
@@ -155,7 +159,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapSelection("\\textit{", "}")}
               >
-                <FontAwesomeIcon icon={faItalic} />
+                <FontAwesomeIcon icon={faItalic} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.underline")}>
@@ -165,7 +169,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapSelection("\\underline{", "}")}
               >
-                <FontAwesomeIcon icon={faUnderline} />
+                <FontAwesomeIcon icon={faUnderline} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.strikethrough")}>
@@ -175,7 +179,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapSelection("\\st{", "}")}
               >
-                <FontAwesomeIcon icon={faStrikethrough} />
+                <FontAwesomeIcon icon={faStrikethrough} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.text")}>
@@ -185,7 +189,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapSelection("\\text{", "}")}
               >
-                <FontAwesomeIcon icon={faFont} />
+                <FontAwesomeIcon icon={faFont} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.highlight")}>
@@ -195,7 +199,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapSelection("\\hl{", "}")}
               >
-                <FontAwesomeIcon icon={faPen} />
+                <FontAwesomeIcon icon={faPen} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.code")}>
@@ -205,7 +209,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapSelection("\\texttt{", "}")}
               >
-                <FontAwesomeIcon icon={faCode} />
+                <FontAwesomeIcon icon={faCode} size="xs" />
               </ActionIcon>
             </Tooltip>
           </Group>
@@ -216,9 +220,13 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
         render: () => (
           <Group
             gap={2}
-            bg="var(--mantine-color-body)"
+            bg="var(--app-panel-bg)"
             p={2}
-            style={{ borderRadius: 4, flexShrink: 0 }}
+            style={{
+              borderRadius: 4,
+              flexShrink: 0,
+              border: "1px solid var(--mantine-color-default-border)",
+            }}
           >
             <StructureMenu label="H1" cmd="chapter" />
             <StructureMenu label="H2" cmd="section" />
@@ -233,9 +241,13 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
         render: () => (
           <Group
             gap={2}
-            bg="var(--mantine-color-body)"
+            bg="var(--app-panel-bg)"
             p={2}
-            style={{ borderRadius: 4, flexShrink: 0 }}
+            style={{
+              borderRadius: 4,
+              flexShrink: 0,
+              border: "1px solid var(--mantine-color-default-border)",
+            }}
           >
             <Tooltip label={t("editorToolbar.alignLeft")}>
               <ActionIcon
@@ -244,7 +256,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapEnvironment("flushleft")}
               >
-                <FontAwesomeIcon icon={faAlignLeft} />
+                <FontAwesomeIcon icon={faAlignLeft} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.alignCenter")}>
@@ -254,7 +266,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapEnvironment("center")}
               >
-                <FontAwesomeIcon icon={faAlignCenter} />
+                <FontAwesomeIcon icon={faAlignCenter} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.alignRight")}>
@@ -264,12 +276,12 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapEnvironment("flushright")}
               >
-                <FontAwesomeIcon icon={faAlignRight} />
+                <FontAwesomeIcon icon={faAlignRight} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.justify")}>
               <ActionIcon variant="subtle" size="xs" color="gray.5" disabled>
-                <FontAwesomeIcon icon={faAlignJustify} />
+                <FontAwesomeIcon icon={faAlignJustify} size="xs" />
               </ActionIcon>
             </Tooltip>
           </Group>
@@ -280,9 +292,13 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
         render: () => (
           <Group
             gap={2}
-            bg="var(--mantine-color-body)"
+            bg="var(--app-panel-bg)"
             p={2}
-            style={{ borderRadius: 4, flexShrink: 0 }}
+            style={{
+              borderRadius: 4,
+              flexShrink: 0,
+              border: "1px solid var(--mantine-color-default-border)",
+            }}
           >
             <Tooltip label={t("editorToolbar.quote")}>
               <ActionIcon
@@ -291,7 +307,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapEnvironment("quote")}
               >
-                <FontAwesomeIcon icon={faQuoteRight} />
+                <FontAwesomeIcon icon={faQuoteRight} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.ellipsis")}>
@@ -301,7 +317,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => insertText("\\dots")}
               >
-                <FontAwesomeIcon icon={faEllipsisH} />
+                <FontAwesomeIcon icon={faEllipsisH} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.bulletList")}>
@@ -313,7 +329,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                   insertText("\\begin{itemize}\n  \\item \n\\end{itemize}")
                 }
               >
-                <FontAwesomeIcon icon={faListUl} />
+                <FontAwesomeIcon icon={faListUl} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.numberedList")}>
@@ -325,7 +341,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                   insertText("\\begin{enumerate}\n  \\item \n\\end{enumerate}")
                 }
               >
-                <FontAwesomeIcon icon={faListOl} />
+                <FontAwesomeIcon icon={faListOl} size="xs" />
               </ActionIcon>
             </Tooltip>
           </Group>
@@ -336,9 +352,13 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
         render: () => (
           <Group
             gap={2}
-            bg="var(--mantine-color-body)"
+            bg="var(--app-panel-bg)"
             p={2}
-            style={{ borderRadius: 4, flexShrink: 0 }}
+            style={{
+              borderRadius: 4,
+              flexShrink: 0,
+              border: "1px solid var(--mantine-color-default-border)",
+            }}
           >
             <Tooltip label={t("editorToolbar.inlineMath")}>
               <ActionIcon
@@ -371,7 +391,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapSelection("_{", "}")}
               >
-                <FontAwesomeIcon icon={faSubscript} />
+                <FontAwesomeIcon icon={faSubscript} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.superscript")}>
@@ -381,7 +401,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapSelection("^{", "}")}
               >
-                <FontAwesomeIcon icon={faSuperscript} />
+                <FontAwesomeIcon icon={faSuperscript} size="xs" />
               </ActionIcon>
             </Tooltip>
           </Group>
@@ -392,9 +412,13 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
         render: () => (
           <Group
             gap={2}
-            bg="var(--mantine-color-body)"
+            bg="var(--app-panel-bg)"
             p={2}
-            style={{ borderRadius: 4, flexShrink: 0 }}
+            style={{
+              borderRadius: 4,
+              flexShrink: 0,
+              border: "1px solid var(--mantine-color-default-border)",
+            }}
           >
             <Tooltip label={t("editorToolbar.horizontalSpace")}>
               <ActionIcon
@@ -428,9 +452,13 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
         render: () => (
           <Group
             gap={2}
-            bg="var(--mantine-color-body)"
+            bg="var(--app-panel-bg)"
             p={2}
-            style={{ borderRadius: 4, flexShrink: 0 }}
+            style={{
+              borderRadius: 4,
+              flexShrink: 0,
+              border: "1px solid var(--mantine-color-default-border)",
+            }}
           >
             <Tooltip label={t("editorToolbar.link")}>
               <ActionIcon
@@ -439,19 +467,19 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
                 color="gray.5"
                 onClick={() => wrapSelection("\\href{url}{", "}")}
               >
-                <FontAwesomeIcon icon={faLink} />
+                <FontAwesomeIcon icon={faLink} size="xs" />
               </ActionIcon>
             </Tooltip>
             <Tooltip label={t("editorToolbar.unlink")}>
               <ActionIcon variant="subtle" size="xs" color="gray.5" disabled>
-                <FontAwesomeIcon icon={faUnlink} />
+                <FontAwesomeIcon icon={faUnlink} size="xs" />
               </ActionIcon>
             </Tooltip>
           </Group>
         ),
       },
     ],
-    [editor, t]
+    [editor, t],
   );
 
   // --- Responsive Logic ---
@@ -468,7 +496,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
     // If we haven't measured yet, and we have refs
     if (!measurementsDone && ghostRefs.current.length > 0) {
       const widths = ghostRefs.current.map(
-        (el) => el?.getBoundingClientRect().width || 0
+        (el) => el?.getBoundingClientRect().width || 0,
       );
       // Ensure we actually got ALL measurements (elements were rendered)
       if (
@@ -486,7 +514,7 @@ export const EditorToolbar = React.memo<EditorToolbarProps>(({ editor }) => {
     const timer = setTimeout(() => {
       if (!measurementsDone && ghostRefs.current.length > 0) {
         const widths = ghostRefs.current.map(
-          (el) => el?.getBoundingClientRect().width || 0
+          (el) => el?.getBoundingClientRect().width || 0,
         );
         // Use whatever we have, even if some are 0
         setGroupWidths(widths);

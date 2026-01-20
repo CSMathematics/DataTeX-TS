@@ -17,6 +17,7 @@ import {
   faBook,
   faTimes,
   faMagic,
+  faPlus,
 } from "@fortawesome/free-solid-svg-icons";
 import { PreambleWizard } from "../wizards/PreambleWizard";
 import { useDatabaseStore } from "../../stores/databaseStore";
@@ -26,6 +27,8 @@ import { useTypedMetadataStore } from "../../stores/typedMetadataStore";
 import { readFile, exists } from "@tauri-apps/plugin-fs";
 import { PdfViewerContainer } from "./PdfViewerContainer";
 import { LoadingState, EmptyState, PanelHeader, ToolbarButton } from "../ui";
+import Editor from "@monaco-editor/react";
+import { faCode } from "@fortawesome/free-solid-svg-icons";
 import "../../styles/pdf-viewer.css";
 
 interface ResourceInspectorProps {
@@ -53,12 +56,16 @@ interface ResourceInspectorProps {
   mainEditorPdfUrl?: string | null;
   syncTexCoords?: { page: number; x: number; y: number } | null;
   pdfRefreshTrigger?: number;
+  onInsertFragment?: (code: string) => void;
+  canInsert?: boolean;
 }
 
 export const ResourceInspector = ({
   mainEditorPdfUrl,
   syncTexCoords,
   pdfRefreshTrigger,
+  onInsertFragment,
+  canInsert,
 }: ResourceInspectorProps) => {
   const { t } = useTranslation();
   const { allLoadedResources, activeResourceId } = useDatabaseStore();
@@ -66,6 +73,11 @@ export const ResourceInspector = ({
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+
+  // Code Preview state
+  const [codeContent, setCodeContent] = useState<string>("");
+  const [codeLoading, setCodeLoading] = useState(false);
+  const insertMode = useDatabaseStore((state) => state.insertMode);
 
   // Initialize typed metadata lookup data
   const loadAllLookupData = useTypedMetadataStore(
@@ -131,6 +143,42 @@ export const ResourceInspector = ({
       if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
     };
   }, [resource?.path, pdfRefreshTrigger]);
+
+  // Load Code when resource changes
+  useEffect(() => {
+    const loadCode = async () => {
+      if (!resource) {
+        setCodeContent("");
+        return;
+      }
+
+      // Only load code for .tex, .sty, .cls, .bib files
+      const codeExtensions = [".tex", ".sty", ".cls", ".bib", ".dtx", ".ins"];
+      const hasCodeExtension = codeExtensions.some((ext) =>
+        resource.path.toLowerCase().endsWith(ext),
+      );
+
+      if (!hasCodeExtension) {
+        setCodeContent("");
+        return;
+      }
+
+      setCodeLoading(true);
+      try {
+        // @ts-ignore
+        const { readTextFile } = await import("@tauri-apps/plugin-fs");
+        const content = await readTextFile(resource.path);
+        setCodeContent(content);
+      } catch (e) {
+        console.warn("Code load failed:", e);
+        setCodeContent(`% Failed to load: ${String(e)}`);
+      } finally {
+        setCodeLoading(false);
+      }
+    };
+
+    loadCode();
+  }, [resource?.path]);
 
   const { isWizardOpen, setWizardOpen, createResource } = useDatabaseStore();
 
@@ -237,6 +285,15 @@ export const ResourceInspector = ({
                   </Tabs.Tab>
                 )}
               </>
+            )}
+            {/* Code tab - only show in Insert Mode or for tex files */}
+            {resource && insertMode && resource.path.endsWith(".tex") && (
+              <Tabs.Tab
+                value="code"
+                leftSection={<FontAwesomeIcon icon={faCode} />}
+              >
+                Code
+              </Tabs.Tab>
             )}
           </Tabs.List>
 
@@ -346,6 +403,72 @@ export const ResourceInspector = ({
                 <Text c="dimmed" size="sm">
                   {t("database.inspector.bibMessage")}
                 </Text>
+              </Box>
+            </Tabs.Panel>
+          )}
+
+          {/* Code Tab - Read-only Monaco Editor */}
+          {resource && (insertMode || resource.path.endsWith(".tex")) && (
+            <Tabs.Panel value="code" style={{ flex: 1, position: "relative" }}>
+              <Box
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                {/* Insert button header */}
+                {insertMode && canInsert && onInsertFragment && (
+                  <Group
+                    p="xs"
+                    style={{
+                      borderBottom:
+                        "1px solid var(--mantine-color-default-border)",
+                      backgroundColor:
+                        "color-mix(in srgb, var(--app-accent-color), transparent 90%)",
+                    }}
+                  >
+                    <Text size="xs" fw={600} c="blue">
+                      INSERT MODE
+                    </Text>
+                    <ToolbarButton
+                      label="Insert at Cursor"
+                      icon={faPlus}
+                      onClick={() => {
+                        if (codeContent) {
+                          const snippet =
+                            `% Inserted from: ${resource.title || resource.path}\n` +
+                            codeContent;
+                          onInsertFragment(snippet);
+                        }
+                      }}
+                    />
+                  </Group>
+                )}
+
+                {codeLoading ? (
+                  <LoadingState message="Loading code..." />
+                ) : codeContent ? (
+                  <Editor
+                    value={codeContent}
+                    language="my-latex"
+                    theme="data-tex-dark"
+                    options={{
+                      readOnly: true,
+                      minimap: { enabled: true, scale: 2 },
+                      lineNumbers: "on",
+                      scrollBeyondLastLine: false,
+                      wordWrap: "on",
+                      fontSize: 12,
+                    }}
+                  />
+                ) : (
+                  <EmptyState message="No code content available." />
+                )}
               </Box>
             </Tabs.Panel>
           )}

@@ -67,7 +67,7 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
 
     const currentResource = useMemo(
       () => allResources.find((r) => r.path === activeFilePath),
-      [allResources, activeFilePath]
+      [allResources, activeFilePath],
     );
 
     // --- Clipboard Handlers ---
@@ -342,7 +342,7 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
             <ActionIcon
               size={buttonSize}
               variant="subtle"
-              color="gray.7"
+              color="gray.5"
               onClick={onTogglePdf}
             >
               <FontAwesomeIcon
@@ -359,7 +359,7 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
             <ActionIcon
               size={buttonSize}
               variant="subtle"
-              color="gray.7"
+              color="gray.5"
               onClick={handleSaveClick}
             >
               <FontAwesomeIcon
@@ -378,7 +378,7 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
           <ActionIcon
             size={buttonSize}
             variant="subtle"
-            color="gray.7"
+            color="gray.5"
             onClick={handleCopy}
           >
             <FontAwesomeIcon
@@ -391,7 +391,7 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
           <ActionIcon
             size={buttonSize}
             variant="subtle"
-            color="gray.7"
+            color="gray.5"
             onClick={handleCut}
           >
             <FontAwesomeIcon
@@ -404,7 +404,7 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
           <ActionIcon
             size={buttonSize}
             variant="subtle"
-            color="gray.7"
+            color="gray.5"
             onClick={handlePaste}
           >
             <FontAwesomeIcon
@@ -422,7 +422,7 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
           <ActionIcon
             size={buttonSize}
             variant="subtle"
-            color="gray.7"
+            color="gray.5"
             onClick={handleUndo}
           >
             <FontAwesomeIcon
@@ -435,7 +435,7 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
           <ActionIcon
             size={buttonSize}
             variant="subtle"
-            color="gray.7"
+            color="gray.5"
             onClick={handleRedo}
           >
             <FontAwesomeIcon
@@ -450,7 +450,7 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
           <ActionIcon
             size={buttonSize}
             variant="subtle"
-            color="gray.7"
+            color="gray.5"
             onClick={handleFind}
           >
             <FontAwesomeIcon
@@ -514,7 +514,7 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
                       onClick={async () => {
                         if (
                           confirm(
-                            "Remove file from collection? (File will not be deleted)"
+                            "Remove file from collection? (File will not be deleted)",
                           )
                         ) {
                           await deleteResource(currentResource.id);
@@ -551,7 +551,7 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
                 <Menu shadow="md" width={200}>
                   <Menu.Target>
                     <Tooltip label="Add to Collection">
-                      <ActionIcon variant="subtle" size="xs" color="gray.7">
+                      <ActionIcon variant="subtle" size="xs" color="gray.5">
                         <FontAwesomeIcon icon={faPlusCircle} />
                       </ActionIcon>
                     </Tooltip>
@@ -590,5 +590,5 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
           )}
       </Group>
     );
-  }
+  },
 );

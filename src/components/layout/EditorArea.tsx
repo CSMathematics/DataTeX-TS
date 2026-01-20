@@ -731,7 +731,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
             >
               <Group gap={4}>
                 <Text size="xs" c="dimmed">
-                  DataTex
+                  {currentResource?.collection}
                 </Text>
                 {activeFile && (
                   <>
@@ -750,7 +750,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                 <Menu shadow="md" width={180}>
                   <Menu.Target>
                     <Tooltip label="New File">
-                      <ActionIcon size="xs" variant="subtle" color="gray.7">
+                      <ActionIcon size="xs" variant="subtle" color="gray.5">
                         <FontAwesomeIcon
                           icon={faFileCirclePlus}
                           style={{ width: 14, height: 14 }}
@@ -776,7 +776,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                   <ActionIcon
                     size="xs"
                     variant="subtle"
-                    color="gray.7"
+                    color="gray.5"
                     onClick={handleOpenFile}
                   >
                     <FontAwesomeIcon
@@ -945,7 +945,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                     <ActionIcon
                       size="xs"
                       variant="subtle"
-                      color="gray.7"
+                      color="gray.5"
                       onClick={onTogglePdf}
                     >
                       <FontAwesomeIcon
@@ -962,7 +962,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                       <ActionIcon
                         size="xs"
                         variant="subtle"
-                        color="gray.7"
+                        color="gray.5"
                         onClick={handleSaveClick}
                       >
                         <FontAwesomeIcon
@@ -980,7 +980,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                       <ActionIcon
                         size="xs"
                         variant="subtle"
-                        color="gray.7"
+                        color="gray.5"
                         onClick={handleCopy}
                       >
                         <FontAwesomeIcon
@@ -993,7 +993,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                       <ActionIcon
                         size="xs"
                         variant="subtle"
-                        color="gray.7"
+                        color="gray.5"
                         onClick={handleCut}
                       >
                         <FontAwesomeIcon
@@ -1006,7 +1006,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                       <ActionIcon
                         size="xs"
                         variant="subtle"
-                        color="gray.7"
+                        color="gray.5"
                         onClick={handlePaste}
                       >
                         <FontAwesomeIcon
@@ -1019,7 +1019,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                       <ActionIcon
                         size="xs"
                         variant="subtle"
-                        color="gray.7"
+                        color="gray.5"
                         onClick={handleUndo}
                       >
                         <FontAwesomeIcon
@@ -1032,7 +1032,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                       <ActionIcon
                         size="xs"
                         variant="subtle"
-                        color="gray.7"
+                        color="gray.5"
                         onClick={handleRedo}
                       >
                         <FontAwesomeIcon
@@ -1045,7 +1045,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                       <ActionIcon
                         size="xs"
                         variant="subtle"
-                        color="gray.7"
+                        color="gray.5"
                         onClick={handleFind}
                       >
                         <FontAwesomeIcon
@@ -1060,7 +1060,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                       <ActionIcon
                         size="xs"
                         variant="subtle"
-                        color="gray.7"
+                        color="gray.5"
                         onClick={handleInsertImage}
                       >
                         <FontAwesomeIcon
@@ -1169,7 +1169,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                             <ActionIcon
                               variant="subtle"
                               size="xs"
-                              color="gray.7"
+                              color="gray.5"
                             >
                               <FontAwesomeIcon icon={faPlusCircle} />
                             </ActionIcon>
@@ -1222,7 +1222,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                       <ActionIcon
                         size="xs"
                         variant="subtle"
-                        color="gray.7"
+                        color="gray.5"
                         onClick={handleToggleTopToolbar}
                       >
                         <IconLayoutBottombarCollapseFilled
@@ -1240,7 +1240,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                       <ActionIcon
                         size="xs"
                         variant="subtle"
-                        color="gray.7"
+                        color="gray.5"
                         onClick={handleToggleMathToolbar}
                       >
                         <IconLayoutSidebarLeftCollapseFilled />

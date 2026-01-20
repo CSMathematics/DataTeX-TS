@@ -53,7 +53,7 @@ const lightBlue: UITheme = {
         statusBarBg: "var(--mantine-color-blue-8)",
         panelBg: "var(--mantine-color-gray-0)",
       },
-    })
+    }),
   ),
 };
 
@@ -72,7 +72,7 @@ const lightGray: UITheme = {
         statusBarBg: "#495057", // Gray 7
         panelBg: "#f8f9fa",
       },
-    })
+    }),
   ),
 };
 
@@ -91,7 +91,7 @@ const lightTeal: UITheme = {
         statusBarBg: "var(--mantine-color-teal-8)",
         panelBg: "#c3fae8",
       },
-    })
+    }),
   ),
 };
 
@@ -110,10 +110,10 @@ const darkBlue: UITheme = {
         appBg: "#1A1B1E", // Dark 7
         sidebarBg: "#141517", // Dark 8 (Activity bar)
         headerBg: "#1A1B1E", // Dark 7
-        statusBarBg: "#235fce", // Original blue
+        statusBarBg: "#25262b", // Original blue
         panelBg: "#25262b", // Dark 6 (Sidebars)
       },
-    })
+    }),
   ),
 };
 
@@ -145,9 +145,9 @@ const darkDeep: UITheme = {
         sidebarBg: "#000000",
         headerBg: "#000000",
         statusBarBg: "var(--mantine-color-violet-9)",
-        panelBg: "#101113", // Slightly lighter
+        panelBg: "#1c1d20", // Slightly lighter
       },
-    })
+    }),
   ),
 };
 
@@ -181,7 +181,7 @@ const darkMonokai: UITheme = {
         statusBarBg: "#ae81ff", // Purple
         panelBg: "#272822",
       },
-    })
+    }),
   ),
 };
 
@@ -215,7 +215,7 @@ const darkNord: UITheme = {
         statusBarBg: "#5e81ac", // Nord10
         panelBg: "#3b4252",
       },
-    })
+    }),
   ),
 };
 
@@ -238,7 +238,7 @@ const generateColorPalette = (hex: string): MantineColorsTuple => {
 export const getTheme = (
   id: string,
   customThemes: CustomTheme[] = [],
-  overrides?: CustomThemeOverrides
+  overrides?: CustomThemeOverrides,
 ): UITheme => {
   // 1. Check if it's a standard theme
   let base: UITheme = THEMES[id];
@@ -267,7 +267,7 @@ export const getTheme = (
 
 const applyOverrides = (
   base: UITheme,
-  overrides: CustomThemeOverrides
+  overrides: CustomThemeOverrides,
 ): UITheme => {
   const themeOverride: MantineThemeOverride = {
     other: {},
@@ -313,7 +313,7 @@ const applyOverrides = (
     ...base,
     theme: mergeMantineTheme(
       base.theme as MantineTheme,
-      createTheme(themeOverride)
+      createTheme(themeOverride),
     ),
   };
 };

@@ -38,6 +38,7 @@ import {
   faTable,
   faColumns,
   faExchangeAlt,
+  faFileImport,
 } from "@fortawesome/free-solid-svg-icons";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import { invoke } from "@tauri-apps/api/core";
@@ -54,6 +55,7 @@ import {
 interface DatabaseViewProps {
   onOpenFile?: (path: string) => void;
   onOpenTemplateModal?: () => void;
+  canInsert?: boolean;
 }
 
 type SortDirection = "asc" | "desc" | null;
@@ -64,25 +66,32 @@ interface SortState {
 }
 
 export const DatabaseView = React.memo(
-  ({ onOpenFile, onOpenTemplateModal }: DatabaseViewProps) => {
+  ({ onOpenFile, onOpenTemplateModal, canInsert }: DatabaseViewProps) => {
     const { t } = useTranslation();
     // Granular selectors - prevents re-renders when unrelated state changes
     const allLoadedResources = useDatabaseStore(
-      (state) => state.allLoadedResources
+      (state) => state.allLoadedResources,
     );
     const loadedCollections = useDatabaseStore(
-      (state) => state.loadedCollections
+      (state) => state.loadedCollections,
     );
     const selectResource = useDatabaseStore((state) => state.selectResource);
     const activeResourceId = useDatabaseStore(
-      (state) => state.activeResourceId
+      (state) => state.activeResourceId,
     );
     const deleteResource = useDatabaseStore((state) => state.deleteResource);
     const moveResource = useDatabaseStore((state) => state.moveResource);
     const fullCollections = useDatabaseStore((state) => state.collections); // Get all collections for move list
+    const insertMode = useDatabaseStore((state) => state.insertMode);
+    const toggleInsertMode = useDatabaseStore(
+      (state) => state.toggleInsertMode,
+    );
+    const insertTargetDocumentId = useDatabaseStore(
+      (state) => state.insertTargetDocumentId,
+    );
     const [globalSearch, setGlobalSearch] = useState("");
     const [columnFilters, setColumnFilters] = useState<Record<string, string>>(
-      {}
+      {},
     );
     const [sort, setSort] = useState<SortState>({
       column: null,
@@ -91,6 +100,11 @@ export const DatabaseView = React.memo(
     const [viewMode, setViewMode] = useState<"table" | "graph">("table");
     const scrollViewportRef = useRef<HTMLDivElement>(null);
     const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+
+    // Multi-selection state
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    // Last clicked ID for shift-selection range
+    const [lastClickedId, setLastClickedId] = useState<string | null>(null);
 
     // New: Kind filter and column visibility state with persistence
     const [kindFilter, setKindFilter] = useState<string>(() => {
@@ -131,7 +145,7 @@ export const DatabaseView = React.memo(
           r.path.toLowerCase().endsWith(".sty") ||
           r.path.toLowerCase().endsWith(".cls") ||
           r.path.toLowerCase().endsWith(".dtx") ||
-          r.path.toLowerCase().endsWith(".ins")
+          r.path.toLowerCase().endsWith(".ins"),
       );
       if (kindFilter && kindFilter !== "all") {
         result = result.filter((r) => r.kind === kindFilter);
@@ -196,7 +210,7 @@ export const DatabaseView = React.memo(
             r.title?.toLowerCase().includes(searchLower) ||
             r.id.toLowerCase().includes(searchLower) ||
             r.collection.toLowerCase().includes(searchLower) ||
-            JSON.stringify(r.metadata).toLowerCase().includes(searchLower)
+            JSON.stringify(r.metadata).toLowerCase().includes(searchLower),
         );
       }
 
@@ -243,21 +257,56 @@ export const DatabaseView = React.memo(
     }, [allLoadedResources, globalSearch, columnFilters, sort]);
 
     const handleRowClick = useCallback(
-      (id: string, path: string) => {
-        selectResource(id);
-        if (onOpenFile) {
+      (id: string, path: string, event: React.MouseEvent) => {
+        // Multi-selection logic
+        if (event.ctrlKey || event.metaKey) {
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+              next.delete(id);
+            } else {
+              next.add(id);
+            }
+            return next;
+          });
+          setLastClickedId(id);
+          // Also set active resource for preview if it's the only one or just clicked
+          selectResource(id);
+        } else if (event.shiftKey && lastClickedId) {
+          // Find range
+          const allIds = filteredData.map((r) => r.id);
+          const start = allIds.indexOf(lastClickedId);
+          const end = allIds.indexOf(id);
+
+          if (start !== -1 && end !== -1) {
+            const range = allIds.slice(
+              Math.min(start, end),
+              Math.max(start, end) + 1,
+            );
+            setSelectedIds(new Set(range));
+          }
+          selectResource(id);
+        } else {
+          // Single select
+          setSelectedIds(new Set([id]));
+          setLastClickedId(id);
+          selectResource(id);
+        }
+
+        // In Insert Mode, do NOT open files in main editor - just select for preview
+        if (onOpenFile && !event.ctrlKey && !event.shiftKey && !insertMode) {
           // Optional: automatically open file on single click?
           // current behavior in original code was select + open
-          // Keeping it consistent
-          onOpenFile(path);
+          // Keeping it consistent but maybe debounce this if single click is select
+          onOpenFile(path); // This was original behavior
         }
       },
-      [selectResource, onOpenFile]
+      [selectResource, onOpenFile, filteredData, lastClickedId, insertMode],
     );
 
     const activeResource = useMemo(
       () => allLoadedResources.find((r) => r.id === activeResourceId),
-      [allLoadedResources, activeResourceId]
+      [allLoadedResources, activeResourceId],
     );
 
     const handleRevealInFileExplorer = async () => {
@@ -282,7 +331,7 @@ export const DatabaseView = React.memo(
       if (activeResourceId) {
         if (
           confirm(
-            "Are you sure you want to remove this file from the database? The physical file will NOT be deleted."
+            "Are you sure you want to remove this file from the database? The physical file will NOT be deleted.",
           )
         ) {
           await deleteResource(activeResourceId);
@@ -313,7 +362,7 @@ export const DatabaseView = React.memo(
                   extensions: ["tex"],
                 },
               ],
-            })
+            }),
         );
 
         if (selectedPath) {
@@ -371,7 +420,7 @@ export const DatabaseView = React.memo(
                   ],
                 },
               ],
-            })
+            }),
         );
 
         if (selectedPath) {
@@ -402,6 +451,7 @@ export const DatabaseView = React.memo(
           display: "flex",
           flexDirection: "column",
           borderRight: "1px solid var(--mantine-color-gray-8)",
+          border: insertMode ? "2px solid var(--app-accent-color)" : undefined,
         }}
       >
         {/* Toolbar */}
@@ -422,6 +472,11 @@ export const DatabaseView = React.memo(
               <Badge size="xs" variant="light">
                 {filteredData.length} files
               </Badge>
+              {insertMode && (
+                <Badge size="xs" color="blue" variant="filled">
+                  INSERT MODE
+                </Badge>
+              )}
             </Group>
 
             <Group gap="xs">
@@ -497,7 +552,7 @@ export const DatabaseView = React.memo(
                   <Menu shadow="md" width={200}>
                     <Tooltip label={t("common.create")}>
                       <Menu.Target>
-                        <ActionIcon size="xs" color="gray.7" variant="subtle">
+                        <ActionIcon size="xs" color="gray.5" variant="subtle">
                           <FontAwesomeIcon
                             icon={faPlus}
                             style={{ height: 12 }}
@@ -547,7 +602,7 @@ export const DatabaseView = React.memo(
                     <ActionIcon
                       size="xs"
                       variant="subtle"
-                      color="gray.7"
+                      color="gray.5"
                       onClick={handleAddExistingFile}
                     >
                       <FontAwesomeIcon
@@ -561,7 +616,7 @@ export const DatabaseView = React.memo(
                       variant="subtle"
                       size="xs"
                       onClick={handleOpenInEditor}
-                      color="gray.7"
+                      color="gray.5"
                     >
                       <FontAwesomeIcon
                         icon={faExternalLinkAlt}
@@ -574,7 +629,7 @@ export const DatabaseView = React.memo(
                       variant="subtle"
                       size="xs"
                       onClick={handleRevealInFileExplorer}
-                      color="gray.7"
+                      color="gray.5"
                     >
                       <FontAwesomeIcon
                         icon={faFolderOpen}
@@ -586,7 +641,7 @@ export const DatabaseView = React.memo(
                   <Menu shadow="md" width={200}>
                     <Tooltip label={t("database.actions.moveToCollection")}>
                       <Menu.Target>
-                        <ActionIcon variant="subtle" size="xs" color="gray.7">
+                        <ActionIcon variant="subtle" size="xs" color="gray.5">
                           <FontAwesomeIcon
                             icon={faExchangeAlt}
                             style={{ height: 12 }}
@@ -622,6 +677,25 @@ export const DatabaseView = React.memo(
                     </ActionIcon>
                   </Tooltip>
                 </Group>
+              )}
+
+              {/* Insert Mode Toggle Button */}
+              {canInsert && (
+                <Tooltip
+                  label={insertMode ? "Exit Insert Mode" : "Enter Insert Mode"}
+                >
+                  <ActionIcon
+                    size="sm"
+                    variant={insertMode ? "filled" : "default"}
+                    color={insertMode ? "blue" : "gray"}
+                    onClick={() => toggleInsertMode(insertTargetDocumentId)}
+                  >
+                    <FontAwesomeIcon
+                      icon={faFileImport}
+                      style={{ height: 14 }}
+                    />
+                  </ActionIcon>
+                </Tooltip>
               )}
             </Group>
           </Group>
@@ -690,7 +764,7 @@ export const DatabaseView = React.memo(
                               onChange={(e) =>
                                 handleColumnFilterChange(
                                   col.key,
-                                  e.currentTarget.value
+                                  e.currentTarget.value,
                                 )
                               }
                               variant="filled"
@@ -720,9 +794,9 @@ export const DatabaseView = React.memo(
                           ref={(el: any) => {
                             if (el) rowRefs.current[row.id] = el;
                           }}
-                          onClick={() => handleRowClick(row.id, row.path)}
+                          onClick={(e) => handleRowClick(row.id, row.path, e)}
                           bg={
-                            isSelected
+                            selectedIds.has(row.id) || isSelected
                               ? "var(--app-accent-color-dimmed)"
                               : undefined
                           }
@@ -773,5 +847,5 @@ export const DatabaseView = React.memo(
         </Box>
       </div>
     );
-  }
+  },
 );

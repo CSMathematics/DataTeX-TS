@@ -112,7 +112,7 @@ export const LeftMathToolbar = React.memo<LeftMathToolbarProps>(
           editor.trigger("keyboard", "type", { text: snippet });
         }
       },
-      [editor]
+      [editor],
     );
 
     // --- Recursive Item Renderer ---
@@ -181,7 +181,7 @@ export const LeftMathToolbar = React.memo<LeftMathToolbarProps>(
           >
             <ActionIcon
               variant="subtle"
-              color="gray.7"
+              color="gray.5"
               onClick={() => item.insert && insertSnippet(item.insert)}
               size="md"
               radius="md"
@@ -232,7 +232,7 @@ export const LeftMathToolbar = React.memo<LeftMathToolbarProps>(
                 >
                   <ActionIcon
                     variant="subtle"
-                    color="gray.7"
+                    color="gray.5"
                     size="md"
                     radius="md"
                   >
@@ -287,5 +287,5 @@ export const LeftMathToolbar = React.memo<LeftMathToolbarProps>(
         {rootItems.map((item) => renderItem(item))}
       </Stack>
     );
-  }
+  },
 );

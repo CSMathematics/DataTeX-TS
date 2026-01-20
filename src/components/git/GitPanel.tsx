@@ -36,6 +36,7 @@ import {
   faArrowUp,
   faArrowDown,
   faFileCode,
+  faList,
   faTriangleExclamation,
   faHistory,
   faPencilAlt,
@@ -1097,34 +1098,46 @@ export const GitPanel: React.FC<GitPanelProps> = ({
           <Menu shadow="md" width={150}>
             <Menu.Target>
               <Tooltip label="Sync">
-                <ActionIcon variant="subtle" size="sm">
-                  <FontAwesomeIcon icon={faArrowUp} />
+                <ActionIcon variant="subtle" size="xs" color="gray.4">
+                  <FontAwesomeIcon icon={faArrowUp} size="xs" />
                 </ActionIcon>
               </Tooltip>
             </Menu.Target>
             <Menu.Dropdown>
               <Menu.Label>Remote Operations</Menu.Label>
               <Menu.Item
-                leftSection={<FontAwesomeIcon icon={faSync} />}
+                leftSection={
+                  <FontAwesomeIcon icon={faSync} color="gray.4" size="xs" />
+                }
                 onClick={handleFetch}
               >
                 Fetch
               </Menu.Item>
               <Menu.Item
-                leftSection={<FontAwesomeIcon icon={faArrowDown} />}
+                leftSection={
+                  <FontAwesomeIcon
+                    icon={faArrowDown}
+                    color="gray.4"
+                    size="xs"
+                  />
+                }
                 onClick={handlePull}
               >
                 Pull
               </Menu.Item>
               <Menu.Item
-                leftSection={<FontAwesomeIcon icon={faArrowUp} />}
+                leftSection={
+                  <FontAwesomeIcon icon={faArrowUp} color="gray.4" size="xs" />
+                }
                 onClick={handlePush}
               >
                 Push
               </Menu.Item>
               <Menu.Divider />
               <Menu.Item
-                leftSection={<FontAwesomeIcon icon={faFileCode} />}
+                leftSection={
+                  <FontAwesomeIcon icon={faFileCode} color="gray.4" size="xs" />
+                }
                 onClick={handleOpenGitignore}
               >
                 Edit .gitignore
@@ -1135,10 +1148,11 @@ export const GitPanel: React.FC<GitPanelProps> = ({
           <Tooltip label="Refresh">
             <ActionIcon
               variant="subtle"
-              size="sm"
+              size="xs"
               onClick={() => refreshStatus(repoInfo.path)}
+              color="gray.4"
             >
-              <FontAwesomeIcon icon={faSync} />
+              <FontAwesomeIcon icon={faSync} size="xs" />
             </ActionIcon>
           </Tooltip>
         </Group>
@@ -1346,21 +1360,25 @@ export const GitPanel: React.FC<GitPanelProps> = ({
               <Group gap={2}>
                 {selectedUnstaged.size > 0 && (
                   <Button
-                    size="compact-xs"
+                    size="xs"
                     variant="subtle"
                     onClick={handleStageSelected}
+                    color="gray.4"
+                    style={{ fontWeight: "400" }}
                   >
                     Stage Selected
                   </Button>
                 )}
                 {unstagedFiles.length > 0 && (
-                  <ActionIcon
+                  <Button
                     size="xs"
                     variant="subtle"
                     onClick={handleStageAll}
+                    color="gray.4"
+                    style={{ fontWeight: "400" }}
                   >
-                    <FontAwesomeIcon icon={faPlus} />
-                  </ActionIcon>
+                    Stage all
+                  </Button>
                 )}
               </Group>
             </Group>
@@ -1482,26 +1500,27 @@ export const GitPanel: React.FC<GitPanelProps> = ({
                   <Tooltip label="Graph View">
                     <ActionIcon
                       size="xs"
-                      variant={viewMode === "graph" ? "light" : "subtle"}
+                      variant="subtle"
+                      color="gray.4"
                       onClick={(e) => {
                         e.stopPropagation();
                         setViewMode("graph");
                       }}
                     >
-                      <FontAwesomeIcon icon={faCodeBranch} />
+                      <FontAwesomeIcon icon={faCodeBranch} size="xs" />
                     </ActionIcon>
                   </Tooltip>
                   <Tooltip label="List View">
                     <ActionIcon
                       size="xs"
-                      variant={viewMode === "list" ? "light" : "subtle"}
+                      variant="subtle"
+                      color="gray.4"
                       onClick={(e) => {
                         e.stopPropagation();
                         setViewMode("list");
                       }}
                     >
-                      <FontAwesomeIcon icon={faFileCode} />
-                      {/* Using faFileCode as list icon placeholder, maybe faList better but not imported */}
+                      <FontAwesomeIcon icon={faList} size="xs" />
                     </ActionIcon>
                   </Tooltip>
                 </Group>

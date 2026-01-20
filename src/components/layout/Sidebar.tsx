@@ -286,7 +286,7 @@ export const Sidebar = React.memo<SidebarProps>(
     );
     const getColor = useCallback(
       (section: SidebarSection) =>
-        activeSection === section && isOpen ? "blue" : "gray.7",
+        activeSection === section && isOpen ? "blue" : "gray.5",
       [activeSection, isOpen],
     );
 
@@ -338,7 +338,7 @@ export const Sidebar = React.memo<SidebarProps>(
             zIndex: 20,
           }}
         >
-          <Stack gap={12} align="center">
+          <Stack gap={20} align="center">
             {/* Database button now first since Explorer is merged into it */}
             <Tooltip label={t("sidebar.database")} position="right">
               <ActionIcon
