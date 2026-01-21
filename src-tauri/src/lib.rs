@@ -12,6 +12,7 @@ mod git;
 mod history;
 mod lsp;
 mod search;
+mod texlab_downloader;
 mod watcher;
 
 // Legacy rusqlite modules - kept for future typed metadata implementation
