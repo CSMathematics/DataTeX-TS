@@ -222,9 +222,18 @@ export const aiProxy = {
   },
 
   async chat(messages: Message[]): Promise<string> {
-    const { activeAgentId, agents } = useAIStore.getState();
-    const activeAgent = agents.find((a) => a.id === activeAgentId);
+    const { activeAgentId, agents, builtInAgents } = useAIStore.getState();
+    let activeAgent =
+      agents.find((a) => a.id === activeAgentId) ||
+      builtInAgents.find((a) => a.id === activeAgentId);
 
+    // FIX: If no agent is selected (null), fallback to 'latex_expert' so tools are available
+    if (!activeAgent) {
+      activeAgent =
+        builtInAgents.find((a) => a.id === "latex_expert") || builtInAgents[0];
+    }
+
+    // Now we should always have an agent, but just in case:
     if (!activeAgent) {
       return this.getProvider().chat(messages);
     }
@@ -241,8 +250,8 @@ export const aiProxy = {
 
     const provider = this.getProvider();
 
-    // Max turns to prevent infinite loops
-    for (let i = 0; i < 5; i++) {
+    // Max turns to prevent infinite loops (Increased to 10)
+    for (let i = 0; i < 10; i++) {
       const response = await provider.chat(history);
 
       // Try parse tool call

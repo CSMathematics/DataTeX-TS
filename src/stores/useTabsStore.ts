@@ -5,7 +5,14 @@ import { subscribeWithSelector } from "zustand/middleware";
 export interface AppTab {
   id: string;
   title: string;
-  type: "editor" | "start-page" | "settings" | "wizard" | "table" | "git-view";
+  type:
+    | "editor"
+    | "start-page"
+    | "settings"
+    | "wizard"
+    | "table"
+    | "git-view"
+    | "diff-view";
   content?: string;
   tableName?: string;
   language?: string;
@@ -14,6 +21,11 @@ export interface AppTab {
     repoPath: string;
     filePath: string;
     initialView: "diff" | "blame";
+  };
+  diffData?: {
+    original: string;
+    modified: string;
+    originalPath: string;
   };
 }
 

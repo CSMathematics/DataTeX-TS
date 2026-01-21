@@ -10,6 +10,11 @@ export interface Message {
   content: string;
 }
 
+export interface PendingWrite {
+  path: string;
+  content: string;
+}
+
 interface AIState {
   provider: AIProviderId;
   openaiKey: string;
@@ -23,6 +28,7 @@ interface AIState {
   builtInAgents: Agent[];
   agents: Agent[];
   activeAgentId: string | null;
+  pendingWrite: PendingWrite | null;
 
   // Chat History
   messages: Message[];
@@ -39,6 +45,7 @@ interface AIState {
   updateAgent: (agent: Agent) => void;
   deleteAgent: (id: string) => void;
   setActiveAgent: (id: string | null) => void;
+  setPendingWrite: (write: PendingWrite | null) => void;
 
   addMessage: (msg: Message) => void;
   setMessages: (msgs: Message[]) => void;
@@ -60,7 +67,8 @@ export const useAIStore = create<AIState>()(
 
       builtInAgents: getBuiltInAgents(),
       agents: [],
-      activeAgentId: null,
+      activeAgentId: "latex_expert",
+      pendingWrite: null,
 
       setProvider: (provider) => set({ provider }),
       setOpenAIKey: (openaiKey) => set({ openaiKey }),
@@ -83,6 +91,7 @@ export const useAIStore = create<AIState>()(
             state.activeAgentId === id ? null : state.activeAgentId,
         })),
       setActiveAgent: (id) => set({ activeAgentId: id }),
+      setPendingWrite: (write) => set({ pendingWrite: write }),
 
       addMessage: (msg) =>
         set((state) => ({ messages: [...state.messages, msg] })),

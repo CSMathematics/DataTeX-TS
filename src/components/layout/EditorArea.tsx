@@ -58,6 +58,7 @@ import { TexlabLspClient } from "../../services/lspClient";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import { getMonacoKeyBinding } from "../../utils/ShortcutUtils";
 import { GitFileViewer } from "../git/GitFileViewer";
+import { AIReviewTab } from "../ai/AIReviewTab";
 
 interface EditorAreaProps {
   files: AppTab[];
@@ -1513,6 +1514,13 @@ export const EditorArea = React.memo<EditorAreaProps>(
             />
           ) : activeFile?.type === "git-view" && activeFile.gitData ? (
             <GitFileViewer data={activeFile.gitData} />
+          ) : activeFile?.type === "diff-view" && activeFile.diffData ? (
+            <AIReviewTab
+              original={activeFile.diffData.original}
+              modified={activeFile.diffData.modified}
+              path={activeFile.diffData.originalPath}
+              tabId={activeFile.id}
+            />
           ) : (
             <Box
               h="100%"

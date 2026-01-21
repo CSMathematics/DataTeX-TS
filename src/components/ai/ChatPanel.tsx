@@ -151,7 +151,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onInsertCode }) => {
                           const match = /language-(\w+)/.exec(className || "");
                           const codeContent = String(children).replace(
                             /\n$/,
-                            ""
+                            "",
                           );
                           const [copied, setCopied] = useState(false);
 

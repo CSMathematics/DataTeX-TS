@@ -85,6 +85,7 @@ import { useProjectFiles } from "./hooks/useProjectFiles";
 import { useCompilation } from "./hooks/useCompilation";
 import { usePdfState } from "./hooks/usePdfState";
 import { useCursorStore } from "./stores/cursorStore";
+import { usePendingWriteListener } from "./hooks/usePendingWriteListener";
 
 // --- CSS Variables Resolver ---
 const resolver: CSSVariablesResolver = (theme) => ({
@@ -108,6 +109,8 @@ const resolver: CSSVariablesResolver = (theme) => ({
 });
 
 export default function App() {
+  usePendingWriteListener();
+
   const {
     settings,
     updateEditorSetting,

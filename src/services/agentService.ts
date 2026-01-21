@@ -1,4 +1,5 @@
 import { useDatabaseStore } from "../stores/databaseStore";
+import { useAIStore } from "../stores/aiStore";
 import { invoke } from "@tauri-apps/api/core";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 
@@ -98,6 +99,19 @@ export const tools: Record<string, Tool> = {
       } catch (e: any) {
         return `Error reading file: ${e.message}`;
       }
+    },
+  },
+  write_file: {
+    name: "write_file",
+    description: "Overwrite the content of a file given its absolute path.",
+    parameters:
+      '{ "path": "Absolute path of the file", "content": "New content of the file" }',
+    execute: async ({ path, content }) => {
+      // Trigger the UI to show the approval dialog
+      useAIStore.getState().setPendingWrite({ path, content });
+
+      // Return a message to the AI so it knows it's waiting
+      return `Action PENDING_APPROVAL: I have drafted the changes for ${path}. The user has been prompted to review and approve them. Please wait for confirmation.`;
     },
   },
 };
