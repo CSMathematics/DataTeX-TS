@@ -1,6 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
 
 /**
+ * Convert a file path to a properly encoded file:// URI
+ * Handles non-ASCII characters (Greek, etc.) correctly
+ */
+function pathToUri(path: string): string {
+  // Remove existing file:// prefix if present
+  const cleanPath = path.replace(/^file:\/\//, "");
+  // Encode each path segment while preserving slashes
+  const encoded = cleanPath
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `file://${encoded}`;
+}
+
+/**
  * LSP Completion Item Kind - Monaco compatible
  */
 export enum CompletionItemKind {
@@ -76,7 +91,8 @@ export class TexlabLspClient {
    */
   async initialize(rootUri: string): Promise<void> {
     try {
-      await invoke("lsp_initialize", { rootUri });
+      const encodedUri = pathToUri(rootUri);
+      await invoke("lsp_initialize", { rootUri: encodedUri });
       this.initialized = true;
     } catch (error) {
       console.error("❌ Failed to initialize Texlab LSP:", error);
@@ -99,8 +115,9 @@ export class TexlabLspClient {
 
     try {
       // LSP uses 0-based line numbers, Monaco uses 1-based
+      const encodedUri = pathToUri(uri);
       const result = await invoke<any>("lsp_completion", {
-        uri,
+        uri: encodedUri,
         line: line - 1,
         character,
       });
@@ -141,8 +158,9 @@ export class TexlabLspClient {
     if (!this.initialized) return null;
 
     try {
+      const encodedUri = pathToUri(uri);
       const result = await invoke<any>("lsp_hover", {
-        uri,
+        uri: encodedUri,
         line: line - 1,
         character,
       });
@@ -170,8 +188,9 @@ export class TexlabLspClient {
     if (!this.initialized) return null;
 
     try {
+      const encodedUri = pathToUri(uri);
       const result = await invoke<any>("lsp_definition", {
-        uri,
+        uri: encodedUri,
         line: line - 1,
         character,
       });
@@ -199,10 +218,11 @@ export class TexlabLspClient {
 
     try {
       const version = 1;
+      const encodedUri = pathToUri(uri);
       this.documentVersion.set(uri, version);
 
       await invoke("lsp_did_open", {
-        uri,
+        uri: encodedUri,
         languageId,
         version,
         text,
@@ -223,10 +243,11 @@ export class TexlabLspClient {
 
     try {
       const version = (this.documentVersion.get(uri) || 0) + 1;
+      const encodedUri = pathToUri(uri);
       this.documentVersion.set(uri, version);
 
       await invoke("lsp_did_change", {
-        uri,
+        uri: encodedUri,
         version,
         text,
       });

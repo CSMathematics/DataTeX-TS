@@ -40,21 +40,18 @@ impl TexlabManager {
             return Err("Texlab server is already running".to_string());
         }
 
+        // Ensure texlab is available (download if needed)
+        let texlab_path = crate::texlab_downloader::ensure_texlab().await?;
+
         // Δημιουργία child process για το texlab
-        let child = Command::new("texlab")
+        let child = Command::new(&texlab_path)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()
-            .map_err(|e| {
-                format!(
-                    "Failed to start texlab: {}. Make sure texlab is installed.",
-                    e
-                )
-            })?;
+            .map_err(|e| format!("Failed to start texlab at {:?}: {}", texlab_path, e))?;
 
         self.process = Some(child);
-        println!("✅ Texlab LSP server started successfully");
         Ok(())
     }
 
@@ -64,12 +61,10 @@ impl TexlabManager {
             // Προσπάθεια graceful shutdown με LSP shutdown request
             let _ = self.send_shutdown_request().await;
 
-            // Kill το process
             child
                 .kill()
                 .await
                 .map_err(|e| format!("Failed to kill texlab: {}", e))?;
-            println!("🛑 Texlab LSP server stopped");
             Ok(())
         } else {
             Err("Texlab server is not running".to_string())
@@ -101,14 +96,30 @@ impl TexlabManager {
         let request_str = serde_json::to_string(&request)
             .map_err(|e| format!("Failed to serialize request: {}", e))?;
 
-        println!("📤 Sending LSP request: {} with params: {}", method, params);
-
         // Υπολογισμός Content-Length
         let content_length = request_str.len();
         let message = format!("Content-Length: {}\r\n\r\n{}", content_length, request_str);
 
         // Αποστολή του LSP message
         let child = self.process.as_mut().unwrap();
+
+        // Read stderr in background to suppress errors
+        if let Some(stderr) = child.stderr.take() {
+            tokio::spawn(async move {
+                let mut reader = tokio::io::BufReader::new(stderr);
+                let mut line = String::new();
+                while let Ok(n) =
+                    tokio::io::AsyncBufReadExt::read_line(&mut reader, &mut line).await
+                {
+                    if n == 0 {
+                        break;
+                    }
+                    // Suppress stderr output
+                    line.clear();
+                }
+            });
+        }
+
         let stdin = child
             .stdin
             .as_mut()
@@ -134,32 +145,56 @@ impl TexlabManager {
         // Loop για να διαβάσουμε πολλαπλά μηνύματα μέχρι να βρούμε το response με το σωστό id
         loop {
             let mut header_line = String::new();
+            let mut content_length: usize = 0;
+            let mut found_header = false;
 
-            // Διάβασμα Content-Length header
-            reader
-                .read_line(&mut header_line)
-                .await
-                .map_err(|e| format!("Failed to read header: {}", e))?;
+            // Διάβασμα headers μέχρι να βρούμε κενή γραμμή (end of headers)
+            let mut empty_count = 0;
+            loop {
+                header_line.clear();
+                let bytes_read = reader
+                    .read_line(&mut header_line)
+                    .await
+                    .map_err(|e| format!("Failed to read header: {}", e))?;
 
-            if !header_line.starts_with("Content-Length:") {
-                return Err(format!("Invalid header: {}", header_line));
+                // EOF - stream closed
+                if bytes_read == 0 {
+                    return Err("LSP server closed connection unexpectedly".to_string());
+                }
+
+                let trimmed = header_line.trim();
+
+                // Κενή γραμμή σημαίνει τέλος headers (αλλά μόνο αν έχουμε ήδη βρει header)
+                if trimmed.is_empty() {
+                    if found_header {
+                        break; // End of headers section
+                    }
+                    // Skip leading empty lines (before any header) - but not too many
+                    empty_count += 1;
+                    if empty_count > 100 {
+                        return Err("Too many empty lines from LSP server".to_string());
+                    }
+                    continue;
+                }
+
+                found_header = true;
+
+                // Parse Content-Length header (case-insensitive)
+                if trimmed.to_lowercase().starts_with("content-length:") {
+                    content_length = trimmed
+                        .split(':')
+                        .nth(1)
+                        .ok_or("Invalid Content-Length format")?
+                        .trim()
+                        .parse()
+                        .map_err(|e| format!("Failed to parse Content-Length: {}", e))?;
+                }
+                // Αγνοούμε άλλα headers (π.χ. Content-Type)
             }
 
-            let content_length: usize = header_line
-                .trim()
-                .split(':')
-                .nth(1)
-                .ok_or("Invalid Content-Length format")?
-                .trim()
-                .parse()
-                .map_err(|e| format!("Failed to parse Content-Length: {}", e))?;
-
-            // Παράλειψη κενής γραμμής
-            let mut empty_line = String::new();
-            reader
-                .read_line(&mut empty_line)
-                .await
-                .map_err(|e| format!("Failed to read empty line: {}", e))?;
+            if content_length == 0 {
+                return Err("No Content-Length header found".to_string());
+            }
 
             // Διάβασμα του JSON message
             let mut buffer = vec![0; content_length];
@@ -170,17 +205,11 @@ impl TexlabManager {
             let message_str = String::from_utf8(buffer)
                 .map_err(|e| format!("Failed to decode message: {}", e))?;
 
-            println!("📥 Received LSP message: {}", message_str);
-
             let message: Value = serde_json::from_str(&message_str)
                 .map_err(|e| format!("Failed to parse message: {}", e))?;
 
             // Έλεγχος αν είναι notification (δεν έχει id)
             if message.get("method").is_some() && message.get("id").is_none() {
-                println!(
-                    "🔔 Received notification: {}",
-                    message.get("method").unwrap()
-                );
                 // Συνέχισε να διαβάζεις - αυτό είναι notification, όχι response
                 continue;
             }
@@ -192,19 +221,13 @@ impl TexlabManager {
 
                     // Έλεγχος για errors
                     if let Some(error) = message.get("error") {
-                        println!("❌ LSP Error: {}", error);
                         return Err(format!("LSP Error: {}", error));
                     }
 
                     // Επιστροφή του result
                     let result = message.get("result").cloned().unwrap_or(Value::Null);
-                    println!("✅ LSP Result for id {}: {}", id, result);
                     return Ok(result);
                 } else {
-                    println!(
-                        "⚠️ Received response for different id: {:?}, expected: {}",
-                        msg_id, id
-                    );
                     continue;
                 }
             }
@@ -226,11 +249,6 @@ impl TexlabManager {
 
             let notification_str = serde_json::to_string(&notification)
                 .map_err(|e| format!("Failed to serialize notification: {}", e))?;
-
-            println!(
-                "📤 Sending LSP notification: {} with params: {}",
-                method, params
-            );
 
             // Υπολογισμός Content-Length
             let content_length = notification_str.len();
@@ -254,7 +272,6 @@ impl TexlabManager {
                 .await
                 .map_err(|e| format!("Failed to flush: {}", e))?;
 
-            println!("✅ Notification sent successfully");
             Ok(())
         } else {
             Err("Texlab server is not running".to_string())

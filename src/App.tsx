@@ -367,13 +367,24 @@ export default function App() {
     }
   }, []);
 
-  // --- Initialize LSP when rootPath changes ---
+  // --- Initialize LSP when rootPath or loaded collections change ---
+  const collections = useDatabaseStore((state) => state.collections);
+
   useEffect(() => {
+    // Determine workspace root: prefer rootPath, fallback to first collection path
+    let workspaceRoot = rootPath;
+    if (!workspaceRoot && collections.length > 0) {
+      const collWithPath = collections.find((c) => c.path);
+      if (collWithPath?.path) {
+        workspaceRoot = collWithPath.path;
+      }
+    }
+
     const initLsp = async () => {
-      if (rootPath && !lspClientRef.current) {
+      if (workspaceRoot && !lspClientRef.current) {
         try {
           const client = new TexlabLspClient();
-          await client.initialize(`file://${rootPath}`);
+          await client.initialize(`file://${workspaceRoot}`);
           lspClientRef.current = client;
         } catch (error) {
           console.error("Failed to initialize LSP:", error);
@@ -383,13 +394,12 @@ export default function App() {
     initLsp();
 
     return () => {
-      // Cleanup on unmount or rootPath change
       if (lspClientRef.current) {
         lspClientRef.current.shutdown();
         lspClientRef.current = null;
       }
     };
-  }, [rootPath]);
+  }, [rootPath, collections]);
 
   const handleToggleSidebar = useCallback(
     (section: SidebarSection) => {

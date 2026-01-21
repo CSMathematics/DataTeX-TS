@@ -10,6 +10,7 @@ import {
   Menu,
 } from "@mantine/core";
 import Editor, { OnMount } from "@monaco-editor/react";
+import type * as Monaco from "monaco-editor";
 import { useDroppable } from "@dnd-kit/core";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -331,7 +332,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
     spellCheckEnabled,
     onOpenFileFromTable,
     onOpenFile,
-    lspClient: _lspClient, // Prefixed with underscore to indicate intentionally unused
+    lspClient,
     shortcuts,
   }) => {
     const activeFile = files.find((f) => f.id === activeFileId);
@@ -434,6 +435,176 @@ export const EditorArea = React.memo<EditorAreaProps>(
 
       if (onMount) onMount(editor, monaco);
     };
+
+    // Store monaco instance reference for LSP
+    const [monacoInstance, setMonacoInstance] = React.useState<
+      typeof Monaco | null
+    >(null);
+
+    // Wrap handleEditorMount to capture monaco
+    const wrappedEditorMount: OnMount = (editor, monaco) => {
+      setMonacoInstance(monaco);
+      handleEditorMount(editor, monaco);
+    };
+
+    // --- LSP Integration Effect ---
+    // This runs when lspClient becomes ready or editorInstance changes
+    React.useEffect(() => {
+      if (!editorInstance || !monacoInstance || !lspClient) {
+        return;
+      }
+
+      // Track if providers are already registered to avoid duplicates
+      const disposables: Monaco.IDisposable[] = [];
+
+      // Notify LSP that document is open
+      const model = editorInstance.getModel();
+      const currentUri = model?.uri?.toString();
+      if (currentUri && model && lspClient.isReady()) {
+        lspClient.didOpen(currentUri, "latex", model.getValue());
+      }
+
+      // Register Completion Provider
+      disposables.push(
+        monacoInstance.languages.registerCompletionItemProvider("my-latex", {
+          triggerCharacters: ["\\", "{", ",", "["],
+          provideCompletionItems: async (
+            model: Monaco.editor.ITextModel,
+            position: Monaco.Position,
+          ) => {
+            if (!lspClient.isReady()) return { suggestions: [] };
+
+            const uri = model.uri.toString();
+            try {
+              const items = await lspClient.completion(
+                uri,
+                position.lineNumber,
+                position.column - 1,
+              );
+
+              return {
+                suggestions: items.map((item) => ({
+                  label: item.label,
+                  kind:
+                    (item.kind as number) ||
+                    monacoInstance.languages.CompletionItemKind.Text,
+                  detail: item.detail,
+                  documentation:
+                    typeof item.documentation === "string"
+                      ? item.documentation
+                      : item.documentation?.value,
+                  insertText: item.insertText || item.label,
+                  insertTextRules:
+                    item.insertTextFormat === 2
+                      ? monacoInstance.languages.CompletionItemInsertTextRule
+                          .InsertAsSnippet
+                      : undefined,
+                  sortText: item.sortText,
+                  filterText: item.filterText,
+                  range: undefined as any,
+                })),
+              };
+            } catch (e) {
+              console.warn("LSP completion error:", e);
+              return { suggestions: [] };
+            }
+          },
+        }),
+      );
+
+      // Register Hover Provider
+      disposables.push(
+        monacoInstance.languages.registerHoverProvider("my-latex", {
+          provideHover: async (
+            model: Monaco.editor.ITextModel,
+            position: Monaco.Position,
+          ) => {
+            if (!lspClient.isReady()) return null;
+
+            const uri = model.uri.toString();
+            try {
+              const hover = await lspClient.hover(
+                uri,
+                position.lineNumber,
+                position.column - 1,
+              );
+
+              if (!hover) return null;
+
+              let contents: string;
+              if (typeof hover.contents === "string") {
+                contents = hover.contents;
+              } else if (Array.isArray(hover.contents)) {
+                contents = hover.contents.map((c) => c.value).join("\n\n");
+              } else {
+                contents = hover.contents.value;
+              }
+
+              return {
+                contents: [{ value: contents }],
+              };
+            } catch (e) {
+              console.warn("LSP hover error:", e);
+              return null;
+            }
+          },
+        }),
+      );
+
+      // Register Definition Provider
+      disposables.push(
+        monacoInstance.languages.registerDefinitionProvider("my-latex", {
+          provideDefinition: async (
+            model: Monaco.editor.ITextModel,
+            position: Monaco.Position,
+          ) => {
+            if (!lspClient.isReady()) return null;
+
+            const uri = model.uri.toString();
+            try {
+              const location = await lspClient.definition(
+                uri,
+                position.lineNumber,
+                position.column - 1,
+              );
+
+              if (!location) return null;
+
+              return {
+                uri: monacoInstance.Uri.parse(location.uri),
+                range: new monacoInstance.Range(
+                  location.range.start.line + 1,
+                  location.range.start.character + 1,
+                  location.range.end.line + 1,
+                  location.range.end.character + 1,
+                ),
+              };
+            } catch (e) {
+              console.warn("LSP definition error:", e);
+              return null;
+            }
+          },
+        }),
+      );
+
+      // Listen for content changes and notify LSP
+      const changeDisposable = editorInstance.onDidChangeModelContent(() => {
+        if (!lspClient.isReady()) return;
+        const currentModel = editorInstance.getModel();
+        if (currentModel) {
+          lspClient.didChange(
+            currentModel.uri.toString(),
+            currentModel.getValue(),
+          );
+        }
+      });
+      disposables.push(changeDisposable);
+
+      // Cleanup on unmount or dependency change
+      return () => {
+        disposables.forEach((d) => d.dispose());
+      };
+    }, [editorInstance, monacoInstance, lspClient]);
 
     // Update editor options when settings change
     React.useEffect(() => {
@@ -1299,7 +1470,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                     height="100%"
                     defaultLanguage="my-latex"
                     defaultValue={activeFile.content}
-                    onMount={handleEditorMount}
+                    onMount={wrappedEditorMount}
                     onChange={(value) =>
                       onContentChange(activeFile.id, value || "")
                     }
