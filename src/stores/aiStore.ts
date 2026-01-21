@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { Agent } from "../services/agentService";
+import { Agent, getBuiltInAgents } from "../services/agentService";
 
 export type AIProviderId = "mock" | "openai" | "gemini" | "ollama";
 
@@ -20,6 +20,7 @@ interface AIState {
   ollamaModel: string;
 
   // Agents
+  builtInAgents: Agent[];
   agents: Agent[];
   activeAgentId: string | null;
 
@@ -57,6 +58,7 @@ export const useAIStore = create<AIState>()(
       ollamaModel: "llama3",
       messages: [],
 
+      builtInAgents: getBuiltInAgents(),
       agents: [],
       activeAgentId: null,
 
@@ -93,6 +95,10 @@ export const useAIStore = create<AIState>()(
     }),
     {
       name: "datatex-ai-storage",
-    }
-  )
+      partialize: (state) => ({
+        ...state,
+        builtInAgents: undefined, // Do not persist built-in agents
+      }),
+    },
+  ),
 );

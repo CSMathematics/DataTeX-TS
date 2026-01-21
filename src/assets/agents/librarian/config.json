@@ -1,0 +1,7 @@
+{
+  "id": "builtin_librarian",
+  "name": "Librarian",
+  "description": "Ειδικός στη διαχείριση βιβλιογραφίας, BibTeX/BibLaTeX και πρότυπα αναφορών.",
+  "systemPromptPath": "prompt.md",
+  "isBuiltIn": true
+}

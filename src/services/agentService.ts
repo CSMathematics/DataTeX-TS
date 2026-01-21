@@ -8,8 +8,33 @@ export interface Agent {
   description: string;
   systemPrompt: string;
   avatar?: string;
-  // TODO: allowedTools: string[];
+  isBuiltIn?: boolean;
 }
+
+// Built-in Agents Imports
+import latexExpertConfig from "../assets/agents/latex_expert/config.json";
+import latexExpertPrompt from "../assets/agents/latex_expert/prompt.md?raw";
+import preambleExpertConfig from "../assets/agents/preamble_expert/config.json";
+import preambleExpertPrompt from "../assets/agents/preamble_expert/prompt.md?raw";
+import librarianConfig from "../assets/agents/librarian/config.json";
+import librarianPrompt from "../assets/agents/librarian/prompt.md?raw";
+
+export const getBuiltInAgents = (): Agent[] => {
+  return [
+    {
+      ...latexExpertConfig,
+      systemPrompt: latexExpertPrompt,
+    },
+    {
+      ...preambleExpertConfig,
+      systemPrompt: preambleExpertPrompt,
+    },
+    {
+      ...librarianConfig,
+      systemPrompt: librarianPrompt,
+    },
+  ];
+};
 
 export interface Tool {
   name: string;
@@ -44,14 +69,14 @@ export const tools: Record<string, Tool> = {
           "get_resources_by_collection_cmd",
           {
             collection: collection_name,
-          }
+          },
         );
         return JSON.stringify(
           resources.map((r) => ({
             name: r.title || r.path,
             id: r.id,
             path: r.path,
-          }))
+          })),
         );
       } catch (e: any) {
         return `Error listing files: ${e.message}`;

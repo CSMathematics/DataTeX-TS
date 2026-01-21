@@ -54,6 +54,7 @@ export const AISidebar: React.FC<AISidebarProps> = ({
     ollamaModel,
     setOllamaModel,
     agents,
+    builtInAgents,
     deleteAgent,
     activeAgentId,
     setActiveAgent,
@@ -84,7 +85,7 @@ export const AISidebar: React.FC<AISidebarProps> = ({
   const renderModelSelection = (
     currentModel: string,
     setModel: (val: string) => void,
-    placeholder: string
+    placeholder: string,
   ) => (
     <Group align="flex-end" gap="xs">
       <Autocomplete
@@ -162,7 +163,7 @@ export const AISidebar: React.FC<AISidebarProps> = ({
               {renderModelSelection(
                 geminiModel,
                 setGeminiModel,
-                "gemini-1.5-flash"
+                "gemini-1.5-flash",
               )}
             </>
           )}
@@ -179,11 +180,30 @@ export const AISidebar: React.FC<AISidebarProps> = ({
             </>
           )}
 
-          <Divider
-            my="md"
-            label={t("ai.settings.customAgents")}
-            labelPosition="center"
-          />
+          <Divider my="md" labelPosition="center" />
+
+          <Title order={6} size="sm" c="dimmed" mb="xs">
+            {t("ai.settings.builtInAgents", "Built-in Agents")}
+          </Title>
+          <Stack gap="xs" mb="md">
+            {builtInAgents.map((agent) => (
+              <Group key={agent.id} justify="space-between">
+                <Box>
+                  <Text size="sm" fw={500}>
+                    {agent.name}
+                  </Text>
+                  <Text size="xs" c="dimmed" lineClamp={1}>
+                    {agent.description}
+                  </Text>
+                </Box>
+                <Group gap={4}>{/* Built-in agents are read-only */}</Group>
+              </Group>
+            ))}
+          </Stack>
+
+          <Title order={6} size="sm" c="dimmed" mb="xs">
+            {t("ai.settings.customAgents", "Custom Agents")}
+          </Title>
 
           <Stack gap="xs">
             {agents.map((agent) => (
@@ -258,6 +278,10 @@ export const AISidebar: React.FC<AISidebarProps> = ({
             <Select
               data={[
                 { value: "standard", label: t("ai.standardAssistant") },
+                ...builtInAgents.map((a) => ({
+                  value: a.id,
+                  label: `${t("ai.agentPrefix")} ${a.name}`,
+                })),
                 ...agents.map((a) => ({
                   value: a.id,
                   label: `${t("ai.agentPrefix")} ${a.name}`,

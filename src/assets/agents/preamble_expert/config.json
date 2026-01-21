@@ -1,0 +1,7 @@
+{
+  "id": "builtin_preamble_expert",
+  "name": "Preamble Expert",
+  "description": "Εξειδικευμένος βοηθός για τη διαχείριση του LaTeX Preamble και των πακέτων.",
+  "systemPromptPath": "prompt.md",
+  "isBuiltIn": true
+}

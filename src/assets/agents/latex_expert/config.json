@@ -1,0 +1,7 @@
+{
+  "id": "builtin_latex_expert",
+  "name": "LaTeX Expert",
+  "description": "Εξειδικευμένος βοηθός για ανάλυση και διόρθωση κώδικα LaTeX.",
+  "systemPromptPath": "prompt.md",
+  "isBuiltIn": true
+}
