@@ -13,6 +13,7 @@ mod history;
 mod lsp;
 mod search;
 mod texlab_downloader;
+mod vectors;
 mod watcher;
 
 // Legacy rusqlite modules - kept for future typed metadata implementation
@@ -27,6 +28,7 @@ mod commands {
 use database::entities::{Collection, Resource};
 use database::DatabaseManager;
 use lsp::TexlabManager;
+use vectors::VectorStoreState;
 
 // Typed metadata commands now defined below with sqlx (rusqlite commands removed)
 
@@ -3879,6 +3881,15 @@ pub fn run() {
                 return Err("Could not determine project directories".into());
             };
 
+            // Initialize Vector Store
+            let vectors_path = vectors::get_vectors_path(&app.handle());
+            println!("Loading Vector Store from: {:?}", vectors_path);
+            let vector_store = vectors::load_store(&vectors_path).unwrap_or_else(|e| {
+                eprintln!("Failed to load vector store: {}", e);
+                vectors::VectorStore::new()
+            });
+            app.manage(VectorStoreState(std::sync::Mutex::new(vector_store)));
+
             let data_dir_str = data_dir.to_string_lossy().to_string();
             println!("Initializing Global DB at: {}", data_dir_str);
 
@@ -3918,6 +3929,8 @@ pub fn run() {
             get_system_fonts,
             get_table_data_cmd,
             update_cell_cmd,
+            vectors::store_embeddings,
+            vectors::search_similar,
             // New Commands
             get_collections_cmd,
             create_collection_cmd,

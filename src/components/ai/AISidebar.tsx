@@ -13,7 +13,9 @@ import {
   Autocomplete,
   Box,
   Divider,
+  Progress,
 } from "@mantine/core";
+import { indexingService } from "../../services/indexingService";
 import { IconTrash } from "@tabler/icons-react";
 import { currentProvider } from "../../services/aiService";
 import { ChatPanel } from "./ChatPanel";
@@ -36,6 +38,10 @@ export const AISidebar: React.FC<AISidebarProps> = ({
   const [showSettings, setShowSettings] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+
+  // Indexing State
+  const [isIndexing, setIsIndexing] = useState(false);
+  const [indexProgress, setIndexProgress] = useState(0);
 
   // Store hooks
   const {
@@ -179,6 +185,55 @@ export const AISidebar: React.FC<AISidebarProps> = ({
               {renderModelSelection(ollamaModel, setOllamaModel, "llama3")}
             </>
           )}
+
+          {provider === "ollama" && (
+            <>
+              <TextInput
+                label={t("ai.settings.ollamaUrl")}
+                placeholder="http://localhost:11434"
+                value={ollamaUrl}
+                onChange={(e) => setOllamaUrl(e.currentTarget.value)}
+              />
+              {renderModelSelection(ollamaModel, setOllamaModel, "llama3")}
+            </>
+          )}
+
+          <Divider my="md" labelPosition="center" />
+
+          <Title order={6} size="sm" c="dimmed" mb="xs">
+            Knowledge Base (RAG)
+          </Title>
+          <Box>
+            <Group justify="space-between" mb="xs">
+              <Text size="sm">Project Indexing</Text>
+              <Button
+                size="xs"
+                variant="light"
+                onClick={async () => {
+                  if (indexingService.isIndexing) {
+                    indexingService.stop();
+                    setIsIndexing(false);
+                  } else {
+                    setIsIndexing(true);
+                    await indexingService.buildIndex((current, total) => {
+                      setIndexProgress((current / total) * 100);
+                    });
+                    setIsIndexing(false);
+                  }
+                }}
+                color={isIndexing ? "red" : "blue"}
+              >
+                {isIndexing ? "Stop" : "Build Index"}
+              </Button>
+            </Group>
+            {indexProgress > 0 && (
+              <Progress value={indexProgress} size="sm" animated={isIndexing} />
+            )}
+            <Text size="xs" c="dimmed" mt={4}>
+              Generates embeddings for your project files to enable semantic
+              search.
+            </Text>
+          </Box>
 
           <Divider my="md" labelPosition="center" />
 

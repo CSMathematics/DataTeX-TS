@@ -1,4 +1,6 @@
 import { useAIStore, Message } from "../stores/aiStore";
+import { invoke } from "@tauri-apps/api/core";
+import { readTextFile } from "@tauri-apps/plugin-fs";
 
 // --- Interface Update ---
 export interface AIProvider {
@@ -6,6 +8,7 @@ export interface AIProvider {
   name: string;
   chat(messages: Message[]): Promise<string>;
   explainError(log: string): Promise<string>;
+  getEmbedding(text: string): Promise<number[]>;
   getModels?(): Promise<string[]>; // Optional for now to maintain compatibility with existing
 }
 
@@ -20,6 +23,7 @@ export const mockAIProvider: AIProvider = {
     );
   },
   explainError: async () => "Mock Explanation",
+  getEmbedding: async () => Array(1536).fill(0.1), // Mock 1536-dim vector
   getModels: async () => ["mock-model-1", "mock-model-2"],
 };
 
@@ -83,6 +87,28 @@ class OpenAIProvider implements AIProvider {
       { role: "user", content: log },
     ];
     return this.chat(messages);
+  }
+
+  async getEmbedding(text: string): Promise<number[]> {
+    if (!this.apiKey) throw new Error("OpenAI API Key is missing.");
+    const response = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        input: text,
+        model: "text-embedding-3-small", // Standard efficient model
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error?.message || "OpenAI embedding failed");
+    }
+    const data = await response.json();
+    return data.data[0].embedding;
   }
 }
 
@@ -155,6 +181,28 @@ class GeminiProvider implements AIProvider {
       { role: "user", content: log },
     ]);
   }
+
+  async getEmbedding(text: string): Promise<number[]> {
+    if (!this.apiKey) throw new Error("Gemini API Key is missing.");
+    // text-embedding-004 is current recommended
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${this.apiKey}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: {
+          parts: [{ text }],
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error?.message || "Gemini embedding failed");
+    }
+    const data = await response.json();
+    return data.embedding.values;
+  }
 }
 
 // --- Ollama Provider ---
@@ -202,6 +250,55 @@ class OllamaProvider implements AIProvider {
       { role: "user", content: log },
     ]);
   }
+
+  async getEmbedding(text: string): Promise<number[]> {
+    // Default to nomic-embed-text for now, or fallback to current model if needed
+    // Ideally user should configure this.
+    const model = "nomic-embed-text";
+    const endpoint = `${this.url.replace(/\/$/, "")}/api/embeddings`;
+
+    // Note: older Ollama versions used /api/embeddings, newer might use /api/embed
+    // We stick to /api/embeddings for compatibility with common clients
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: model,
+          prompt: text,
+        }),
+      });
+
+      if (!response.ok) {
+        // Fallback: try using the chat model if specific embedding model just isn't loaded/found
+        // or if the user hasn't pulled nomic-embed-text
+        console.warn(
+          "Ollama embedding with nomic-embed-text failed, retrying with chat model",
+          response.status,
+        );
+        throw new Error("Specific embedding model failed");
+      }
+
+      const data = await response.json();
+      return data.embedding;
+    } catch (e) {
+      const fallbackResponse = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: this.model,
+          prompt: text,
+        }),
+      });
+      if (!fallbackResponse.ok)
+        throw new Error(
+          `Ollama embedding failed: ${fallbackResponse.statusText}`,
+        );
+
+      const data = await fallbackResponse.json();
+      return data.embedding;
+    }
+  }
 }
 
 // --- Dynamic Provider Wrapper ---
@@ -247,6 +344,49 @@ export const aiProxy = {
       { role: "system", content: systemPrompt },
       ...messages.filter((m) => m.role !== "system"),
     ];
+
+    // --- RAG: Semantic Search ---
+    const lastUserMessage = messages[messages.length - 1];
+    if (lastUserMessage && lastUserMessage.role === "user") {
+      try {
+        // 1. Generate Embedding for the query
+        const embedding = await this.getEmbedding(lastUserMessage.content);
+
+        // 2. Search Vector Store (Top 3)
+        const resultIds: string[] = await invoke("search_similar", {
+          vector: embedding,
+          topK: 3,
+        });
+
+        if (resultIds && resultIds.length > 0) {
+          // 3. Retrieve Content
+          const contextParts = await Promise.all(
+            resultIds.map(async (path) => {
+              try {
+                const content = await readTextFile(path);
+                // Truncate to avoid context window explosion
+                return `--- FILE: ${path.split(/[\\/]/).pop()} ---\n${content.slice(0, 2000)}\n...`;
+              } catch (e) {
+                return "";
+              }
+            }),
+          );
+
+          const validContext = contextParts.filter((s) => s).join("\n\n");
+
+          if (validContext) {
+            console.log("RAG Context Found and Injected");
+            // Inject into System Prompt
+            const contextMsg = `\n\n[RELEVANT PROJECT FILES FOUND via Semantic Search]:\n${validContext}\n\n[End of Context] Use this context to answer the user's question if relevant.`;
+
+            // Update the system message in history
+            history[0].content += contextMsg;
+          }
+        }
+      } catch (e) {
+        console.error("RAG Lookup Failed (non-blocking):", e);
+      }
+    }
 
     const provider = this.getProvider();
 
@@ -294,6 +434,10 @@ export const aiProxy = {
 
   async explainError(log: string): Promise<string> {
     return this.getProvider().explainError(log);
+  },
+
+  async getEmbedding(text: string): Promise<number[]> {
+    return this.getProvider().getEmbedding(text);
   },
 
   async getModels(): Promise<string[]> {
