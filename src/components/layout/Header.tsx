@@ -36,6 +36,7 @@ interface HeaderProps {
   onNewFile: () => void;
   onNewFromTemplate?: () => void;
   onSaveFile?: () => void;
+  onOpenFile?: () => void;
   // Database panel props
   showDatabasePanel?: boolean;
   onToggleDatabasePanel?: () => void;
@@ -75,6 +76,7 @@ export const HeaderContent: React.FC<HeaderProps> = ({
   onNewFile,
   onNewFromTemplate,
   onSaveFile,
+  onOpenFile,
   // Database panel props
   showDatabasePanel,
   onToggleDatabasePanel,
@@ -171,6 +173,23 @@ export const HeaderContent: React.FC<HeaderProps> = ({
               >
                 {t("menu.file.newFromTemplate")}
               </Menu.Item>
+              <Menu.Item
+                leftSection={
+                  <FontAwesomeIcon
+                    icon={faFolderOpen}
+                    style={{ width: 14, height: 14 }}
+                  />
+                }
+                onClick={onOpenFile}
+                rightSection={
+                  <Text size="xs" c="dimmed">
+                    Ctrl+Shift+O
+                  </Text>
+                }
+              >
+                {t("menu.file.openFile")}
+              </Menu.Item>
+              <Menu.Divider />
               <Menu.Item
                 leftSection={
                   <FontAwesomeIcon

@@ -495,6 +495,7 @@
       "newFile": "New File",
       "newFromTemplate": "New from Template",
       "open": "Open",
+      "openFile": "Open File...",
       "save": "Save",
       "exportPdf": "Export to PDF",
       "exit": "Exit"
@@ -684,6 +685,8 @@
     "getStarted": "Get Started",
     "emptyFile": "Empty File",
     "emptyFileDesc": "Start from scratch with a blank document.",
+    "openExisting": "Open Existing File",
+    "openExistingDesc": "Browse and open a TeX file.",
     "preambleWizard": "Preamble Wizard",
     "preambleWizardDesc": "Configure page settings, packages, and fonts.",
     "databaseTools": "Database Tools",

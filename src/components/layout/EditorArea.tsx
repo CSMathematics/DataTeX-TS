@@ -101,6 +101,7 @@ interface EditorAreaProps {
   onOpenPackageBrowser?: () => void;
   onOpenTemplateModal?: () => void;
   onOpenFile?: (path: string) => void;
+  onOpenFileDialog?: () => void;
   lspClient?: TexlabLspClient | null;
   shortcuts?: Record<string, string>;
 }
@@ -333,6 +334,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
     spellCheckEnabled,
     onOpenFileFromTable,
     onOpenFile,
+    onOpenFileDialog,
     lspClient,
     shortcuts,
   }) => {
@@ -1505,6 +1507,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
               onCreateEmpty={onCreateEmpty}
               onOpenWizard={onOpenWizard}
               onCreateFromTemplate={onCreateFromTemplate}
+              onOpenFile={onOpenFileDialog}
               recentProjects={recentProjects}
               onOpenRecent={onOpenRecent!}
               onOpenDatabase={onOpenDatabase!}

@@ -3,10 +3,19 @@ import { invoke } from "@tauri-apps/api/core";
 /**
  * Convert a file path to a properly encoded file:// URI
  * Handles non-ASCII characters (Greek, etc.) correctly
+ * Also handles already-encoded URIs from Monaco to avoid double-encoding
  */
 function pathToUri(path: string): string {
   // Remove existing file:// prefix if present
-  const cleanPath = path.replace(/^file:\/\//, "");
+  let cleanPath = path.replace(/^file:\/\//, "");
+
+  // Decode any existing percent-encoding to avoid double-encoding
+  try {
+    cleanPath = decodeURIComponent(cleanPath);
+  } catch {
+    // If decoding fails, the path wasn't encoded - use as-is
+  }
+
   // Encode each path segment while preserving slashes
   const encoded = cleanPath
     .split("/")

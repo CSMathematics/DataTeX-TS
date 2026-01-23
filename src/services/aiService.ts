@@ -345,10 +345,11 @@ export const aiProxy = {
       ...messages.filter((m) => m.role !== "system"),
     ];
 
-    // --- RAG: Semantic Search ---
+    // --- RAG: Semantic Search (with timeout to prevent hanging) ---
     const lastUserMessage = messages[messages.length - 1];
     if (lastUserMessage && lastUserMessage.role === "user") {
-      try {
+      // Timeout wrapper to prevent RAG from blocking chat forever
+      const ragWithTimeout = async (): Promise<void> => {
         // 1. Generate Embedding for the query
         const embedding = await this.getEmbedding(lastUserMessage.content);
 
@@ -383,8 +384,19 @@ export const aiProxy = {
             history[0].content += contextMsg;
           }
         }
+      };
+
+      try {
+        // Race between RAG lookup and a 5-second timeout
+        await Promise.race([
+          ragWithTimeout(),
+          new Promise<void>((_, reject) =>
+            setTimeout(() => reject(new Error("RAG timeout")), 5000),
+          ),
+        ]);
       } catch (e) {
-        console.error("RAG Lookup Failed (non-blocking):", e);
+        console.warn("RAG Lookup skipped (timeout or error):", e);
+        // Continue without RAG context - don't block the chat
       }
     }
 

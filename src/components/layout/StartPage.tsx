@@ -25,6 +25,7 @@ import {
   faDatabase,
   faFileSignature,
   faBoxOpen,
+  faFolderOpen,
 } from "@fortawesome/free-solid-svg-icons";
 import { templates } from "../../services/templateService";
 
@@ -38,6 +39,7 @@ interface StartPageProps {
   onOpenExamGenerator: () => void;
   onOpenPackageBrowser: () => void;
   onOpenTemplateModal: () => void;
+  onOpenFile?: () => void;
 }
 
 export const StartPage: React.FC<StartPageProps> = ({
@@ -50,6 +52,7 @@ export const StartPage: React.FC<StartPageProps> = ({
   onOpenExamGenerator,
   onOpenPackageBrowser,
   onOpenTemplateModal,
+  onOpenFile,
 }) => {
   const { t } = useTranslation();
   const colorScheme = useComputedColorScheme("dark", {
@@ -159,7 +162,7 @@ export const StartPage: React.FC<StartPageProps> = ({
                     onClick={() =>
                       window.open(
                         "https://www.latex-project.org/help/documentation/",
-                        "_blank"
+                        "_blank",
                       )
                     }
                   >
@@ -202,13 +205,20 @@ export const StartPage: React.FC<StartPageProps> = ({
               >
                 {t("startPage.getStarted")}
               </Text>
-              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+              <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
                 <ActionCard
                   icon={faFileCirclePlus}
                   color="gray"
                   title={t("startPage.emptyFile")}
                   description={t("startPage.emptyFileDesc")}
                   onClick={onCreateEmpty}
+                />
+                <ActionCard
+                  icon={faFolderOpen}
+                  color="blue"
+                  title={t("startPage.openExisting")}
+                  description={t("startPage.openExistingDesc")}
+                  onClick={onOpenFile}
                 />
                 <ActionCard
                   icon={faWandMagicSparkles}

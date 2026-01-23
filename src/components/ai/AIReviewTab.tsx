@@ -3,7 +3,7 @@ import { Box, Button, Group, Text, Paper } from "@mantine/core";
 import { DiffEditor } from "@monaco-editor/react";
 import { useAIStore } from "../../stores/aiStore";
 import { useTabsStore } from "../../stores/useTabsStore";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { notifications } from "@mantine/notifications";
 
 interface AIReviewTabProps {
@@ -24,7 +24,13 @@ export const AIReviewTab: React.FC<AIReviewTabProps> = ({
 
   const handleAccept = async () => {
     try {
-      // 1. Write to disk
+      // Ensure parent directory exists (for new file creation)
+      const lastSlash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+      if (lastSlash > 0) {
+        const parentDir = path.substring(0, lastSlash);
+        await mkdir(parentDir, { recursive: true });
+      }
+      // Write to disk
       await writeTextFile(path, modified);
 
       // 2. Update store state so Editor reflects changes immediately (Editor remounts)

@@ -109,6 +109,7 @@ export const WIZARD_REGISTRY: Record<string, WizardConfig> = {
   siunitx: {
     category: "math",
     displayName: "SI Unitx",
+    isEmbedded: true,
   },
 };
 

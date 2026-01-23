@@ -902,6 +902,32 @@ export default function App() {
     [handleOpenFileNode, handleRevealLine],
   );
 
+  const handleOpenFileDialog = useCallback(async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selectedPath = await open({
+        multiple: false,
+        title: "Open File",
+        filters: [
+          {
+            name: "TeX Files",
+            extensions: ["tex", "sty", "cls", "bib", "dtx", "ins"],
+          },
+          {
+            name: "All Files",
+            extensions: ["*"],
+          },
+        ],
+      });
+
+      if (selectedPath && typeof selectedPath === "string") {
+        handleOpenFileFromTable(selectedPath);
+      }
+    } catch (e) {
+      console.error("Failed to open file dialog:", e);
+    }
+  }, [handleOpenFileFromTable]);
+
   // --- Resize Logic moved to useAppPanelResize hook ---
 
   // --- DND Logic ---
@@ -956,6 +982,7 @@ export default function App() {
               onNewFile={handleRequestNewFile}
               onNewFromTemplate={handleOpenTemplateModal}
               onSaveFile={() => handleSave()}
+              onOpenFile={handleOpenFileDialog}
               // Left Sidebar
               showLeftSidebar={isSidebarOpen}
               onToggleLeftSidebar={() => setIsSidebarOpen((prev) => !prev)}
@@ -1293,6 +1320,7 @@ export default function App() {
                         spellCheckEnabled={spellCheckEnabled}
                         onOpenFileFromTable={handleOpenFileFromTable}
                         onOpenFile={handleOpenFileFromTable} // handleOpenFileFromTable is stable
+                        onOpenFileDialog={handleOpenFileDialog}
                         lspClient={lspClientRef.current}
                       />
                     </Box>
@@ -1341,6 +1369,7 @@ export default function App() {
                         spellCheckEnabled={spellCheckEnabled}
                         onOpenFileFromTable={handleOpenFileFromTable}
                         onOpenFile={handleOpenFileFromTable}
+                        onOpenFileDialog={handleOpenFileDialog}
                         lspClient={lspClientRef.current}
                       />
                     </Box>

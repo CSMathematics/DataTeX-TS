@@ -1,0 +1,37 @@
+DataTex V 1.0
+[07/12/2022]
+
+[Database Data]
+Database=(b_gymnasiou,Β Γυμνασίου,files_database)
+DatabasePath=/home/spyros/Βάσεις Δεδομένων DataTeX/Β Γυμνασίου/b_gymnasiou.db
+
+[File Data]
+Id=Alg-ExisAn-Anis1ou-AdynAn-SectEx1
+FileType=(SectEx,Άσκηση ενότητας,Ασκήσεις,1,)
+Fields=(Alg,Άλγεβρα)
+Chapters=(ExisAn,Εξισώσεις - Ανισώσεις,Alg)
+Sections=(Anis1ou,Ανισώσεις 1ου βαθμού,ExisAn)
+SubSections=(AdynAn,Αδύνατη ανίσωση,Anis1ou)
+Difficulty=0
+Path=/home/spyros/Βάσεις Δεδομένων DataTeX/Β Γυμνασίου/Άλγεβρα/Εξισώσεις - Ανισώσεις/Ανισώσεις 1ου βαθμού/Ασκήσεις/Alg-ExisAn-Anis1ou-AdynAn-SectEx1.tex
+Date=19/9/2022
+Solved_Prooved=1
+Preamble=Basic
+BuildCommand=PdfLaTeX
+FileDescription=
+Custom_Tags=()
+Solutions_Proofs=()
+
+[Bibliography]
+
+[File Content]
+%# Database File : Alg-ExisAn-Anis1ou-AdynAn-SectEx1
+%@ Database source: b_gymnasiou
+Να λύσετε τις παρακάτω ανισώσεις
+\begin{alist}
+\item $ 2x-3>2(x-1) $
+\item $ 3(x-2)-x\geq 2x+3 $
+\item $ x-(3+x)<-5 $
+\item $ 9+3x\leq x+2(4+x) $
+\end{alist}
+%# End of file Alg-ExisAn-Anis1ou-AdynAn-SectEx1

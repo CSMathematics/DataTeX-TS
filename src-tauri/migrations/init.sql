@@ -79,31 +79,3 @@ AFTER UPDATE ON resources
 BEGIN
     UPDATE resources SET updated_at = CURRENT_TIMESTAMP WHERE id = new.id;
 END;
-
--- ============================================================================
--- SAMPLE DATA (For Development)
--- ============================================================================
-
--- Default Collections
-INSERT OR IGNORE INTO collections (name, description, type) VALUES
-('General Files', 'Default collection for uncategorized files', 'files'),
-('Calculus', 'Derivatives and Integrals', 'files'),
-('Linear Algebra', 'Matrices and Vectors', 'files'),
-('Geometry', 'Geometric figures and theorems', 'files'),
-('My Documents', 'Created documents', 'documents'),
-('Exams', 'Past exams and tests', 'documents'),
-('Global Bibliography', 'All references', 'bibliography');
-
--- Sample Resources
-INSERT OR IGNORE INTO resources (id, path, type, collection, title, metadata) VALUES
-('res-001', 'calculus/deriv_01.tex', 'file', 'Calculus', 'Derivative Basics', '{"difficulty": "easy", "tags": ["derivatives"]}'),
-('res-002', 'algebra/matrix_01.tex', 'file', 'Linear Algebra', 'Matrix Mul', '{"difficulty": "medium"}'),
-('res-003', 'geometry/circle_01.tex', 'file', 'Geometry', 'Circle Area', '{"difficulty": "easy"}');
-
--- Sample Documents
-INSERT OR IGNORE INTO documents (id, title, collection, metadata) VALUES
-('doc-001', 'Midterm 2024', 'Exams', '{"date": "2024-05-20"}');
-
--- Sample Bibliography
-INSERT OR IGNORE INTO bibliography (citation_key, entry_type, data, collection) VALUES
-('spivak', 'book', '{"author":"Spivak","title":"Calculus"}', 'Global Bibliography');

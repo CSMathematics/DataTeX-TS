@@ -50,6 +50,7 @@ import { TableWizard } from "./TableWizard";
 import { PstricksWizard } from "./PstricksWizard";
 import { ColorsTab } from "./preamble/tabs/ColorsTab";
 import { ListsTab } from "./preamble/tabs/ListsTab";
+import { SiunitxWizard } from "./SiunitxWizard";
 
 interface PackageGalleryProps {
   selectedPkgId: string;
@@ -433,6 +434,7 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({
     "xcolor",
     "enumitem",
     "pstricks",
+    "siunitx",
   ].includes(selectedPkgId);
 
   return (
@@ -694,6 +696,7 @@ export const PackageGallery: React.FC<PackageGalleryProps> = ({
               </ScrollArea>
             </Box>
           )}
+          {selectedPkgId === "siunitx" && <SiunitxWizard onInsert={onInsert} />}
         </Box>
       ) : (
         <ScrollArea
