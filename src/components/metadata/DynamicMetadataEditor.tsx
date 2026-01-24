@@ -30,6 +30,12 @@ interface DynamicMetadataEditorProps {
   resourceId: string;
   resourceType: ResourceType;
   onSave?: () => void;
+  /** Optional initial metadata - if provided, will use this instead of loading from database */
+  initialMetadata?: any;
+  /** Optional callback when metadata changes - useful for .dtex files */
+  onMetadataChange?: (metadata: any) => void;
+  /** Skip saving to database (for standalone .dtex files not in DB) */
+  skipDatabaseSave?: boolean;
 }
 
 // ============================================================================
@@ -40,21 +46,24 @@ export const DynamicMetadataEditor: React.FC<DynamicMetadataEditorProps> = ({
   resourceId,
   resourceType,
   onSave,
+  initialMetadata,
+  onMetadataChange,
+  skipDatabaseSave = false,
 }) => {
-  const [metadata, setMetadata] = useState<any>({});
-  const [isLoading, setIsLoading] = useState(true);
+  const [metadata, setMetadata] = useState<any>(initialMetadata || {});
+  const [isLoading, setIsLoading] = useState(!initialMetadata);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadTypedMetadata = useTypedMetadataStore(
-    (state) => state.loadTypedMetadata
+    (state) => state.loadTypedMetadata,
   );
   const saveTypedMetadata = useTypedMetadataStore(
-    (state) => state.saveTypedMetadata
+    (state) => state.saveTypedMetadata,
   );
   const loadAllLookupData = useTypedMetadataStore(
-    (state) => state.loadAllLookupData
+    (state) => state.loadAllLookupData,
   );
 
   // Load lookup data and resource metadata on mount
@@ -64,16 +73,21 @@ export const DynamicMetadataEditor: React.FC<DynamicMetadataEditorProps> = ({
         setIsLoading(true);
         setError(null);
 
-        // Load lookup data
+        // Load lookup data (always needed for dropdowns)
         await loadAllLookupData();
 
-        // Load existing metadata
-        const existingMetadata = await loadTypedMetadata(
-          resourceId,
-          resourceType
-        );
-        if (existingMetadata) {
-          setMetadata(existingMetadata);
+        // If we have initial metadata (e.g., from .dtex file), use it
+        if (initialMetadata) {
+          setMetadata(initialMetadata);
+        } else {
+          // Load existing metadata from database
+          const existingMetadata = await loadTypedMetadata(
+            resourceId,
+            resourceType,
+          );
+          if (existingMetadata) {
+            setMetadata(existingMetadata);
+          }
         }
       } catch (err) {
         console.error("Failed to load metadata:", err);
@@ -84,7 +98,7 @@ export const DynamicMetadataEditor: React.FC<DynamicMetadataEditorProps> = ({
     };
 
     initialize();
-  }, [resourceId, resourceType]);
+  }, [resourceId, resourceType, initialMetadata]);
 
   const handleSave = async () => {
     try {
@@ -92,7 +106,13 @@ export const DynamicMetadataEditor: React.FC<DynamicMetadataEditorProps> = ({
       setSaveSuccess(false);
       setError(null);
 
-      await saveTypedMetadata(resourceId, resourceType, metadata);
+      // Save to database (unless skipDatabaseSave is true for standalone .dtex files)
+      if (!skipDatabaseSave) {
+        await saveTypedMetadata(resourceId, resourceType, metadata);
+      }
+
+      // Notify parent about metadata change (for .dtex file saving)
+      onMetadataChange?.(metadata);
 
       setSaveSuccess(true);
       onSave?.();

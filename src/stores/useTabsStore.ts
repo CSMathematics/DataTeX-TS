@@ -27,6 +27,18 @@ export interface AppTab {
     modified: string;
     originalPath: string;
   };
+
+  // DTEX-specific fields
+  /** Flag indicating this is a .dtex file */
+  isDtexFile?: boolean;
+  /** Metadata for .dtex files */
+  dtexMetadata?: import("../types/dtex").DtexMetadata;
+  /** Separate dirty flag for metadata (for auto-save tracking) */
+  metadataDirty?: boolean;
+  /** Full .dtex file data (cached for performance) */
+  dtexData?: import("../types/dtex").DtexFile;
+  /** Auto-save status for UI indicators */
+  savingStatus?: "saving" | "saved" | "error";
 }
 
 interface TabsState {
@@ -42,6 +54,17 @@ interface TabsState {
   updateTabContent: (id: string, content: string) => void;
   markDirty: (id: string, isDirty: boolean) => void;
   renameTab: (oldId: string, newId: string, newTitle: string) => void;
+
+  // DTEX-specific actions
+  updateTabMetadata: (
+    id: string,
+    metadata: import("../types/dtex").DtexMetadata,
+  ) => void;
+  markMetadataDirty: (id: string, isDirty: boolean) => void;
+  setSavingStatus: (
+    id: string,
+    status: "saving" | "saved" | "error" | undefined,
+  ) => void;
 
   // Derived selectors (computed from state)
   getActiveTab: () => AppTab | undefined;
@@ -168,6 +191,42 @@ export const useTabsStore = create<TabsState>()(
           t.id === oldId ? { ...t, id: newId, title: newTitle } : t,
         ),
         activeTabId: activeTabId === oldId ? newId : activeTabId,
+      }));
+    },
+
+    // Update tab metadata (for .dtex files)
+    updateTabMetadata: (
+      id: string,
+      metadata: import("../types/dtex").DtexMetadata,
+    ) => {
+      set((state) => ({
+        tabs: state.tabs.map((t) =>
+          t.id === id ? { ...t, dtexMetadata: metadata } : t,
+        ),
+      }));
+    },
+
+    // Mark tab metadata as dirty/clean
+    markMetadataDirty: (id: string, isDirty: boolean) => {
+      set((state) => ({
+        tabs: state.tabs.map((t) =>
+          t.id === id && t.metadataDirty !== isDirty
+            ? { ...t, metadataDirty: isDirty }
+            : t,
+        ),
+      }));
+    },
+
+    setSavingStatus: (
+      id: string,
+      status: "saving" | "saved" | "error" | undefined,
+    ) => {
+      set((state) => ({
+        tabs: state.tabs.map((t) =>
+          t.id === id && t.savingStatus !== status
+            ? { ...t, savingStatus: status }
+            : t,
+        ),
       }));
     },
 

@@ -16,6 +16,7 @@ import {
   TextInput,
   MultiSelect,
   Checkbox,
+  Menu,
 } from "@mantine/core";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -35,6 +36,8 @@ import {
   faSearch,
   faCompress,
   faExpand,
+  faFileImport,
+  faEllipsisVertical,
 } from "@fortawesome/free-solid-svg-icons";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -64,7 +67,10 @@ interface DatabaseSidebarProps {
   onRenameItem?: (node: FileSystemNode, newName: string) => void;
   onDeleteItem?: (node: FileSystemNode) => void;
   // Navigation to wizards
+  // Navigation to wizards
   onNavigate?: (view: string) => void;
+  onExportDtex?: (resourceId?: string) => void;
+  onExportToTex?: (resourceId?: string) => void;
 }
 
 /**
@@ -72,7 +78,11 @@ interface DatabaseSidebarProps {
  * Shows Collections, DB File Tree, or Project Folders (3-way toggle).
  * Now uses shared UnifiedTreeItem component for file trees.
  */
-export const DatabaseSidebar = ({ onOpenFileNode }: DatabaseSidebarProps) => {
+export const DatabaseSidebar = ({
+  onOpenFileNode,
+  onExportDtex,
+  onExportToTex,
+}: DatabaseSidebarProps) => {
   const { t } = useTranslation();
 
   // Granular selectors - prevents re-renders when unrelated state changes
@@ -959,7 +969,7 @@ export const DatabaseSidebar = ({ onOpenFileNode }: DatabaseSidebarProps) => {
         ? { icon: expanded ? faFolderOpen : faFolder, color: "#dcb67a" }
         : getFileIcon(node.label as string);
 
-      return (
+      const nodeContent = (
         <React.Fragment>
           {isCollectionRoot && node.value !== filteredTreeData[0]?.value && (
             <Divider my="xs" variant="dashed" />
@@ -1039,6 +1049,7 @@ export const DatabaseSidebar = ({ onOpenFileNode }: DatabaseSidebarProps) => {
               {node.label}
             </Text>
 
+            {/* Actions for Collection Root */}
             {isCollectionRoot && (
               <Group gap={1} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
                 <Tooltip label={t("database.newFile")} withArrow position="top">
@@ -1131,9 +1142,269 @@ export const DatabaseSidebar = ({ onOpenFileNode }: DatabaseSidebarProps) => {
                 </Tooltip>
               </Group>
             )}
+
+            {/* Actions for Non-Root Items */}
+            {!isCollectionRoot && (
+              <Menu shadow="md" width={200} position="bottom-end">
+                <Menu.Target>
+                  <ActionIcon
+                    size="xs"
+                    variant="subtle"
+                    color="gray"
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ opacity: 0.5 }}
+                  >
+                    <FontAwesomeIcon
+                      icon={faEllipsisVertical}
+                      style={{ height: 12 }}
+                    />
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>{node.label}</Menu.Label>
+                  {isFolder ? (
+                    <>
+                      <Menu.Item
+                        leftSection={
+                          <FontAwesomeIcon
+                            icon={faFile}
+                            style={{ width: 14 }}
+                          />
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartCreation(node.label as string, "file");
+                        }}
+                      >
+                        New File
+                      </Menu.Item>
+                      <Menu.Item
+                        leftSection={
+                          <FontAwesomeIcon
+                            icon={faFolder}
+                            style={{ width: 14 }}
+                          />
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartCreation(node.label as string, "folder");
+                        }}
+                      >
+                        New Folder
+                      </Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Item
+                        color="red"
+                        leftSection={
+                          <FontAwesomeIcon
+                            icon={faTrash}
+                            style={{ width: 14 }}
+                          />
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(
+                            {
+                              type: "folder",
+                              name: node.label as string,
+                              id: path,
+                              path: path,
+                            },
+                            e,
+                          );
+                        }}
+                      >
+                        Delete Folder
+                      </Menu.Item>
+                    </>
+                  ) : (
+                    <>
+                      <Menu.Item
+                        leftSection={
+                          <FontAwesomeIcon
+                            icon={faFileImport}
+                            style={{ width: 14 }}
+                          />
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const resource = allLoadedResources.find(
+                            (r) => r.path === path,
+                          );
+                          if (resource && onExportDtex) {
+                            onExportDtex(resource.id);
+                          }
+                        }}
+                      >
+                        Export to .dtex
+                      </Menu.Item>
+                      <Menu.Divider />
+                      <Menu.Item
+                        color="red"
+                        leftSection={
+                          <FontAwesomeIcon
+                            icon={faTrash}
+                            style={{ width: 14 }}
+                          />
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const resource = allLoadedResources.find(
+                            (r) => r.path === path,
+                          );
+                          handleDeleteClick(
+                            {
+                              type: "file",
+                              name: node.label as string,
+                              id: resource?.id || path,
+                              path: path,
+                            },
+                            e,
+                          );
+                        }}
+                      >
+                        Delete File
+                      </Menu.Item>
+                    </>
+                  )}
+                </Menu.Dropdown>
+              </Menu>
+            )}
           </Group>
         </React.Fragment>
       );
+
+      return nodeContent;
+
+      /*
+      if (!isCollectionRoot) {
+        return (
+          <Menu shadow="md" width={200} trigger="contextmenu">
+            <Menu.Target>
+              <Box>{nodeContent}</Box>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Label>{node.label}</Menu.Label>
+              {isFolder ? (
+                <>
+                  <Menu.Item
+                    leftSection={
+                      <FontAwesomeIcon icon={faFile} style={{ width: 14 }} />
+                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStartCreation(node.label as string, "file");
+                    }}
+                  >
+                    New File
+                  </Menu.Item>
+                  <Menu.Item
+                    leftSection={
+                      <FontAwesomeIcon icon={faFolder} style={{ width: 14 }} />
+                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStartCreation(node.label as string, "folder");
+                    }}
+                  >
+                    New Folder
+                  </Menu.Item>
+                  <Menu.Divider />
+                  <Menu.Item
+                    color="red"
+                    leftSection={
+                      <FontAwesomeIcon icon={faTrash} style={{ width: 14 }} />
+                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(
+                        {
+                          type: "folder",
+                          name: node.label as string,
+                          id: path,
+                          path: path,
+                        },
+                        e,
+                      );
+                    }}
+                  >
+                    Delete Folder
+                  </Menu.Item>
+                </>
+              ) : (
+                <>
+                  <Menu.Item
+                    leftSection={
+                      <FontAwesomeIcon
+                        icon={faFileImport}
+                        style={{ width: 14 }}
+                      />
+                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const resource = allLoadedResources.find(
+                        (r) => r.path === path,
+                      );
+                      if (resource && onExportDtex) {
+                        onExportDtex(resource.id);
+                      }
+                    }}
+                  >
+                    Export to .dtex
+                  </Menu.Item>
+                  {path.toLowerCase().endsWith(".dtex") && (
+                    <Menu.Item
+                      leftSection={
+                        <FontAwesomeIcon
+                          icon={faFileCode}
+                          style={{ width: 14 }}
+                        />
+                      }
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const resource = allLoadedResources.find(
+                          (r) => r.path === path,
+                        );
+                        if (resource && onExportToTex) {
+                          onExportToTex(resource.id);
+                        }
+                      }}
+                    >
+                      Export to .tex
+                    </Menu.Item>
+                  )}
+                  <Menu.Divider />
+                  <Menu.Item
+                    color="red"
+                    leftSection={
+                      <FontAwesomeIcon icon={faTrash} style={{ width: 14 }} />
+                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const resource = allLoadedResources.find(
+                        (r) => r.path === path,
+                      );
+                      handleDeleteClick(
+                        {
+                          type: "file",
+                          name: node.label as string,
+                          id: resource?.id || path,
+                          path: path,
+                        },
+                        e,
+                      );
+                    }}
+                  >
+                    Delete File
+                  </Menu.Item>
+                </>
+              )}
+            </Menu.Dropdown>
+          </Menu>
+        );
+      }
+
+      */
     },
     [
       focusedPath,

@@ -114,6 +114,8 @@ interface SidebarProps {
   activeFilePath?: string;
   activeFileContent?: string;
   onRestoreContent?: (content: string) => void;
+  onExportDtex?: (resourceId?: string) => void;
+  onExportToTex?: (resourceId?: string) => void;
 }
 
 // Re-export getFileIcon from shared components for backward compatibility
@@ -261,6 +263,8 @@ export const Sidebar = React.memo<SidebarProps>(
     activeFilePath,
     activeFileContent,
     onRestoreContent,
+    onExportDtex,
+    onExportToTex,
   }) => {
     // --- Local State ---
     const { t } = useTranslation();
@@ -522,6 +526,8 @@ export const Sidebar = React.memo<SidebarProps>(
                     onRenameItem={onRenameItem}
                     onDeleteItem={onDeleteItem}
                     onNavigate={(view) => onNavigate(view as ViewType)}
+                    onExportDtex={onExportDtex}
+                    onExportToTex={onExportToTex}
                   />
                 )}
 

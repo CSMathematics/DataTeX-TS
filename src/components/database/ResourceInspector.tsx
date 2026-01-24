@@ -23,6 +23,7 @@ import { PreambleWizard } from "../wizards/PreambleWizard";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import { DynamicMetadataEditor } from "../metadata/DynamicMetadataEditor";
 import { useTypedMetadataStore } from "../../stores/typedMetadataStore";
+import { useTabsStore } from "../../stores/useTabsStore";
 import { readFile, exists } from "@tauri-apps/plugin-fs";
 import { PdfViewerContainer } from "./PdfViewerContainer";
 import { LoadingState, EmptyState, PanelHeader, ToolbarButton } from "../ui";
@@ -52,6 +53,9 @@ interface ResourceInspectorProps {
   pdfRefreshTrigger?: number;
   onInsertFragment?: (code: string) => void;
   canInsert?: boolean;
+
+  /** Active editor tab (for .dtex file metadata) */
+  activeEditorTab?: import("../../stores/useTabsStore").AppTab;
 }
 
 export const ResourceInspector = ({
@@ -60,9 +64,11 @@ export const ResourceInspector = ({
   pdfRefreshTrigger,
   onInsertFragment,
   canInsert,
+  activeEditorTab,
 }: ResourceInspectorProps) => {
   const { t } = useTranslation();
   const { allLoadedResources, activeResourceId } = useDatabaseStore();
+  const { updateTabMetadata, markMetadataDirty } = useTabsStore();
   const resource = allLoadedResources.find((r) => r.id === activeResourceId);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -259,8 +265,10 @@ export const ResourceInspector = ({
             >
               PDF
             </Tabs.Tab>
-            {/* Metadata and Bibliography only when resource is selected */}
-            {resource && (
+            {/* Metadata tab: show for database resources OR .dtex files */}
+            {(resource ||
+              (activeEditorTab?.isDtexFile &&
+                activeEditorTab?.dtexMetadata)) && (
               <>
                 <Tabs.Tab
                   value="metadata"
@@ -269,7 +277,7 @@ export const ResourceInspector = ({
                   {t("database.tabs.metadata")}
                 </Tabs.Tab>
                 {/* Hide Bibliography tab for bibliography files as it's redundant */}
-                {resource.kind !== "bibliography" && (
+                {resource && resource.kind !== "bibliography" && (
                   <Tabs.Tab
                     value="bibliography"
                     leftSection={<FontAwesomeIcon icon={faBook} />}
@@ -317,8 +325,9 @@ export const ResourceInspector = ({
             </Box>
           </Tabs.Panel>
 
-          {/* Metadata Tab - only when resource is selected */}
-          {resource && (
+          {/* Metadata Tab - show for either database resource OR .dtex file */}
+          {(resource ||
+            (activeEditorTab?.isDtexFile && activeEditorTab?.dtexMetadata)) && (
             <Tabs.Panel
               value="metadata"
               style={{ flex: 1, position: "relative" }}
@@ -333,55 +342,97 @@ export const ResourceInspector = ({
                 }}
               >
                 <Stack p="md" gap="md">
+                  {/* Header info - show for .dtex files */}
+                  {activeEditorTab?.isDtexFile &&
+                    activeEditorTab?.dtexMetadata && (
+                      <Text size="xs" c="dimmed">
+                        DTEX File - Changes save to file and database
+                      </Text>
+                    )}
+
+                  {/* Title and File Type row */}
                   <Group grow>
                     <TextInput
                       label={t("database.inspector.fields.title")}
-                      key={resource.id}
-                      defaultValue={resource.title || ""}
+                      key={resource?.id || activeEditorTab?.id}
+                      defaultValue={
+                        resource?.title ||
+                        activeEditorTab?.dtexMetadata?.id ||
+                        ""
+                      }
                       onChange={() => {
-                        // Ideally update title too, but for now focusing on metadata
+                        // TODO: Update title
                       }}
                     />
                     <Select
                       label={t("database.inspector.fields.fileType")}
                       data={RESOURCE_KINDS}
-                      value={resource.kind}
+                      value={
+                        resource?.kind ||
+                        activeEditorTab?.dtexMetadata?.fileType ||
+                        "file"
+                      }
                       onChange={(val) => {
-                        if (val) updateResourceKind(resource.id, val);
+                        if (val && resource) {
+                          updateResourceKind(resource.id, val);
+                        }
+                        // TODO: For .dtex files, update fileType in dtexMetadata
                       }}
                       allowDeselect={false}
                     />
                   </Group>
-                  <Group grow>
-                    <TextInput
-                      label={t("database.inspector.fields.id")}
-                      value={resource.id}
-                      readOnly
-                      variant="filled"
-                      c="dimmed"
-                    />
-                    <TextInput
-                      label={t("database.inspector.fields.collection")}
-                      value={resource.collection}
-                      readOnly
-                      variant="filled"
-                      c="dimmed"
-                    />
-                    <TextInput
-                      label={t("database.inspector.fields.created")}
-                      value={resource.created_at || "-"}
-                      readOnly
-                      variant="filled"
-                      c="dimmed"
-                    />
-                  </Group>
 
-                  {/* Dynamic Typed Metadata Editor - uses sqlx backend commands */}
+                  {/* ID, Collection, Created row - only for database resources */}
+                  {resource && (
+                    <Group grow>
+                      <TextInput
+                        label={t("database.inspector.fields.id")}
+                        value={resource.id}
+                        readOnly
+                        variant="filled"
+                        c="dimmed"
+                      />
+                      <TextInput
+                        label={t("database.inspector.fields.collection")}
+                        value={resource.collection}
+                        readOnly
+                        variant="filled"
+                        c="dimmed"
+                      />
+                      <TextInput
+                        label={t("database.inspector.fields.created")}
+                        value={resource.created_at || "-"}
+                        readOnly
+                        variant="filled"
+                        c="dimmed"
+                      />
+                    </Group>
+                  )}
+
+                  {/* Dynamic Typed Metadata Editor - works for both database and .dtex */}
                   <DynamicMetadataEditor
-                    resourceId={resource.id}
-                    resourceType={resource.kind as any}
+                    resourceId={resource?.id || activeEditorTab?.id || ""}
+                    resourceType={
+                      (resource?.kind ||
+                        activeEditorTab?.dtexMetadata?.fileType ||
+                        "file") as any
+                    }
+                    initialMetadata={
+                      activeEditorTab?.isDtexFile
+                        ? activeEditorTab.dtexMetadata
+                        : undefined
+                    }
+                    onMetadataChange={async (newMetadata) => {
+                      // For .dtex files, also save to file
+                      // For .dtex files, update store to trigger auto-save hook
+                      if (activeEditorTab?.isDtexFile && activeEditorTab.id) {
+                        updateTabMetadata(activeEditorTab.id, newMetadata);
+                        markMetadataDirty(activeEditorTab.id, true);
+                      }
+                    }}
+                    skipDatabaseSave={activeEditorTab?.isDtexFile && !resource}
                     onSave={() => {
-                      // Metadata saved successfully
+                      // Metadata saved
                     }}
                   />
                 </Stack>

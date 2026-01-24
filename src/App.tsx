@@ -9,6 +9,7 @@ import {
   CSSVariablesResolver,
   Modal,
 } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import { invoke } from "@tauri-apps/api/core";
 import { debounce, throttle } from "lodash";
 import { ScrollArea, Code, Button } from "@mantine/core";
@@ -58,6 +59,11 @@ import { templates, getTemplateById } from "./services/templateService";
 
 import { AISidebar } from "./components/ai/AISidebar";
 import { UnsavedChangesModal } from "./components/modals/UnsavedChangesModal";
+import { DtexImportModal } from "./components/modals/DtexImportModal";
+import { BatchExportModal } from "./components/modals/BatchExportModal";
+import type { DtexFile, DtexDatabaseInfo } from "./types/dtex";
+import { useDtexAutoSave } from "./hooks/useDtexAutoSave";
+import { DtexService } from "./services/dtexService";
 
 import {
   latexLanguage,
@@ -262,7 +268,33 @@ export default function App() {
   const [unsavedChangesModalOpen, setUnsavedChangesModalOpen] = useState(false);
   const [tabToCloseId, setTabToCloseId] = useState<string | null>(null);
 
-  // --- Derived State (from Zustand selectors) ---
+  // --- DTEX Import Modal State ---
+  const [dtexImportModal, setDtexImportModal] = useState<{
+    opened: boolean;
+    dtexFile: DtexFile | null;
+    filePath: string;
+  }>({ opened: false, dtexFile: null, filePath: "" });
+
+  // --- Batch Export State ---
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchExporting, setBatchExporting] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{
+    current: number;
+    total: number;
+    success: number;
+    failed: number;
+    currentFile?: string;
+  }>({ current: 0, total: 0, success: 0, failed: 0 });
+  const [batchResults, setBatchResults] = useState<{
+    success: number;
+    failed: number;
+    errors: { file: string; error: string }[];
+  } | null>(null);
+
+  // --- Auto-Save Hook ---
+  useDtexAutoSave();
+
+  // --- Derived State (UI) ---from Zustand selectors) ---
   const activeTab = useActiveTab();
   const isTexFile = useIsTexFile();
 
@@ -281,12 +313,24 @@ export default function App() {
       }
 
       try {
-        const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-        await writeTextFile(tab.id, contentToSave);
+        // Check if this is a .dtex file
+        if (tab.isDtexFile && tab.dtexData) {
+          // Save .dtex file with metadata
+          const { DtexService } = await import("./services/dtexService");
+          await DtexService.saveContent(tab.id, contentToSave);
 
-        // Update tab dirty state and content
-        markDirty(targetId, false);
-        updateTabContent(targetId, contentToSave);
+          // Update tab states
+          markDirty(targetId, false);
+          updateTabContent(targetId, contentToSave);
+        } else {
+          // Save regular tex file
+          const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+          await writeTextFile(tab.id, contentToSave);
+
+          // Update tab dirty state and content
+          markDirty(targetId, false);
+          updateTabContent(targetId, contentToSave);
+        }
 
         // Save local history snapshot (fire and forget)
         invoke("save_history_snapshot_cmd", {
@@ -372,6 +416,11 @@ export default function App() {
 
   // --- Initialize LSP when rootPath or loaded collections change ---
   const collections = useDatabaseStore((state) => state.collections);
+  const createResource = useDatabaseStore((state) => state.createResource);
+  const fetchResourcesForLoadedCollections = useDatabaseStore(
+    (state) => state.fetchResourcesForLoadedCollections,
+  );
+  const createCollection = useDatabaseStore((state) => state.createCollection);
 
   useEffect(() => {
     // Determine workspace root: prefer rootPath, fallback to first collection path
@@ -628,23 +677,91 @@ export default function App() {
         return;
       }
 
-      let content = "";
-      try {
-        const { readTextFile } = await import("@tauri-apps/plugin-fs");
-        content = await readTextFile(node.path);
-      } catch (e) {
-        content = `Error reading file: ${String(e)}`;
-      }
+      // Check if this is a .dtex file
+      const isDtexFile = node.path.toLowerCase().endsWith(".dtex");
 
-      openTab({
-        id: node.path,
-        title: node.name,
-        type: "editor",
-        content,
-        language: "latex",
-      });
+      if (isDtexFile) {
+        // Handle .dtex file opening
+        try {
+          const { DtexService } = await import("./services/dtexService");
+          const dtexFile = await DtexService.parse(node.path);
+
+          // Check if source database exists in collections
+          const dbExists = collections.some(
+            (c) =>
+              c.name === dtexFile.database.name ||
+              c.path === dtexFile.database.path,
+          );
+
+          if (dbExists) {
+            // Database exists - open file normally
+            openTab({
+              id: node.path,
+              title: node.name,
+              type: "editor",
+              content: dtexFile.content.latex,
+              language: "my-latex",
+              isDirty: false,
+              isDtexFile: true,
+              dtexMetadata: dtexFile.metadata,
+              metadataDirty: false,
+              dtexData: dtexFile,
+            });
+
+            // Auto-open Resource Inspector to show metadata
+            setShowRightSidebar(true);
+          } else {
+            // Database not found - show import modal
+            setDtexImportModal({
+              opened: true,
+              dtexFile,
+              filePath: node.path,
+            });
+          }
+        } catch (e) {
+          console.error("Failed to load .dtex file:", e);
+          // Fallback: try to open as plain text
+          try {
+            const { readTextFile } = await import("@tauri-apps/plugin-fs");
+            const content = await readTextFile(node.path);
+            openTab({
+              id: node.path,
+              title: node.name,
+              type: "editor",
+              content,
+              language: "latex",
+              isDirty: false,
+            });
+          } catch (e2) {
+            openTab({
+              id: node.path,
+              title: node.name,
+              type: "editor",
+              content: `Error reading file: ${String(e2)}`,
+              language: "latex",
+            });
+          }
+        }
+      } else {
+        // Handle regular tex/text files
+        let content = "";
+        try {
+          const { readTextFile } = await import("@tauri-apps/plugin-fs");
+          content = await readTextFile(node.path);
+        } catch (e) {
+          content = `Error reading file: ${String(e)}`;
+        }
+
+        openTab({
+          id: node.path,
+          title: node.name,
+          type: "editor",
+          content,
+          language: "latex",
+        });
+      }
     },
-    [tabs, setActiveTab, openTab],
+    [tabs, setActiveTab, openTab, setShowRightSidebar],
   );
 
   const handleCloseTabs = useCallback(
@@ -902,6 +1019,228 @@ export default function App() {
     [handleOpenFileNode, handleRevealLine],
   );
 
+  const handleExportToTex = useCallback(
+    async (resourceId?: string) => {
+      try {
+        let filePath: string | undefined;
+
+        // 1. Determine Source Path
+        if (resourceId) {
+          // Lookup in loaded resources
+          const { allLoadedResources } = useDatabaseStore.getState();
+          const r = allLoadedResources.find(
+            (res) => res.id === resourceId || res.path === resourceId,
+          );
+          if (r) {
+            filePath = r.path;
+          }
+        } else {
+          // Use active tab
+          filePath = useTabsStore.getState().activeTabId;
+        }
+
+        if (!filePath) {
+          notifications.show({
+            title: "Export Failed",
+            message: "No file selected",
+            color: "red",
+          });
+          return;
+        }
+
+        // Ensure it's a .dtex file
+        if (!filePath.toLowerCase().endsWith(".dtex")) {
+          notifications.show({
+            title: "Export Failed",
+            message: "Only .dtex files can be exported to .tex",
+            color: "red",
+          });
+          return;
+        }
+
+        // 2. Parse source .dtex
+        const dtexFile = await DtexService.parse(filePath);
+
+        // 3. Determine output path (replace .dtex with .tex)
+        const outputPath = filePath.replace(/\.dtex$/i, ".tex");
+        const outputName = outputPath.split(/[/\\]/).pop();
+
+        // 4. Export
+        await DtexService.exportToTex(dtexFile, outputPath);
+
+        // 5. Notify
+        notifications.show({
+          title: "Export Successful",
+          message: `Exported to ${outputName}`,
+          color: "green",
+        });
+
+        // 6. Refresh file tree
+        reloadProjectFiles(projectData.map((n) => n.path));
+      } catch (error) {
+        console.error("Failed to export .tex:", error);
+        notifications.show({
+          title: "Export Failed",
+          message: String(error),
+          color: "red",
+        });
+      }
+    },
+    [projectData, reloadProjectFiles],
+  );
+
+  const handleBatchExport = useCallback(
+    async (scope: "all" | "collection", collectionName?: string) => {
+      setBatchExporting(true);
+      setBatchResults(null);
+      const { allLoadedResources } = useDatabaseStore.getState();
+
+      // Filter resources
+      let targets = allLoadedResources.filter(
+        (r) =>
+          r.path.toLowerCase().endsWith(".tex") && r.kind !== "bibliography",
+      );
+
+      if (scope === "collection" && collectionName) {
+        targets = targets.filter((r) => r.collection === collectionName);
+      }
+
+      setBatchProgress({
+        current: 0,
+        total: targets.length,
+        success: 0,
+        failed: 0,
+      });
+
+      const errors: { file: string; error: string }[] = [];
+      let successCount = 0;
+      let failedCount = 0;
+
+      // Import path module safely or use string manipulation if needed (DtexService handles creation)
+      // We iterate
+      for (let i = 0; i < targets.length; i++) {
+        const res = targets[i];
+        setBatchProgress((prev) => ({
+          ...prev,
+          current: i + 1,
+          currentFile: res.title || res.path.split(/[/\\]/).pop(),
+        }));
+
+        try {
+          const dbInfo: DtexDatabaseInfo = {
+            id: res.id,
+            name: "Default Database",
+            type: "files_database",
+            collection: res.collection,
+          };
+
+          await DtexService.createFromTexFile(res.path, dbInfo);
+          successCount++;
+        } catch (e) {
+          console.error("Batch export failed for", res.path, e);
+          failedCount++;
+          errors.push({
+            file: res.title || res.path.split(/[/\\]/).pop() || "Unknown",
+            error: String(e),
+          });
+        }
+
+        // Yield to UI
+        await new Promise((r) => setTimeout(r, 10));
+      }
+
+      setBatchExporting(false);
+      setBatchResults({ success: successCount, failed: failedCount, errors });
+
+      // Refresh file tree (approximate refresh of parenting folders)
+      reloadProjectFiles(targets.map((t) => t.path));
+    },
+    [reloadProjectFiles],
+  );
+
+  const handleExportDtex = useCallback(
+    async (resourceId?: string) => {
+      try {
+        let filePath: string | undefined;
+        let collectionName: string | undefined;
+
+        // 1. Determine Source Path
+        if (resourceId) {
+          // Lookup in loaded resources
+          const { allLoadedResources } = useDatabaseStore.getState();
+          const r = allLoadedResources.find(
+            (res) => res.id === resourceId || res.path === resourceId,
+          );
+          if (r) {
+            filePath = r.path;
+            collectionName = r.collection;
+          }
+        } else {
+          // Use active tab
+          filePath = useTabsStore.getState().activeTabId;
+          // Try to find collection for active file
+          if (filePath) {
+            const { allLoadedResources } = useDatabaseStore.getState();
+            const r = allLoadedResources.find((res) => res.path === filePath);
+            if (r) {
+              collectionName = r.collection;
+            }
+          }
+        }
+
+        if (!filePath) {
+          notifications.show({
+            title: "Export Failed",
+            message: "No file selected",
+            color: "red",
+          });
+          return;
+        }
+
+        // Ensure it's a .tex file
+        if (!filePath.toLowerCase().endsWith(".tex")) {
+          notifications.show({
+            title: "Export Failed",
+            message: "Only .tex files can be exported to .dtex",
+            color: "red",
+          });
+          return;
+        }
+
+        // 2. Export
+        const dbInfo: DtexDatabaseInfo = {
+          id: "local",
+          name: "Local Export",
+          type: "local",
+          collection: collectionName,
+        };
+
+        const targetPath = await DtexService.createFromTexFile(
+          filePath,
+          dbInfo,
+        );
+
+        // 3. Notify & Refresh
+        notifications.show({
+          title: "Export Successful",
+          message: `Created ${targetPath.split(/[/\\]/).pop()}`,
+          color: "green",
+        });
+
+        // Refresh file tree
+        reloadProjectFiles(projectData.map((node) => node.path));
+      } catch (err) {
+        console.error(err);
+        notifications.show({
+          title: "Export Error",
+          message: String(err),
+          color: "red",
+        });
+      }
+    },
+    [reloadProjectFiles, projectData],
+  );
+
   const handleOpenFileDialog = useCallback(async () => {
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
@@ -911,7 +1250,7 @@ export default function App() {
         filters: [
           {
             name: "TeX Files",
-            extensions: ["tex", "sty", "cls", "bib", "dtx", "ins"],
+            extensions: ["tex", "sty", "cls", "bib", "dtx", "ins", "dtex"],
           },
           {
             name: "All Files",
@@ -921,6 +1260,36 @@ export default function App() {
       });
 
       if (selectedPath && typeof selectedPath === "string") {
+        // Check if file is in database
+        const {
+          allLoadedResources,
+          importFile,
+          activeCollection,
+          collections,
+        } = useDatabaseStore.getState();
+        const inDb = allLoadedResources.some((r) => r.path === selectedPath);
+
+        if (!inDb) {
+          // Auto-import to active or first collection
+          let targetCol = activeCollection;
+          if (!targetCol && collections.length > 0) {
+            targetCol = collections[0].name;
+          }
+
+          if (targetCol) {
+            try {
+              await importFile(selectedPath, targetCol);
+              notifications.show({
+                title: "File Imported",
+                message: `Added to collection "${targetCol}"`,
+                color: "blue",
+              });
+            } catch (err) {
+              console.warn("Failed to auto-import file:", err);
+            }
+          }
+        }
+
         handleOpenFileFromTable(selectedPath);
       }
     } catch (e) {
@@ -1121,6 +1490,9 @@ export default function App() {
                   setActiveView("ai-assistant");
                 }
               }}
+              onExportDtex={handleExportDtex}
+              onExportToTex={handleExportToTex}
+              onBatchExport={() => setBatchModalOpen(true)}
             />
           </AppShell.Header>
 
@@ -1203,6 +1575,8 @@ export default function App() {
                     markDirty(activeTab.id, true);
                   }
                 }}
+                onExportDtex={handleExportDtex}
+                onExportToTex={handleExportToTex}
               />
 
               {/* 2. CENTER: EDITOR / VIEWS */}
@@ -1558,6 +1932,7 @@ export default function App() {
                         mainEditorPdfUrl={pdfUrl}
                         syncTexCoords={syncTexCoords}
                         pdfRefreshTrigger={pdfRefreshTrigger}
+                        activeEditorTab={activeTab}
                         onInsertFragment={handleInsertSnippet}
                         canInsert={(() => {
                           if (!activeTab) return false;
@@ -1781,6 +2156,14 @@ export default function App() {
               </div>
             </div>
           </Modal>
+          <BatchExportModal
+            opened={batchModalOpen}
+            onClose={() => setBatchModalOpen(false)}
+            onExport={handleBatchExport}
+            isExporting={batchExporting}
+            progress={batchProgress}
+            results={batchResults}
+          />
         </AppShell>
       </DndContext>
       <UnsavedChangesModal
@@ -1789,6 +2172,176 @@ export default function App() {
         onDiscard={handleConfirmDiscard}
         onSave={handleConfirmSave}
         fileName={tabs.find((t) => t.id === tabToCloseId)?.title || "this file"}
+      />
+      <DtexImportModal
+        opened={dtexImportModal.opened}
+        onClose={() =>
+          setDtexImportModal({ opened: false, dtexFile: null, filePath: "" })
+        }
+        dtexFile={dtexImportModal.dtexFile}
+        filePath={dtexImportModal.filePath}
+        onImport={async (option) => {
+          const { dtexFile, filePath } = dtexImportModal;
+          if (!dtexFile) return;
+
+          // Open the file based on import option
+          if (option.type === "standalone") {
+            // Just open without database sync
+            openTab({
+              id: filePath,
+              title: filePath.split("/").pop() || "Untitled",
+              type: "editor",
+              content: dtexFile.content.latex,
+              language: "my-latex",
+              isDirty: false,
+              isDtexFile: true,
+              dtexMetadata: dtexFile.metadata,
+              metadataDirty: false,
+              dtexData: dtexFile,
+            });
+            setShowRightSidebar(true);
+          } else if (option.type === "add-to-existing") {
+            // Add resource to existing collection
+            const collectionName = option.collectionId;
+            const collection = collections.find(
+              (c) => c.name === collectionName,
+            );
+
+            if (collection && collection.path) {
+              try {
+                const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+
+                // Generate .tex filename from metadata id or original filename
+                const texFilename =
+                  (dtexFile.metadata.id ||
+                    filePath.split("/").pop()?.replace(".dtex", "")) + ".tex";
+                const texPath = collection.path + "/" + texFilename;
+
+                // Save .tex file to disk
+                await writeTextFile(texPath, dtexFile.content.latex);
+
+                // Create resource in database with metadata
+                await createResource(
+                  texPath,
+                  collectionName,
+                  dtexFile.content.latex,
+                  dtexFile.metadata,
+                );
+
+                // Refresh resources
+                await fetchResourcesForLoadedCollections();
+
+                // Open the new .tex file
+                openTab({
+                  id: texPath,
+                  title: texFilename,
+                  type: "editor",
+                  content: dtexFile.content.latex,
+                  language: "my-latex",
+                  isDirty: false,
+                });
+                setShowRightSidebar(true);
+
+                console.log("Imported .dtex to:", texPath);
+              } catch (err) {
+                console.error("Failed to import .dtex to database:", err);
+                // Fallback: open as standalone
+                openTab({
+                  id: filePath,
+                  title: filePath.split("/").pop() || "Untitled",
+                  type: "editor",
+                  content: dtexFile.content.latex,
+                  language: "my-latex",
+                  isDirty: false,
+                  isDtexFile: true,
+                  dtexMetadata: dtexFile.metadata,
+                  metadataDirty: false,
+                  dtexData: dtexFile,
+                });
+                setShowRightSidebar(true);
+              }
+            } else {
+              console.error(
+                "Collection not found or has no path:",
+                collectionName,
+              );
+            }
+          } else if (option.type === "create-database") {
+            // Create database at original path
+            const dbPath = dtexFile.database.path;
+            const dbName = dtexFile.database.name;
+
+            if (dbPath) {
+              try {
+                const { mkdir, writeTextFile } =
+                  await import("@tauri-apps/plugin-fs");
+
+                // 1. Create database folder if doesn't exist
+                try {
+                  await mkdir(dbPath, { recursive: true });
+                } catch {
+                  // Folder may already exist
+                }
+
+                // 2. Create collection
+                await createCollection(dbName, dbPath);
+
+                // Generate .tex filename
+                const texFilename =
+                  (dtexFile.metadata.id ||
+                    filePath.split("/").pop()?.replace(".dtex", "")) + ".tex";
+                const texPath = dbPath + "/" + texFilename;
+
+                // 3. Save .tex file
+                await writeTextFile(texPath, dtexFile.content.latex);
+
+                // 4. Create resource
+                await createResource(
+                  texPath,
+                  dbName,
+                  dtexFile.content.latex,
+                  dtexFile.metadata,
+                );
+
+                // 5. Refresh and open file
+                await fetchResourcesForLoadedCollections();
+
+                openTab({
+                  id: texPath,
+                  title: texFilename,
+                  type: "editor",
+                  content: dtexFile.content.latex,
+                  language: "my-latex",
+                  isDirty: false,
+                });
+                setShowRightSidebar(true);
+
+                console.log("Created database and imported .dtex to:", texPath);
+              } catch (err) {
+                console.error("Failed to create database:", err);
+                // Fallback: open as standalone
+                openTab({
+                  id: filePath,
+                  title: filePath.split("/").pop() || "Untitled",
+                  type: "editor",
+                  content: dtexFile.content.latex,
+                  language: "my-latex",
+                  isDirty: false,
+                  isDtexFile: true,
+                  dtexMetadata: dtexFile.metadata,
+                  metadataDirty: false,
+                  dtexData: dtexFile,
+                });
+                setShowRightSidebar(true);
+              }
+            } else {
+              console.error("No database path specified in .dtex file");
+            }
+          }
+
+          // Close modal
+          setDtexImportModal({ opened: false, dtexFile: null, filePath: "" });
+        }}
       />
     </MantineProvider>
   );

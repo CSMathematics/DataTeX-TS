@@ -123,6 +123,13 @@ const getFileIcon = (name: string, type: string) => {
           style={{ width: 14, height: 14, color: "#4dabf7" }}
         />
       );
+    case "dtex":
+      return (
+        <FontAwesomeIcon
+          icon={faDatabase}
+          style={{ width: 14, height: 14, color: "#7950f2" }}
+        />
+      );
     case "bib":
       return (
         <FontAwesomeIcon
@@ -241,7 +248,25 @@ const TabItem = React.memo(
                 }
               >
                 {file.title}
-                {file.isDirty ? " ●" : ""}
+                {file.savingStatus === "saving" && (
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      marginLeft: 4,
+                      color: "var(--mantine-color-dimmed)",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    Saving...
+                  </span>
+                )}
+                {file.isDirty ? (
+                  " ●"
+                ) : file.metadataDirty && file.savingStatus !== "saving" ? (
+                  <span style={{ color: "#7950f2" }}> ●</span>
+                ) : (
+                  ""
+                )}
               </Text>
               <ActionIcon
                 size="xs"

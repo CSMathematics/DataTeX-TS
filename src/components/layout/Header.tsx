@@ -17,6 +17,8 @@ import {
   faTableList,
   faColumns,
   faImage,
+  faFileCode,
+  faDatabase,
 } from "@fortawesome/free-solid-svg-icons";
 import {
   IconLayoutSidebarRightCollapseFilled,
@@ -70,6 +72,9 @@ interface HeaderProps {
   onOpenPackageBrowser?: () => void;
   onInsertImage?: () => void;
   onToggleAI?: () => void;
+  onExportDtex?: () => void;
+  onExportToTex?: () => void;
+  onBatchExport?: () => void;
 }
 
 export const HeaderContent: React.FC<HeaderProps> = ({
@@ -110,6 +115,9 @@ export const HeaderContent: React.FC<HeaderProps> = ({
   onOpenPackageBrowser,
   onInsertImage,
   onToggleAI,
+  onExportDtex,
+  onExportToTex,
+  onBatchExport,
 }) => {
   const { t } = useTranslation();
 
@@ -232,6 +240,39 @@ export const HeaderContent: React.FC<HeaderProps> = ({
                 }
               >
                 {t("menu.file.exportPdf")}
+              </Menu.Item>
+              <Menu.Item
+                leftSection={
+                  <FontAwesomeIcon
+                    icon={faFileCirclePlus}
+                    style={{ width: 14, height: 14 }}
+                  />
+                }
+                onClick={onExportDtex}
+              >
+                Export to .dtex
+              </Menu.Item>
+              <Menu.Item
+                leftSection={
+                  <FontAwesomeIcon
+                    icon={faFileCode}
+                    style={{ width: 14, height: 14 }}
+                  />
+                }
+                onClick={onExportToTex}
+              >
+                Export to .tex
+              </Menu.Item>
+              <Menu.Item
+                leftSection={
+                  <FontAwesomeIcon
+                    icon={faDatabase}
+                    style={{ width: 14, height: 14 }}
+                  />
+                }
+                onClick={onBatchExport}
+              >
+                Batch Export to .dtex
               </Menu.Item>
               <Menu.Divider />
               <Menu.Item color="red">{t("menu.file.exit")}</Menu.Item>
