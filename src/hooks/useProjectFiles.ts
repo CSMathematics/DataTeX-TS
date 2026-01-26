@@ -53,85 +53,14 @@ export function useProjectFiles({
 
   // --- HELPER: Load Project Files ---
   const loadFolderNode = async (rootPath: string): Promise<FileSystemNode> => {
-    const { readDir } = await import("@tauri-apps/plugin-fs");
-    const ignoredExtensions = [
-      "aux",
-      "log",
-      "out",
-      "toc",
-      "synctex.gz",
-      "fdb_latexmk",
-      "fls",
-      "bbl",
-      "blg",
-      "xdv",
-      "lof",
-      "lot",
-      "nav",
-      "snm",
-      "vrb",
-    ];
-
-    const processDir = async (dirPath: string): Promise<FileSystemNode[]> => {
-      const entries = await readDir(dirPath);
-      const nodes: FileSystemNode[] = [];
-      for (const entry of entries) {
-        const name = entry.name;
-        if (name.startsWith(".")) continue;
-        if (name === "node_modules" || name === ".git") continue;
-
-        const separator =
-          dirPath.endsWith("/") || dirPath.endsWith("\\")
-            ? ""
-            : dirPath.includes("\\")
-              ? "\\"
-              : "/";
-        const fullPath = `${dirPath}${separator}${name}`;
-
-        if (entry.isDirectory) {
-          const children = await processDir(fullPath);
-          nodes.push({
-            id: fullPath,
-            name: name,
-            type: "folder",
-            path: fullPath,
-            children: children,
-          });
-        } else {
-          const ext = name.split(".").pop()?.toLowerCase();
-          if (ext && ignoredExtensions.includes(ext)) continue;
-          nodes.push({
-            id: fullPath,
-            name: name,
-            type: "file",
-            path: fullPath,
-            children: [],
-          });
-        }
-      }
-      return nodes.sort((a, b) =>
-        a.type === b.type
-          ? a.name.localeCompare(b.name)
-          : a.type === "folder"
-            ? -1
-            : 1,
-      );
-    };
-
-    const children = await processDir(rootPath);
-    const separator = rootPath.includes("\\") ? "\\" : "/";
-    const cleanPath = rootPath.endsWith(separator)
-      ? rootPath.slice(0, -1)
-      : rootPath;
-    const folderName = cleanPath.split(separator).pop() || rootPath;
-
-    return {
-      id: rootPath,
-      name: folderName.toUpperCase(),
-      type: "folder",
-      path: rootPath,
-      children: children,
-    };
+    const { invoke } = await import("@tauri-apps/api/core");
+    try {
+      return await invoke<FileSystemNode>("get_project_files", { rootPath });
+    } catch (e) {
+      console.error("Failed to load project files via Rust:", e);
+      // Fallback or re-throw? Re-throwing ensures logic upstream handles it (logging error)
+      throw e;
+    }
   };
 
   const reloadProjectFiles = async (roots: string[]) => {

@@ -14,9 +14,9 @@ export interface LogEntry {
   file?: string;
 }
 
-export async function parseLatexLog(logContent: string): Promise<LogEntry[]> {
+export async function parseLatexLog(filePath: string): Promise<LogEntry[]> {
   try {
-    return await invoke<LogEntry[]>("parse_log_cmd", { content: logContent });
+    return await invoke<LogEntry[]>("parse_log_cmd", { file_path: filePath });
   } catch (e) {
     console.error("Failed to parse log via Rust:", e);
     return [];

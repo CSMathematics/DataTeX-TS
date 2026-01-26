@@ -26,6 +26,9 @@ mod tree_builder;
 mod types;
 mod commands {
     pub mod ctan;
+    pub mod dtex;
+    pub mod outline;
+    pub mod project_files;
 }
 
 use database::entities::{Collection, Resource};
@@ -858,8 +861,9 @@ async fn lsp_hover(
 }
 
 #[tauri::command]
-fn parse_log_cmd(content: String) -> Vec<log_parser::LogEntry> {
-    log_parser::parse_log(&content)
+fn parse_log_cmd(file_path: String) -> Result<Vec<log_parser::LogEntry>, String> {
+    let content = std::fs::read_to_string(&file_path).map_err(|e| e.to_string())?;
+    Ok(log_parser::parse_log(&content))
 }
 
 #[tauri::command]
@@ -4099,8 +4103,10 @@ pub fn run() {
             git_get_side_by_side_diff_cmd,
             // Advanced Branch Ops
             git_merge_branch_cmd,
-            git_rename_branch_cmd,
-            git_rebase_branch_cmd,
+            commands::outline::get_outline,
+            commands::project_files::get_project_files,
+            commands::dtex::load_dtex_cmd,
+            commands::dtex::save_dtex_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

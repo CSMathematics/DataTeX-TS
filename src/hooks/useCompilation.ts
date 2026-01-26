@@ -99,13 +99,12 @@ export function useCompilation({
         setCompileError(String(error));
       } finally {
         try {
-          const { exists, readTextFile } =
-            await import("@tauri-apps/plugin-fs");
+          const { exists } = await import("@tauri-apps/plugin-fs");
           const logPath = filePath.replace(/\.tex$/i, ".log");
           const doesLogExist = await exists(logPath);
           if (doesLogExist) {
-            const logContent = await readTextFile(logPath);
-            const entries = await parseLatexLog(logContent);
+            // Optimization: Pass path to Rust backend to avoid reading large logs in JS
+            const entries = await parseLatexLog(logPath);
             setLogEntries(entries);
             const hasErrors = entries.some((e: LogEntry) => e.type === "error");
             if (hasErrors) setShowLogPanel(true);

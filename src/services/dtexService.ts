@@ -8,6 +8,7 @@
  * - Auto-saving metadata changes with debouncing
  */
 
+import { invoke } from "@tauri-apps/api/core";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { debounce } from "lodash";
 import {
@@ -30,22 +31,9 @@ export class DtexService {
    */
   static async parse(filePath: string): Promise<DtexFile> {
     try {
-      const content = await readTextFile(filePath);
-      const dtexFile = JSON.parse(content) as DtexFile;
-
-      // Validate basic structure
-      if (!dtexFile.version || !dtexFile.content || !dtexFile.metadata) {
-        throw new Error(
-          "Invalid .dtex file structure: missing required fields",
-        );
-      }
-
-      return dtexFile;
+      return await invoke<DtexFile>("load_dtex_cmd", { filePath });
     } catch (error) {
-      if (error instanceof SyntaxError) {
-        throw new Error(`Invalid JSON in .dtex file: ${error.message}`);
-      }
-      throw new Error(`Failed to read .dtex file: ${String(error)}`);
+      throw new Error(`Failed to load .dtex file: ${String(error)}`);
     }
   }
 
@@ -57,16 +45,14 @@ export class DtexService {
    */
   static async serialize(filePath: string, dtexFile: DtexFile): Promise<void> {
     try {
-      // Update modification timestamp
+      // Update modified timestamp locally or rely on backend?
+      // Rust backend currently prints whatever it gets, so we should update it here
       const updated: DtexFile = {
         ...dtexFile,
         modified: new Date().toISOString(),
       };
 
-      // Serialize with pretty printing for readability
-      const jsonContent = JSON.stringify(updated, null, 2);
-
-      await writeTextFile(filePath, jsonContent);
+      await invoke("save_dtex_cmd", { filePath, file: updated });
     } catch (error) {
       throw new Error(`Failed to save .dtex file: ${String(error)}`);
     }

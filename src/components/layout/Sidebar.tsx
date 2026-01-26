@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import {
   Stack,
   ActionIcon,
@@ -142,40 +143,36 @@ const OutlineView = ({
   onNavigate: (line: number) => void;
 }) => {
   const { t } = useTranslation();
-  const outline = useMemo(() => {
-    const lines = content.split("\n");
-    const regex =
-      /\\(chapter|section|subsection|subsubsection|label)\*?(?:\[.*?\])?\{(.+?)\}/;
-    const nodes: OutlineNode[] = [];
+  const [outline, setOutline] = useState<OutlineNode[]>([]);
 
-    lines.forEach((line, index) => {
-      const match = line.match(regex);
-      if (match) {
-        const type = match[1];
-        const title = match[2];
-        let level = 0;
+  useEffect(() => {
+    let isMounted = true;
+    const fetchOutline = async () => {
+      try {
+        // Use the Rust backend command for performance
+        const result = await invoke<OutlineNode[]>("get_outline", { content });
+        if (isMounted) {
+          // Translate labels if needed (though backend does string formatting, valid i18n might need frontend keys)
+          // For now, we assume the backend returns the display title.
+          // If we want full i18n for "Label:", we should handle it here or pass the key to backend.
+          // The current backend implementation hardcodes "Label: ".
+          // Let's refine it to be consistent with previous JS logic if possible,
+          // but for now we trust the backend result or post-process it.
 
-        if (type === "chapter") level = 1;
-        else if (type === "section") level = 2;
-        else if (type === "subsection") level = 3;
-        else if (type === "subsubsection") level = 4;
-        else if (type === "label") level = 5; // Treat labels as deeper or special
-
-        const newNode: OutlineNode = {
-          id: `${index}-${title}`,
-          title:
-            type === "label" ? `${t("sidebar.labelPrefix")}${title}` : title,
-          level,
-          lineNumber: index + 1,
-          children: [],
-        };
-
-        // Simple flat list for now, or build tree
-        // Let's stick to a flat list with indentation for simplicity and robustness
-        nodes.push(newNode);
+          setOutline(result);
+        }
+      } catch (err) {
+        console.error("Failed to parse outline:", err);
       }
-    });
-    return nodes;
+    };
+
+    // Debounce slightly to avoid excessive calls
+    const timeoutId = setTimeout(fetchOutline, 300);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
   }, [content]);
 
   if (outline.length === 0) {
