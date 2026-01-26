@@ -947,7 +947,7 @@ async fn lsp_did_open(
 async fn lsp_did_change(
     uri: String,
     version: i32,
-    text: String,
+    changes: Vec<serde_json::Value>,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let mut lsp_guard = state.lsp_manager.lock().await;
@@ -958,9 +958,7 @@ async fn lsp_did_change(
                 "uri": uri,
                 "version": version
             },
-            "contentChanges": [{
-                "text": text
-            }]
+            "contentChanges": changes
         });
 
         manager

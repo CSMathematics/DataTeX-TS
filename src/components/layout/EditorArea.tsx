@@ -619,16 +619,16 @@ export const EditorArea = React.memo<EditorAreaProps>(
       );
 
       // Listen for content changes and notify LSP
-      const changeDisposable = editorInstance.onDidChangeModelContent(() => {
-        if (!lspClient.isReady()) return;
-        const currentModel = editorInstance.getModel();
-        if (currentModel) {
-          lspClient.didChange(
-            currentModel.uri.toString(),
-            currentModel.getValue(),
-          );
-        }
-      });
+      // Listen for content changes and notify LSP
+      const changeDisposable = editorInstance.onDidChangeModelContent(
+        (e: Monaco.editor.IModelContentChangedEvent) => {
+          if (!lspClient.isReady()) return;
+          const currentModel = editorInstance.getModel();
+          if (currentModel) {
+            lspClient.didChange(currentModel.uri.toString(), e.changes);
+          }
+        },
+      );
       disposables.push(changeDisposable);
 
       // Cleanup on unmount or dependency change
