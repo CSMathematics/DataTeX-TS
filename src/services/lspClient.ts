@@ -242,9 +242,11 @@ export class TexlabLspClient {
   }
 
   /**
-   * Notify LSP that a document was changed
+   * Notify LSP that a document was changed using Incremental Sync
+   * @param uri Document URI
+   * @param changes Array of changes from Monaco (IModelContentChange)
    */
-  async didChange(uri: string, text: string): Promise<void> {
+  async didChange(uri: string, changes: any[]): Promise<void> {
     if (!this.initialized) {
       console.warn("⚠️ LSP not initialized, skipping didChange");
       return;
@@ -255,10 +257,27 @@ export class TexlabLspClient {
       const encodedUri = pathToUri(uri);
       this.documentVersion.set(uri, version);
 
+      // Convert Monaco changes to LSP changes
+      // Monaco changes are 1-based, LSP expects 0-based
+      const lspChanges = changes.map((change) => ({
+        range: {
+          start: {
+            line: change.range.startLineNumber - 1,
+            character: change.range.startColumn - 1,
+          },
+          end: {
+            line: change.range.endLineNumber - 1,
+            character: change.range.endColumn - 1,
+          },
+        },
+        rangeLength: change.rangeLength,
+        text: change.text,
+      }));
+
       await invoke("lsp_did_change", {
         uri: encodedUri,
         version,
-        text,
+        changes: lspChanges,
       });
     } catch (error) {
       console.error("❌ didChange error:", error);
