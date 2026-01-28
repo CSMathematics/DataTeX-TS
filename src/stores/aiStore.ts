@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { v4 as uuidv4 } from "uuid";
 
 import { Agent, getBuiltInAgents } from "../services/agentService";
 
@@ -13,6 +14,14 @@ export interface Message {
 export interface PendingWrite {
   path: string;
   content: string;
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
+  createdAt: number;
+  updatedAt: number;
 }
 
 interface AIState {
@@ -30,8 +39,9 @@ interface AIState {
   activeAgentId: string | null;
   pendingWrite: PendingWrite | null;
 
-  // Chat History
-  messages: Message[];
+  // Conversations
+  conversations: Conversation[];
+  activeConversationId: string | null;
 
   setProvider: (provider: AIProviderId) => void;
   setOpenAIKey: (key: string) => void;
@@ -47,6 +57,14 @@ interface AIState {
   setActiveAgent: (id: string | null) => void;
   setPendingWrite: (write: PendingWrite | null) => void;
 
+  // Conversation Actions
+  createConversation: (title?: string) => string;
+  deleteConversation: (id: string) => void;
+  setActiveConversation: (id: string) => void;
+  updateConversationTitle: (id: string, title: string) => void;
+
+  // Active Conversation Message Actions
+  getMessages: () => Message[]; // Helper to get current messages
   addMessage: (msg: Message) => void;
   setMessages: (msgs: Message[]) => void;
   deleteMessage: (index: number) => void;
@@ -55,7 +73,7 @@ interface AIState {
 
 export const useAIStore = create<AIState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       provider: "mock",
       openaiKey: "",
       openaiModel: "gpt-4o",
@@ -63,12 +81,14 @@ export const useAIStore = create<AIState>()(
       geminiModel: "gemini-1.5-flash",
       ollamaUrl: "http://localhost:11434",
       ollamaModel: "llama3",
-      messages: [],
 
       builtInAgents: getBuiltInAgents(),
       agents: [],
       activeAgentId: "latex_expert",
       pendingWrite: null,
+
+      conversations: [],
+      activeConversationId: null,
 
       setProvider: (provider) => set({ provider }),
       setOpenAIKey: (openaiKey) => set({ openaiKey }),
@@ -93,21 +113,163 @@ export const useAIStore = create<AIState>()(
       setActiveAgent: (id) => set({ activeAgentId: id }),
       setPendingWrite: (write) => set({ pendingWrite: write }),
 
-      addMessage: (msg) =>
-        set((state) => ({ messages: [...state.messages, msg] })),
-      setMessages: (msgs) => set({ messages: msgs }),
-      deleteMessage: (index) =>
+      createConversation: (title) => {
+        const id = uuidv4();
+        const newConv: Conversation = {
+          id,
+          title: title || "New Chat",
+          messages: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
         set((state) => ({
-          messages: state.messages.filter((_, i) => i !== index),
+          conversations: [newConv, ...state.conversations],
+          activeConversationId: id,
+        }));
+        return id;
+      },
+
+      deleteConversation: (id) =>
+        set((state) => {
+          const newConvs = state.conversations.filter((c) => c.id !== id);
+          let newActiveId = state.activeConversationId;
+          if (state.activeConversationId === id) {
+            newActiveId = newConvs.length > 0 ? newConvs[0].id : null;
+          }
+          return {
+            conversations: newConvs,
+            activeConversationId: newActiveId,
+          };
+        }),
+
+      setActiveConversation: (id) => set({ activeConversationId: id }),
+
+      updateConversationTitle: (id, title) =>
+        set((state) => ({
+          conversations: state.conversations.map((c) =>
+            c.id === id ? { ...c, title } : c,
+          ),
         })),
-      clearMessages: () => set({ messages: [] }),
+
+      getMessages: () => {
+        const state = get();
+        const active = state.conversations.find(
+          (c) => c.id === state.activeConversationId,
+        );
+        return active ? active.messages : [];
+      },
+
+      addMessage: (msg) =>
+        set((state) => {
+          if (!state.activeConversationId) return {}; // Should check if we need to auto-create? Better to handle in UI or auto-create here.
+
+          // If no active conversation, create one?
+          // For now, let's assume one exists or we create one on the fly if strictly necessary,
+          // but strictly adhering to explicit creation is better.
+          // However, to mimic previous behavior where specific ID wasn't needed:
+          let activeId = state.activeConversationId;
+          let conversations = state.conversations;
+
+          if (!activeId) {
+            const id = uuidv4();
+            const newConv: Conversation = {
+              id,
+              title: "New Chat",
+              messages: [msg],
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            };
+            return {
+              conversations: [newConv, ...conversations],
+              activeConversationId: id,
+            };
+          }
+
+          return {
+            conversations: state.conversations.map((c) =>
+              c.id === activeId
+                ? {
+                    ...c,
+                    messages: [...c.messages, msg],
+                    updatedAt: Date.now(),
+                  }
+                : c,
+            ),
+          };
+        }),
+
+      setMessages: (msgs) =>
+        set((state) => {
+          if (!state.activeConversationId) return {};
+          return {
+            conversations: state.conversations.map((c) =>
+              c.id === state.activeConversationId
+                ? { ...c, messages: msgs, updatedAt: Date.now() }
+                : c,
+            ),
+          };
+        }),
+
+      deleteMessage: (index) =>
+        set((state) => {
+          if (!state.activeConversationId) return {};
+          return {
+            conversations: state.conversations.map((c) =>
+              c.id === state.activeConversationId
+                ? {
+                    ...c,
+                    messages: c.messages.filter((_, i) => i !== index),
+                    updatedAt: Date.now(),
+                  }
+                : c,
+            ),
+          };
+        }),
+
+      clearMessages: () =>
+        set((state) => {
+          if (!state.activeConversationId) return {};
+          return {
+            conversations: state.conversations.map((c) =>
+              c.id === state.activeConversationId
+                ? { ...c, messages: [], updatedAt: Date.now() }
+                : c,
+            ),
+          };
+        }),
     }),
     {
       name: "datatex-ai-storage",
+      version: 1, // Increment version
       partialize: (state) => ({
         ...state,
-        builtInAgents: undefined, // Do not persist built-in agents
+        builtInAgents: undefined,
       }),
+      migrate: (persistedState: any, version) => {
+        if (version === 0 || !version) {
+          // Migration from version 0 (or no version)
+          // Old state had `messages: Message[]`
+          const oldMessages = persistedState.messages || [];
+          const newId = uuidv4();
+
+          const defaultConv: Conversation = {
+            id: newId,
+            title: "Previous Chat",
+            messages: oldMessages,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+
+          return {
+            ...persistedState,
+            conversations: [defaultConv],
+            activeConversationId: newId,
+            // Clean up old key if possible, though Zustand merge might keep it if not careful.
+            // But we return the new state which adheres to the new shape (mostly).
+          };
+        }
+        return persistedState;
+      },
     },
   ),
 );

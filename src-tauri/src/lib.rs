@@ -87,7 +87,11 @@ fn run_texcount_command(args: Vec<String>, cwd: String) -> Result<String, String
 }
 
 #[tauri::command]
-async fn compile_resource_cmd(id: String, state: State<'_, AppState>) -> Result<String, String> {
+async fn compile_resource_cmd(
+    id: String,
+    preamble_override: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
     let db_guard = state.db_manager.lock().await;
     let db = db_guard.as_ref().ok_or("Database not initialized")?;
 
@@ -102,26 +106,31 @@ async fn compile_resource_cmd(id: String, state: State<'_, AppState>) -> Result<
         .and_then(|v| v.as_str())
         .unwrap_or("pdflatex");
 
-    if let Some(preamble_id) = preamble_id_opt {
+    // Use override if provided, otherwise check metadata
+    if preamble_override.is_some() || preamble_id_opt.is_some() {
         // Need to wrap content
-        let preamble_content = if preamble_id.starts_with("builtin:") {
-            // Simple built-in defaults
-            if preamble_id == "builtin:beamer" {
-                "\\documentclass{beamer}\n\\usepackage[utf8]{inputenc}\n".to_string()
+        let preamble_content = if let Some(content) = preamble_override {
+            content
+        } else if let Some(preamble_id) = preamble_id_opt {
+            if preamble_id.starts_with("builtin:") {
+                // Fallback for legacy calls or missing overrides
+                match preamble_id {
+                    "builtin:beamer" => "\\documentclass{beamer}\n\\usepackage[utf8]{inputenc}\n\\usepackage{graphicx}\n\\usepackage{hyperref}\n".to_string(),
+                    _ => "\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amsmath}\n".to_string(),
+                }
             } else {
-                "\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amsmath}\n"
-                    .to_string()
+                // Fetch preamble resource
+                let preamble_res = db
+                    .get_resource_by_id(preamble_id)
+                    .await?
+                    .ok_or("Preamble resource not found")?;
+
+                // If preamble resource is physically on disk, read it
+                fs::read_to_string(&preamble_res.path)
+                    .map_err(|e| format!("Failed to read preamble file: {}", e))?
             }
         } else {
-            // Fetch preamble resource
-            let preamble_res = db
-                .get_resource_by_id(preamble_id)
-                .await?
-                .ok_or("Preamble resource not found")?;
-
-            // If preamble resource is physically on disk, read it
-            fs::read_to_string(&preamble_res.path)
-                .map_err(|e| format!("Failed to read preamble file: {}", e))?
+            return Err("Logic error: No preamble source".to_string());
         };
 
         // Read the actual resource content
@@ -133,6 +142,10 @@ async fn compile_resource_cmd(id: String, state: State<'_, AppState>) -> Result<
         let full_doc = format!(
             "{}\n\\begin{{document}}\n{}\n\\end{{document}}",
             preamble_content, body_content
+        );
+        println!(
+            "--- DEBUG: Generating Wrapped PDF ---\n{}\n-----------------------------------",
+            full_doc
         );
 
         // Save temp file in same dir to preserve relative paths.

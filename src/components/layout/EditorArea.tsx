@@ -1206,6 +1206,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                         PythonTeX
                       </Menu.Item>
                       <Menu.Divider />
+
                       <Menu.Item
                         onClick={() => handleSelectEngine("latex")}
                         rightSection={

@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDatabaseStore } from "../stores/databaseStore";
 import { parseLatexLog, LogEntry } from "../utils/logParser";
+import { getPreambleContent } from "../data/preambles";
 
 interface UseCompilationOptions {
   activeTab: any; // Type should be imported if available
@@ -81,9 +82,17 @@ export function useCompilation({
 
         if (resource && resource.metadata && resource.metadata.preamble) {
           // Modular resource detected, using compile_resource_cmd
-          // Use the specific command that handles wrapping
           // We can ignore the returned path since we forced it to be standard filename.pdf
-          await invoke("compile_resource_cmd", { id: resource.id });
+
+          let preambleOverride = undefined;
+          if (resource.metadata.preamble.startsWith("builtin:")) {
+            preambleOverride = getPreambleContent(resource.metadata.preamble);
+          }
+
+          await invoke("compile_resource_cmd", {
+            id: resource.id,
+            preambleOverride, // Pass optional override
+          });
         } else {
           // Standard Compilation
           await invoke("compile_tex", {

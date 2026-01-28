@@ -180,21 +180,28 @@ export const currentProvider = {
       // or rely on the fact that aiProxy.chat already emits global events which the Sidebar might listen to?
       // Actually, the new Agent uses global events 'agent-thought', 'agent-response'.
       // So even without this callback, the UI might update if it listens to those events.
-      // If the UI relies *solely* on the resolved string, this works too.
     });
   },
 };
 
-// --- Mock Provider ---
-export const mockAIProvider: AIProvider = {
-  id: "mock",
-  name: "Mock AI (Debug)",
-  chat: async (_messages) => {
-    return new Promise((resolve) =>
-      setTimeout(() => resolve("Mock Response"), 1000),
-    );
-  },
-  explainError: async () => "Mock Explanation",
-  getEmbedding: async () => Array(1536).fill(0.1),
-  getModels: async () => ["mock-model-1", "mock-model-2"],
+// Helper to generate a title
+export const generateConversationTitle = async (
+  messages: Message[],
+): Promise<string> => {
+  const summaryPrompt: Message = {
+    role: "user",
+    content:
+      "Summarize the above conversation into a concise title (max 5 words). Do not include quotes or extra text. Just the title.",
+  };
+
+  try {
+    // We reuse the existing chat proxy.
+    // Note: This might trigger global 'agent-thought' events which the UI will display.
+    // This is acceptable for now.
+    const response = await aiProxy.chat([...messages, summaryPrompt], () => {});
+    return response.replace(/["']/g, "").trim();
+  } catch (e) {
+    console.warn("Failed to generate title:", e);
+    return "New Chat";
+  }
 };
