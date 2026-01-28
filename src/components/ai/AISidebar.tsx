@@ -274,7 +274,7 @@ export const AISidebar: React.FC<AISidebarProps> = ({
                 <Group gap={4}>
                   <ActionIcon
                     variant="subtle"
-                    size="sm"
+                    size="xs"
                     onClick={() => {
                       setEditingAgent(agent);
                       setEditorOpen(true);
@@ -285,10 +285,10 @@ export const AISidebar: React.FC<AISidebarProps> = ({
                   <ActionIcon
                     variant="subtle"
                     color="red"
-                    size="sm"
+                    size="xs"
                     onClick={() => deleteAgent(agent.id)}
                   >
-                    <IconTrash size={14} />
+                    <IconTrash size={12} />
                   </ActionIcon>
                 </Group>
               </Group>
@@ -321,12 +321,13 @@ export const AISidebar: React.FC<AISidebarProps> = ({
             <Group justify="space-between" mb="xs">
               <Title order={5}>{t("ai.assistantTitle")}</Title>
               <ActionIcon
-                variant="light"
-                size="sm"
+                variant="subtle"
+                color="gray.5"
+                size="xs"
                 onClick={() => setShowSettings(true)}
                 title={t("ai.settings.title")}
               >
-                <FontAwesomeIcon icon={faCog} />
+                <FontAwesomeIcon icon={faCog} size="xs" />
               </ActionIcon>
             </Group>
 

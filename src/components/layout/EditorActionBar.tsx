@@ -21,6 +21,8 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
 import { useDatabaseStore } from "../../stores/databaseStore";
+import { BUILTIN_PREAMBLES } from "../../data/preambles";
+import { faFileCode } from "@fortawesome/free-solid-svg-icons"; // Import icon for preamble
 
 interface EditorActionBarProps {
   editor: any; // Monaco editor instance
@@ -204,7 +206,7 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
                   )}
                 </ActionIcon>
               </Tooltip>
-              <Menu shadow="md" width={150} position="bottom-end">
+              <Menu shadow="md" width={200} position="bottom-end">
                 <Menu.Target>
                   <ActionIcon
                     size={buttonSize}
@@ -277,6 +279,72 @@ export const EditorActionBar = React.memo<EditorActionBarProps>(
                   >
                     PythonTeX
                   </Menu.Item>
+                  <Menu.Divider />
+
+                  {/* Preamble Selector */}
+                  <Menu.Label>Fragment Preamble</Menu.Label>
+                  {BUILTIN_PREAMBLES.map((preamble) => (
+                    <Menu.Item
+                      key={preamble.id}
+                      leftSection={
+                        <FontAwesomeIcon
+                          icon={faFileCode}
+                          style={{ width: 12, opacity: 0.7 }}
+                        />
+                      }
+                      rightSection={
+                        currentResource?.metadata?.preamble === preamble.id && (
+                          <Text size="xs" c="dimmed">
+                            ✓
+                          </Text>
+                        )
+                      }
+                      onClick={async () => {
+                        if (currentResource) {
+                          const newMetadata = {
+                            ...currentResource.metadata,
+                            preamble: preamble.id,
+                          };
+                          await useDatabaseStore
+                            .getState()
+                            .updateResourceMetadata(
+                              currentResource.id,
+                              newMetadata,
+                            );
+                        }
+                      }}
+                    >
+                      {preamble.label}
+                    </Menu.Item>
+                  ))}
+                  <Menu.Item
+                    color="red"
+                    onClick={async () => {
+                      if (
+                        currentResource &&
+                        currentResource.metadata?.preamble
+                      ) {
+                        const newMetadata = { ...currentResource.metadata };
+                        delete newMetadata.preamble;
+                        await useDatabaseStore
+                          .getState()
+                          .updateResourceMetadata(
+                            currentResource.id,
+                            newMetadata,
+                          );
+                      }
+                    }}
+                    rightSection={
+                      !currentResource?.metadata?.preamble && (
+                        <Text size="xs" c="dimmed">
+                          ✓
+                        </Text>
+                      )
+                    }
+                  >
+                    None (Full Document)
+                  </Menu.Item>
+
                   <Menu.Divider />
                   <Menu.Item
                     onClick={() => handleSelectEngine("latex")}

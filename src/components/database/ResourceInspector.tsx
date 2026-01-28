@@ -20,6 +20,7 @@ import {
   faPlus,
 } from "@fortawesome/free-solid-svg-icons";
 import { PreambleWizard } from "../wizards/PreambleWizard";
+import { BUILTIN_PREAMBLES } from "../../data/preambles";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import { DynamicMetadataEditor } from "../metadata/DynamicMetadataEditor";
 import { useTypedMetadataStore } from "../../stores/typedMetadataStore";
@@ -390,6 +391,38 @@ export const ResourceInspector = ({
                       allowDeselect={false}
                     />
                   </Group>
+
+                  {/* Preamble Selector - Only for File Fragments */}
+                  {(resource?.kind === "file" ||
+                    activeEditorTab?.dtexMetadata?.fileType === "file") && (
+                    <Select
+                      label="Fragment Preamble"
+                      placeholder="Select a preamble for compilation..."
+                      data={[
+                        { value: "", label: "None (Full Document)" },
+                        ...BUILTIN_PREAMBLES.map((p) => ({
+                          value: p.id,
+                          label: p.label,
+                        })),
+                      ]}
+                      value={resource?.metadata?.preamble || ""}
+                      onChange={async (val) => {
+                        if (resource) {
+                          const newMetadata = { ...resource.metadata };
+                          if (val) {
+                            newMetadata.preamble = val;
+                          } else {
+                            delete newMetadata.preamble;
+                          }
+                          await useDatabaseStore
+                            .getState()
+                            .updateResourceMetadata(resource.id, newMetadata);
+                        }
+                      }}
+                      clearable
+                      searchable
+                    />
+                  )}
 
                   {/* ID, Collection, Created row - only for database resources */}
                   {resource && (
