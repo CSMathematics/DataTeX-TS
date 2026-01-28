@@ -60,12 +60,12 @@ export const ManageableSelect: React.FC<ManageableSelectProps> = ({
 
   // Filter options based on search
   const filteredData = data.filter((item) =>
-    item.name.toLowerCase().includes(search.toLowerCase().trim())
+    item.name.toLowerCase().includes(search.toLowerCase().trim()),
   );
 
   // Check if search matches exactly
   const exactMatch = data.some(
-    (item) => item.name.toLowerCase() === search.toLowerCase().trim()
+    (item) => item.name.toLowerCase() === search.toLowerCase().trim(),
   );
 
   const handleCreate = async () => {
@@ -113,7 +113,7 @@ export const ManageableSelect: React.FC<ManageableSelectProps> = ({
 
   const startEdit = (
     item: { id: string; name: string },
-    e: React.MouseEvent
+    e: React.MouseEvent,
   ) => {
     e.stopPropagation();
     setEditingId(item.id);
@@ -204,7 +204,8 @@ export const ManageableSelect: React.FC<ManageableSelectProps> = ({
         store={combobox}
         onOptionSubmit={(val) => {
           if (editingId) return;
-          onChange(val);
+          // Ensure empty strings are treated as undefined to avoid FK violations
+          onChange(val || undefined);
           setSearch("");
           combobox.closeDropdown();
         }}
@@ -300,12 +301,12 @@ export const ManageableMultiSelect: React.FC<ManageableMultiSelectProps> = ({
 
   // Filter options based on search
   const filteredData = data.filter((item) =>
-    item.name.toLowerCase().includes(search.toLowerCase().trim())
+    item.name.toLowerCase().includes(search.toLowerCase().trim()),
   );
 
   // Check if search matches exactly
   const exactMatch = data.some(
-    (item) => item.name.toLowerCase() === search.toLowerCase().trim()
+    (item) => item.name.toLowerCase() === search.toLowerCase().trim(),
   );
 
   const handleCreate = async () => {
@@ -352,7 +353,7 @@ export const ManageableMultiSelect: React.FC<ManageableMultiSelectProps> = ({
 
   const startEdit = (
     item: { id: string; name: string },
-    e: React.MouseEvent
+    e: React.MouseEvent,
   ) => {
     e.stopPropagation();
     setEditingId(item.id);
@@ -370,7 +371,8 @@ export const ManageableMultiSelect: React.FC<ManageableMultiSelectProps> = ({
     if (value.includes(id)) {
       onChange(value.filter((v) => v !== id));
     } else {
-      onChange([...value, id]);
+      // Ensure we don't add empty strings
+      if (id) onChange([...value, id]);
     }
   };
 

@@ -383,11 +383,13 @@ interface DocumentMetadataFormProps {
   resourceId: string;
   initialMetadata?: DocumentMetadata;
   onChange?: (metadata: DocumentMetadata) => void;
+  collectionName?: string;
 }
 
 export const DocumentMetadataForm: React.FC<DocumentMetadataFormProps> = ({
   initialMetadata = {},
   onChange,
+  collectionName,
 }) => {
   const [metadata, setMetadata] = useState<DocumentMetadata>(initialMetadata);
   const documentTypes = useTypedMetadataStore((state) => state.documentTypes);
@@ -443,7 +445,7 @@ export const DocumentMetadataForm: React.FC<DocumentMetadataFormProps> = ({
         placeholder="Select or create document type..."
         data={documentTypes}
         value={metadata.documentTypeId}
-        onChange={(value) => handleChange("documentTypeId", value)}
+        onChange={(value) => handleChange("documentTypeId", value || undefined)}
         onCreate={createDocumentType}
         onRename={renameDocumentType}
         onDelete={deleteDocumentType}
@@ -455,6 +457,7 @@ export const DocumentMetadataForm: React.FC<DocumentMetadataFormProps> = ({
         selectedChapterIds={metadata.chapters}
         selectedSectionIds={metadata.sections}
         selectedSubsectionIds={metadata.subsections}
+        collectionName={collectionName}
         onChange={(selections) => {
           const updated = {
             ...metadata,
@@ -491,7 +494,7 @@ export const DocumentMetadataForm: React.FC<DocumentMetadataFormProps> = ({
         placeholder="Select preamble..."
         data={preambleOptions}
         value={metadata.preambleId}
-        onChange={(value) => handleChange("preambleId", value)}
+        onChange={(value) => handleChange("preambleId", value || undefined)}
         onCreate={async (name) => ({ id: name, name })}
       />
 
@@ -555,7 +558,9 @@ export const DocumentMetadataForm: React.FC<DocumentMetadataFormProps> = ({
         placeholder="Link to solution document..."
         data={documentOptions}
         value={metadata.solutionDocumentId}
-        onChange={(value) => handleChange("solutionDocumentId", value)}
+        onChange={(value) =>
+          handleChange("solutionDocumentId", value || undefined)
+        }
         onCreate={async (name) => ({ id: name, name })}
       />
     </Stack>
@@ -567,6 +572,7 @@ interface TableMetadataFormProps {
   resourceId: string;
   initialMetadata?: TableMetadata;
   onChange?: (metadata: TableMetadata) => void;
+  collectionName?: string;
 }
 
 const TABLE_ENVIRONMENTS = [
@@ -582,6 +588,7 @@ const TABLE_ENVIRONMENTS = [
 export const TableMetadataForm: React.FC<TableMetadataFormProps> = ({
   initialMetadata = {},
   onChange,
+  collectionName,
 }) => {
   const [metadata, setMetadata] = useState<TableMetadata>(initialMetadata);
   const tableTypes = useTypedMetadataStore((state) => state.tableTypes);
@@ -606,6 +613,30 @@ export const TableMetadataForm: React.FC<TableMetadataFormProps> = ({
 
   return (
     <Stack gap="md">
+      <HierarchyEditor
+        selectedFieldId={metadata.fieldId}
+        selectedChapterIds={metadata.chapters}
+        selectedSectionIds={metadata.sections}
+        selectedSubsectionIds={metadata.subsections}
+        collectionName={collectionName}
+        onChange={(selections) => {
+          const updated = {
+            ...metadata,
+            fieldId: selections.fieldId,
+            chapters:
+              selections.chapters.length > 0 ? selections.chapters : undefined,
+            sections:
+              selections.sections.length > 0 ? selections.sections : undefined,
+            subsections:
+              selections.subsections.length > 0
+                ? selections.subsections
+                : undefined,
+          };
+          setMetadata(updated);
+          onChange?.(updated);
+        }}
+        mode="edit"
+      />
       <TextInput
         label="Caption"
         placeholder="Table caption"
@@ -632,7 +663,7 @@ export const TableMetadataForm: React.FC<TableMetadataFormProps> = ({
           placeholder="Select Type..."
           data={[...tableTypes]}
           value={metadata.tableTypeId}
-          onChange={(val) => handleChange("tableTypeId", val)}
+          onChange={(val) => handleChange("tableTypeId", val || undefined)}
           onCreate={createTableType}
           onRename={renameTableType}
           onDelete={deleteTableType}
@@ -746,11 +777,13 @@ interface FigureMetadataFormProps {
   resourceId: string;
   initialMetadata?: FigureMetadata;
   onChange?: (metadata: FigureMetadata) => void;
+  collectionName?: string;
 }
 
 export const FigureMetadataForm: React.FC<FigureMetadataFormProps> = ({
   initialMetadata = {},
   onChange,
+  collectionName,
 }) => {
   const [metadata, setMetadata] = useState<FigureMetadata>(initialMetadata);
   const figureTypes = useTypedMetadataStore((state) => state.figureTypes);
@@ -775,6 +808,30 @@ export const FigureMetadataForm: React.FC<FigureMetadataFormProps> = ({
 
   return (
     <Stack gap="md">
+      <HierarchyEditor
+        selectedFieldId={metadata.fieldId}
+        selectedChapterIds={metadata.chapters}
+        selectedSectionIds={metadata.sections}
+        selectedSubsectionIds={metadata.subsections}
+        collectionName={collectionName}
+        onChange={(selections) => {
+          const updated = {
+            ...metadata,
+            fieldId: selections.fieldId,
+            chapters:
+              selections.chapters.length > 0 ? selections.chapters : undefined,
+            sections:
+              selections.sections.length > 0 ? selections.sections : undefined,
+            subsections:
+              selections.subsections.length > 0
+                ? selections.subsections
+                : undefined,
+          };
+          setMetadata(updated);
+          onChange?.(updated);
+        }}
+        mode="edit"
+      />
       <TextInput
         label="Caption"
         placeholder="Figure caption"

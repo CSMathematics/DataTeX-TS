@@ -8,9 +8,11 @@
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS fields (
     id TEXT PRIMARY KEY NOT NULL,
-    name TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
     description TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    collection TEXT REFERENCES collections(name) ON DELETE CASCADE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(name, collection)
 );
 
 CREATE INDEX IF NOT EXISTS idx_fields_name ON fields(name);
@@ -23,8 +25,9 @@ CREATE TABLE IF NOT EXISTS chapters (
     name TEXT NOT NULL,
     field_id TEXT NOT NULL,
     description TEXT,
+    collection TEXT REFERENCES collections(name) ON DELETE CASCADE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(name, field_id),
+    UNIQUE(name, field_id, collection),
     FOREIGN KEY(field_id) REFERENCES fields(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
@@ -39,8 +42,9 @@ CREATE TABLE IF NOT EXISTS sections (
     name TEXT NOT NULL,
     chapter_id TEXT NOT NULL,
     description TEXT,
+    collection TEXT REFERENCES collections(name) ON DELETE CASCADE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(name, chapter_id),
+    UNIQUE(name, chapter_id, collection),
     FOREIGN KEY(chapter_id) REFERENCES chapters(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
@@ -55,8 +59,9 @@ CREATE TABLE IF NOT EXISTS subsections (
     name TEXT NOT NULL,
     section_id TEXT NOT NULL,
     description TEXT,
+    collection TEXT REFERENCES collections(name) ON DELETE CASCADE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(name, section_id),
+    UNIQUE(name, section_id, collection),
     FOREIGN KEY(section_id) REFERENCES sections(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
@@ -139,69 +144,7 @@ CREATE TABLE IF NOT EXISTS texlive_packages (
 
 CREATE INDEX IF NOT EXISTS idx_texlive_packages_id ON texlive_packages(id);
 
--- ============================================================================
--- HIERARCHICAL FOLDERS (Legacy - for Documents)
--- ============================================================================
 
--- Basic (top-level) folders
-CREATE TABLE IF NOT EXISTS basic_folders (
-    name TEXT PRIMARY KEY NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- Sub folders
-CREATE TABLE IF NOT EXISTS sub_folders (
-    name TEXT PRIMARY KEY NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- Subsub folders
-CREATE TABLE IF NOT EXISTS subsub_folders (
-    name TEXT PRIMARY KEY NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- SubFolders per Basic (many-to-many)
-CREATE TABLE IF NOT EXISTS sub_folders_per_basic (
-    sub_id TEXT NOT NULL,
-    basic_id TEXT NOT NULL,
-    PRIMARY KEY(sub_id, basic_id),
-    FOREIGN KEY(sub_id) REFERENCES sub_folders(name) ON UPDATE CASCADE ON DELETE CASCADE,
-    FOREIGN KEY(basic_id) REFERENCES basic_folders(name) ON UPDATE CASCADE ON DELETE CASCADE
-);
-
--- SubsubFolders per Sub per Basic (many-to-many-to-many)
-CREATE TABLE IF NOT EXISTS subsub_folders_per_sub_per_basic (
-    subsub_id TEXT NOT NULL,
-    sub_id TEXT NOT NULL,
-    basic_id TEXT NOT NULL,
-    PRIMARY KEY(subsub_id, sub_id, basic_id),
-    FOREIGN KEY(subsub_id) REFERENCES subsub_folders(name) ON UPDATE CASCADE ON DELETE CASCADE,
-    FOREIGN KEY(sub_id) REFERENCES sub_folders(name) ON UPDATE CASCADE ON DELETE CASCADE,
-    FOREIGN KEY(basic_id) REFERENCES basic_folders(name) ON UPDATE CASCADE ON DELETE CASCADE
-);
-
--- Cascade cleanup triggers for folder hierarchy
-CREATE TRIGGER IF NOT EXISTS cleanup_sub_folders_on_basic_delete
-AFTER DELETE ON basic_folders
-BEGIN
-    DELETE FROM sub_folders 
-    WHERE name NOT IN (SELECT DISTINCT sub_id FROM sub_folders_per_basic);
-END;
-
-CREATE TRIGGER IF NOT EXISTS cleanup_subsub_folders_on_sub_delete
-AFTER DELETE ON sub_folders
-BEGIN
-    DELETE FROM subsub_folders 
-    WHERE name NOT IN (SELECT DISTINCT subsub_id FROM subsub_folders_per_sub_per_basic);
-END;
-
-CREATE TRIGGER IF NOT EXISTS cleanup_subsub_folders_on_basic_delete
-AFTER DELETE ON basic_folders
-BEGIN
-    DELETE FROM subsub_folders 
-    WHERE name NOT IN (SELECT DISTINCT subsub_id FROM subsub_folders_per_sub_per_basic);
-END;
 
 -- ============================================================================
 -- DEFAULT DATA
@@ -249,10 +192,5 @@ INSERT OR IGNORE INTO exercise_types (id, name, description) VALUES
     ('calculation', 'Calculation', 'Numerical calculations'),
     ('other', 'Other', 'Other exercise types');
 
--- Default folders (legacy)
-INSERT OR IGNORE INTO basic_folders (name) VALUES ('General');
-INSERT OR IGNORE INTO sub_folders (name) VALUES ('');
-INSERT OR IGNORE INTO sub_folders (name) VALUES ('General');
-INSERT OR IGNORE INTO sub_folders_per_basic (sub_id, basic_id) VALUES ('', 'General');
-INSERT OR IGNORE INTO sub_folders_per_basic (sub_id, basic_id) VALUES ('General', 'General');
+
 

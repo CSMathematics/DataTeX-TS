@@ -91,6 +91,11 @@ export interface TableMetadata {
   // Arrays
   requiredPackages?: string[];
   customTags?: string[];
+  // Hierarchy
+  fieldId?: string;
+  chapters?: string[];
+  sections?: string[];
+  subsections?: string[];
 }
 
 // ============================================================================
@@ -117,6 +122,11 @@ export interface FigureMetadata {
   // Arrays
   requiredPackages?: string[];
   customTags?: string[];
+  // Hierarchy
+  fieldId?: string;
+  chapters?: string[];
+  sections?: string[];
+  subsections?: string[];
 }
 
 export interface FigureType {
@@ -441,23 +451,23 @@ export type ResourceType =
 export type MetadataByType<T extends ResourceType> = T extends "file"
   ? FileMetadata
   : T extends "document"
-  ? DocumentMetadata
-  : T extends "bibliography"
-  ? BibliographyMetadata
-  : T extends "table"
-  ? TableMetadata
-  : T extends "figure"
-  ? FigureMetadata
-  : T extends "command"
-  ? CommandMetadata
-  : T extends "package"
-  ? PackageMetadata
-  : T extends "preamble"
-  ? PreambleMetadata
-  : T extends "class"
-  ? ClassMetadata
-  : T extends "dtx"
-  ? DtxMetadata
-  : T extends "ins"
-  ? InsMetadata
-  : never;
+    ? DocumentMetadata
+    : T extends "bibliography"
+      ? BibliographyMetadata
+      : T extends "table"
+        ? TableMetadata
+        : T extends "figure"
+          ? FigureMetadata
+          : T extends "command"
+            ? CommandMetadata
+            : T extends "package"
+              ? PackageMetadata
+              : T extends "preamble"
+                ? PreambleMetadata
+                : T extends "class"
+                  ? ClassMetadata
+                  : T extends "dtx"
+                    ? DtxMetadata
+                    : T extends "ins"
+                      ? InsMetadata
+                      : never;

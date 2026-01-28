@@ -39,9 +39,6 @@ pub struct FileMetadata {
 pub struct DocumentMetadata {
     pub title: Option<String>,
     pub document_type_id: Option<String>,
-    pub basic_folder: Option<String>,
-    pub sub_folder: Option<String>,
-    pub subsub_folder: Option<String>,
     pub date: Option<String>,
     pub content: Option<String>,
     pub preamble_id: Option<String>,
@@ -53,6 +50,11 @@ pub struct DocumentMetadata {
     pub included_files: Option<Vec<IncludedFile>>,
     pub custom_tags: Option<Vec<String>>,
     pub bib_entries: Option<Vec<String>>,
+    // Hierarchy
+    pub field_id: Option<String>,
+    pub chapters: Option<Vec<String>>,
+    pub sections: Option<Vec<String>>,
+    pub subsections: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,6 +92,11 @@ pub struct FigureMetadata {
     // Arrays
     pub required_packages: Option<Vec<String>>,
     pub custom_tags: Option<Vec<String>>,
+    // Hierarchy
+    pub field_id: Option<String>,
+    pub chapters: Option<Vec<String>>,
+    pub sections: Option<Vec<String>>,
+    pub subsections: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,9 +217,6 @@ impl DocumentMetadata {
         Self {
             title: None,
             document_type_id: None,
-            basic_folder: None,
-            sub_folder: None,
-            subsub_folder: None,
             date: None,
             content: None,
             preamble_id: None,
@@ -223,6 +227,10 @@ impl DocumentMetadata {
             included_files: None,
             custom_tags: None,
             bib_entries: None,
+            field_id: None,
+            chapters: None,
+            sections: None,
+            subsections: None,
         }
     }
 }

@@ -392,9 +392,13 @@ export const ResourceInspector = ({
                     />
                   </Group>
 
-                  {/* Preamble Selector - Only for File Fragments */}
+                  {/* Preamble Selector - Only for File Fragments, Tables, and Figures */}
                   {(resource?.kind === "file" ||
-                    activeEditorTab?.dtexMetadata?.fileType === "file") && (
+                    resource?.kind === "table" ||
+                    resource?.kind === "figure" ||
+                    activeEditorTab?.dtexMetadata?.fileType === "file" ||
+                    activeEditorTab?.dtexMetadata?.fileType === "table" ||
+                    activeEditorTab?.dtexMetadata?.fileType === "figure") && (
                     <Select
                       label="Fragment Preamble"
                       placeholder="Select a preamble for compilation..."

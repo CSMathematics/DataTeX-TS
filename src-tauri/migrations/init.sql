@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS collections (
     description TEXT,
     icon TEXT, -- e.g. "folder", "book", "functions"
     type TEXT NOT NULL, -- 'files', 'documents', 'bibliography'
+    path TEXT, -- Optional Custom path for this collection
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

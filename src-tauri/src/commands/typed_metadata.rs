@@ -103,20 +103,36 @@ pub async fn migrate_resource_to_typed_cmd(
 // ============================================================================
 
 #[tauri::command]
-pub async fn get_fields_cmd(db: State<'_, Mutex<Connection>>) -> Result<Vec<Value>, String> {
+pub async fn get_fields_cmd(
+    db: State<'_, Mutex<Connection>>,
+    collection_name: Option<String>,
+) -> Result<Vec<Value>, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
 
-    let mut stmt = conn
-        .prepare("SELECT id, name FROM fields ORDER BY name")
-        .map_err(|e| e.to_string())?;
+    let mut stmt = if let Some(col) = &collection_name {
+        conn.prepare(
+            "SELECT id, name FROM fields WHERE collection IS NULL OR collection = ?1 ORDER BY name",
+        )
+        .map_err(|e| e.to_string())?
+    } else {
+        conn.prepare("SELECT id, name FROM fields WHERE collection IS NULL ORDER BY name")
+            .map_err(|e| e.to_string())?
+    };
 
-    let rows = stmt
-        .query_map([], |row| {
+    let rows = if let Some(col) = collection_name {
+        stmt.query_map(params![col], |row| {
             let id: String = row.get(0)?;
             let name: String = row.get(1)?;
             Ok(json!({"id": id, "name": name}))
         })
-        .map_err(|e| e.to_string())?;
+    } else {
+        stmt.query_map([], |row| {
+            let id: String = row.get(0)?;
+            let name: String = row.get(1)?;
+            Ok(json!({"id": id, "name": name}))
+        })
+    }
+    .map_err(|e| e.to_string())?;
 
     let mut fields = Vec::new();
     for row in rows {
@@ -284,4 +300,53 @@ pub async fn get_exercise_types_cmd(
     }
 
     Ok(types)
+}
+#[tauri::command]
+pub async fn get_subsections_cmd(
+    db: State<'_, Mutex<Connection>>,
+    section_id: Option<String>,
+) -> Result<Vec<Value>, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+
+    let mut subsections = Vec::new();
+
+    if let Some(sid) = section_id {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, name, section_id FROM subsections WHERE section_id = ?1 ORDER BY name",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map([&sid], |row| {
+                let id: String = row.get(0)?;
+                let name: String = row.get(1)?;
+                let section_id: String = row.get(2)?;
+                Ok(json!({"id": id, "name": name, "sectionId": section_id}))
+            })
+            .map_err(|e| e.to_string())?;
+
+        for row in rows {
+            subsections.push(row.map_err(|e| e.to_string())?);
+        }
+    } else {
+        let mut stmt = conn
+            .prepare("SELECT id, name, section_id FROM subsections ORDER BY name")
+            .map_err(|e| e.to_string())?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                let id: String = row.get(0)?;
+                let name: String = row.get(1)?;
+                let section_id: String = row.get(2)?;
+                Ok(json!({"id": id, "name": name, "sectionId": section_id}))
+            })
+            .map_err(|e| e.to_string())?;
+
+        for row in rows {
+            subsections.push(row.map_err(|e| e.to_string())?);
+        }
+    }
+
+    Ok(subsections)
 }

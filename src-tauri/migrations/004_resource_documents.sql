@@ -9,10 +9,6 @@ CREATE TABLE IF NOT EXISTS resource_documents (
     document_type_id TEXT,  -- FK to document_types (NOT file_types)
     -- Hierarchy (new system)
     field_id TEXT,  -- FK to fields
-    -- Legacy folder hierarchy (optional, for backwards compatibility)
-    basic_folder TEXT,  -- Nullable now
-    sub_folder TEXT,  -- Nullable now
-    subsub_folder TEXT,
     -- Other metadata
     date DATE,
     content TEXT,  -- Document LaTeX content
@@ -27,16 +23,12 @@ CREATE TABLE IF NOT EXISTS resource_documents (
     FOREIGN KEY(resource_id) REFERENCES resources(id) ON DELETE CASCADE,
     FOREIGN KEY(document_type_id) REFERENCES document_types(id) ON UPDATE CASCADE ON DELETE SET NULL,
     FOREIGN KEY(field_id) REFERENCES fields(id) ON UPDATE CASCADE ON DELETE SET NULL,
-    FOREIGN KEY(basic_folder) REFERENCES basic_folders(name) ON UPDATE CASCADE ON DELETE SET NULL,
-    FOREIGN KEY(sub_folder) REFERENCES sub_folders(name) ON UPDATE CASCADE ON DELETE SET NULL,
-    FOREIGN KEY(subsub_folder) REFERENCES subsub_folders(name) ON UPDATE CASCADE ON DELETE SET NULL,
     FOREIGN KEY(preamble_id) REFERENCES resources(id) ON DELETE SET NULL,
     FOREIGN KEY(solution_document_id) REFERENCES resources(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_resource_documents_type ON resource_documents(document_type_id);
 CREATE INDEX IF NOT EXISTS idx_resource_documents_field ON resource_documents(field_id);
-CREATE INDEX IF NOT EXISTS idx_resource_documents_folder ON resource_documents(basic_folder, sub_folder);
 
 -- ============================================================================
 -- HIERARCHY JUNCTION TABLES for Documents

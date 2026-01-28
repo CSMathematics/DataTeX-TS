@@ -7,6 +7,7 @@ import React, { useState, useEffect } from "react";
 import { Stack, Button, Group, Alert, Loader, Text } from "@mantine/core";
 import { IconCheck, IconAlertCircle } from "@tabler/icons-react";
 import { useTypedMetadataStore } from "../../stores/typedMetadataStore";
+import { useDatabaseStore } from "../../stores/databaseStore";
 import { FileMetadataForm } from "./TypedMetadataForms";
 import {
   DocumentMetadataForm,
@@ -55,6 +56,9 @@ export const DynamicMetadataEditor: React.FC<DynamicMetadataEditorProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resourceCollection, setResourceCollection] = useState<
+    string | undefined
+  >(undefined);
 
   const loadTypedMetadata = useTypedMetadataStore(
     (state) => state.loadTypedMetadata,
@@ -66,6 +70,8 @@ export const DynamicMetadataEditor: React.FC<DynamicMetadataEditorProps> = ({
     (state) => state.loadAllLookupData,
   );
 
+  const getResourceById = useDatabaseStore((state) => state.getResourceById);
+
   // Load lookup data and resource metadata on mount
   useEffect(() => {
     const initialize = async () => {
@@ -73,8 +79,13 @@ export const DynamicMetadataEditor: React.FC<DynamicMetadataEditorProps> = ({
         setIsLoading(true);
         setError(null);
 
-        // Load lookup data (always needed for dropdowns)
-        await loadAllLookupData();
+        // 1. Fetch resource to get its collection context (CRITICAL for scoping)
+        const resource = await getResourceById(resourceId);
+        const collection = resource?.collection;
+        setResourceCollection(collection);
+
+        // 2. Load lookup data (scoped to collection if found)
+        await loadAllLookupData(collection);
 
         // If we have initial metadata (e.g., from .dtex file), use it
         if (initialMetadata) {
@@ -133,6 +144,7 @@ export const DynamicMetadataEditor: React.FC<DynamicMetadataEditorProps> = ({
       resourceId,
       initialMetadata: metadata,
       onChange: setMetadata,
+      collectionName: resourceCollection,
     };
 
     switch (resourceType) {
@@ -223,10 +235,22 @@ export const SimpleMetadataEditor: React.FC<SimpleMetadataEditorProps> = ({
   initialMetadata = {},
   onChange,
 }) => {
+  const getResourceById = useDatabaseStore((state) => state.getResourceById);
+  const [collectionName, setCollectionName] = useState<string | undefined>(
+    undefined,
+  );
+
+  useEffect(() => {
+    getResourceById(resourceId).then((r) => {
+      setCollectionName(r?.collection);
+    });
+  }, [resourceId, getResourceById]);
+
   const formProps = {
     resourceId,
     initialMetadata,
     onChange,
+    collectionName,
   };
 
   switch (resourceType) {

@@ -18,6 +18,7 @@ import {
   Checkbox,
   Menu,
 } from "@mantine/core";
+import { useTypedMetadataStore } from "../../stores/typedMetadataStore";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faPlus,
@@ -235,6 +236,7 @@ export const DatabaseSidebar = ({
   const handleCreateCollection = useCallback(async () => {
     // Open native directory selection dialog
     // Use dynamic import for Tauri generic compatibility if needed, or assume standard
+    console.log("Opening folder dialog...");
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
       const selected = await open({
@@ -242,14 +244,19 @@ export const DatabaseSidebar = ({
         multiple: false,
         title: "Select Database Folder",
       });
+      console.log("Dialog result:", selected);
 
       if (selected && typeof selected === "string") {
         const name = selected.split(/[/\\]/).pop() || "New Database";
+        console.log("Creating collection:", name, selected);
         // We could ask for a name override, but simplest is folder name.
         await createCollection(name, selected);
+        // Refresh lookup data for the new collection (or clear it)
+        useTypedMetadataStore.getState().clearAllLookupData();
+        useTypedMetadataStore.getState().loadAllLookupData();
       }
     } catch (err) {
-      // Failed to pick folder
+      console.error("Failed to pick folder:", err);
     }
   }, [createCollection]);
 
@@ -830,6 +837,11 @@ export const DatabaseSidebar = ({
     handleDeleteClick,
     normalizePath,
   ]);
+
+  // Debug effect for collections
+  useEffect(() => {
+    console.log("[DatabaseSidebar] Collections updated:", collections);
+  }, [collections]);
 
   // Toolbar Actions including View Toggle
   const toolbarActions: ToolbarAction[] = useMemo(() => {

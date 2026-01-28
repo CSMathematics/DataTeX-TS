@@ -94,6 +94,7 @@ interface DatabaseState {
   updateResourceKind: (id: string, kind: string) => Promise<void>;
   moveResource: (id: string, newCollection: string) => Promise<void>;
   compileResource: (id: string) => Promise<string>; // Returns PDF path
+  getResourceById: (id: string) => Promise<Resource | null>;
 
   // Graph
   graphLinks: GraphLink[];
@@ -458,6 +459,15 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
     } catch (err: any) {
       console.error("Failed to compile resource", err);
       throw err;
+    }
+  },
+
+  getResourceById: async (id: string) => {
+    try {
+      return await invoke<Resource | null>("get_resource_cmd", { id });
+    } catch (err) {
+      console.error("Failed to get resource by id:", err);
+      return null;
     }
   },
 

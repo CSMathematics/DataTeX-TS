@@ -86,6 +86,7 @@ import {
 
 import { useProjectStore } from "./stores/projectStore";
 import { useDatabaseStore } from "./stores/databaseStore";
+import { useTypedMetadataStore } from "./stores/typedMetadataStore";
 import { useAppPanelResize } from "./hooks/useAppPanelResize";
 import { useProjectFiles } from "./hooks/useProjectFiles";
 import { useCompilation } from "./hooks/useCompilation";
@@ -476,9 +477,20 @@ export default function App() {
     (state) => state.fetchResourcesForLoadedCollections,
   );
   const createCollection = useDatabaseStore((state) => state.createCollection);
+  const activeCollection = useDatabaseStore((state) => state.activeCollection);
 
   useEffect(() => {
     // Determine workspace root: prefer rootPath, fallback to first collection path
+    // Refresh Hierarchy Data (Fields, Chapters, etc.) when workspace changes
+    console.log(
+      "[App.tsx] Workspace/RootPath/Collections changed. Refreshing lookup data...",
+      { rootPath, collectionsCount: collections.length, activeCollection },
+    );
+    const { clearAllLookupData, loadAllLookupData } =
+      useTypedMetadataStore.getState();
+    clearAllLookupData();
+    loadAllLookupData(activeCollection || undefined).catch(console.error);
+
     let workspaceRoot = rootPath;
     if (!workspaceRoot && collections.length > 0) {
       const collWithPath = collections.find((c) => c.path);
@@ -506,7 +518,7 @@ export default function App() {
         lspClientRef.current = null;
       }
     };
-  }, [rootPath, collections]);
+  }, [rootPath, collections, activeCollection]);
 
   const handleToggleSidebar = useCallback(
     (section: SidebarSection) => {

@@ -16,10 +16,6 @@ import { HierarchyEditor } from "./HierarchyEditor";
 import { ManageableSelect, ManageableMultiSelect } from "./ManageableSelect";
 
 // ============================================================================
-// Reusable Creatable Select Component
-// ============================================================================
-
-// ============================================================================
 // Reusable Creatable Select Component (using Standard Select)
 // ============================================================================
 
@@ -53,7 +49,7 @@ export const CreatableSelect: React.FC<CreatableSelectProps> = ({
 
   // Check if search value exists in options (case insensitive)
   const exactMatch = baseOptions.some(
-    (opt) => opt.label.toLowerCase() === searchQuery.trim().toLowerCase()
+    (opt) => opt.label.toLowerCase() === searchQuery.trim().toLowerCase(),
   );
 
   // Add "Create" option if typing and no exact match
@@ -135,7 +131,7 @@ export const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
 
   // Check if search value exists in options (case insensitive)
   const exactMatch = baseOptions.some(
-    (opt) => opt.label.toLowerCase() === searchQuery.trim().toLowerCase()
+    (opt) => opt.label.toLowerCase() === searchQuery.trim().toLowerCase(),
   );
 
   // Add "Create" option if typing and no exact match
@@ -194,11 +190,13 @@ interface FileMetadataFormProps {
   resourceId: string;
   initialMetadata?: FileMetadata;
   onChange?: (metadata: FileMetadata) => void;
+  collectionName?: string;
 }
 
 export const FileMetadataForm: React.FC<FileMetadataFormProps> = ({
   initialMetadata = {},
   onChange,
+  collectionName,
 }) => {
   const [metadata, setMetadata] = useState<FileMetadata>(initialMetadata);
 
@@ -209,18 +207,18 @@ export const FileMetadataForm: React.FC<FileMetadataFormProps> = ({
   const renameFileType = useTypedMetadataStore((state) => state.renameFileType);
   const deleteFileType = useTypedMetadataStore((state) => state.deleteFileType);
   const createExerciseType = useTypedMetadataStore(
-    (state) => state.createExerciseType
+    (state) => state.createExerciseType,
   );
   const renameExerciseType = useTypedMetadataStore(
-    (state) => state.renameExerciseType
+    (state) => state.renameExerciseType,
   );
   const deleteExerciseType = useTypedMetadataStore(
-    (state) => state.deleteExerciseType
+    (state) => state.deleteExerciseType,
   );
 
   const handleChange = <K extends keyof FileMetadata>(
     field: K,
-    value: FileMetadata[K]
+    value: FileMetadata[K],
   ) => {
     const updated = { ...metadata, [field]: value };
     setMetadata(updated);
@@ -235,7 +233,7 @@ export const FileMetadataForm: React.FC<FileMetadataFormProps> = ({
         placeholder="Select or create file type..."
         data={fileTypes}
         value={metadata.fileTypeId}
-        onChange={(value) => handleChange("fileTypeId", value)}
+        onChange={(value) => handleChange("fileTypeId", value || undefined)}
         onCreate={createFileType}
         onRename={renameFileType}
         onDelete={deleteFileType}
@@ -247,6 +245,7 @@ export const FileMetadataForm: React.FC<FileMetadataFormProps> = ({
         selectedChapterIds={metadata.chapters}
         selectedSectionIds={metadata.sections}
         selectedSubsectionIds={metadata.subsections}
+        collectionName={collectionName}
         onChange={(selections) => {
           const updated = {
             ...metadata,
@@ -289,7 +288,7 @@ export const FileMetadataForm: React.FC<FileMetadataFormProps> = ({
         onChange={(value) =>
           handleChange(
             "difficulty",
-            typeof value === "number" ? value : undefined
+            typeof value === "number" ? value : undefined,
           )
         }
       />

@@ -24,6 +24,7 @@ import {
 } from "@tabler/icons-react";
 import { HierarchyTree, HierarchyType } from "./HierarchyTree";
 import { useTypedMetadataStore } from "../../stores/typedMetadataStore";
+import { useDatabaseStore } from "../../stores/databaseStore";
 
 // ============================================================================
 // Types
@@ -49,6 +50,9 @@ export interface HierarchyEditorProps {
 
   // Compact mode for sidebar
   compact?: boolean;
+
+  // Explicit collection scoping (if provided, overrides global activeCollection)
+  collectionName?: string;
 }
 
 // ============================================================================
@@ -63,18 +67,26 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
   onChange,
   mode = "edit",
   compact = false,
+  collectionName,
 }) => {
   // Store actions
+  const activeCollectionFromStore = useDatabaseStore(
+    (state) => state.activeCollection,
+  );
+  // Use explicit collectionName if provided (e.g. from editor), otherwise fallback to sidebar selection
+  const effectiveCollection =
+    collectionName !== undefined ? collectionName : activeCollectionFromStore;
+
   const loadFields = useTypedMetadataStore((state) => state.loadFields);
   const loadChapters = useTypedMetadataStore((state) => state.loadChapters);
   const loadSections = useTypedMetadataStore((state) => state.loadSections);
   const loadSubsections = useTypedMetadataStore(
-    (state) => state.loadSubsections
+    (state) => state.loadSubsections,
   );
   const createChapter = useTypedMetadataStore((state) => state.createChapter);
   const createSection = useTypedMetadataStore((state) => state.createSection);
   const createSubsection = useTypedMetadataStore(
-    (state) => state.createSubsection
+    (state) => state.createSubsection,
   );
   const createField = useTypedMetadataStore((state) => state.createField);
 
@@ -83,27 +95,27 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
   const deleteChapter = useTypedMetadataStore((state) => state.deleteChapter);
   const deleteSection = useTypedMetadataStore((state) => state.deleteSection);
   const deleteSubsection = useTypedMetadataStore(
-    (state) => state.deleteSubsection
+    (state) => state.deleteSubsection,
   );
   // Rename actions
   const renameField = useTypedMetadataStore((state) => state.renameField);
   const renameChapter = useTypedMetadataStore((state) => state.renameChapter);
   const renameSection = useTypedMetadataStore((state) => state.renameSection);
   const renameSubsection = useTypedMetadataStore(
-    (state) => state.renameSubsection
+    (state) => state.renameSubsection,
   );
   const isLoading = useTypedMetadataStore((state) => state.isLoadingLookupData);
 
   // Local checked state
   const [checkedFieldIds, setCheckedFieldIds] = useState<string[]>(
-    selectedFieldId ? [selectedFieldId] : []
+    selectedFieldId ? [selectedFieldId] : [],
   );
   const [checkedChapterIds, setCheckedChapterIds] =
     useState<string[]>(selectedChapterIds);
   const [checkedSectionIds, setCheckedSectionIds] =
     useState<string[]>(selectedSectionIds);
   const [checkedSubsectionIds, setCheckedSubsectionIds] = useState<string[]>(
-    selectedSubsectionIds
+    selectedSubsectionIds,
   );
 
   // UI State
@@ -111,14 +123,24 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
   const [newFieldPopoverOpened, setNewFieldPopoverOpened] = useState(false);
   const [newFieldName, setNewFieldName] = useState("");
 
+  // Debug log
+  useEffect(() => {
+    console.log(
+      "[HierarchyEditor] Props/State updated. Field:",
+      selectedFieldId,
+      "Chapters:",
+      selectedChapterIds,
+    );
+  }, [selectedFieldId, selectedChapterIds]);
+
   // Load data on mount only
   useEffect(() => {
-    loadFields();
-    loadChapters();
-    loadSections();
-    loadSubsections();
+    loadFields(effectiveCollection || undefined);
+    loadChapters(undefined, effectiveCollection || undefined);
+    loadSections(undefined, effectiveCollection || undefined);
+    loadSubsections(undefined, effectiveCollection || undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [effectiveCollection]);
 
   // Sync with props - use JSON.stringify for stable comparison
   const selectedFieldIdStr = selectedFieldId || "";
@@ -148,7 +170,7 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
       fields: string[],
       chapters: string[],
       sections: string[],
-      subsections: string[]
+      subsections: string[],
     ) => {
       onChange?.({
         fieldId: fields[0], // Only one field allowed
@@ -157,7 +179,7 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
         subsections,
       });
     },
-    [onChange]
+    [onChange],
   );
 
   // Handle check/uncheck
@@ -202,7 +224,7 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
       checkedSectionIds,
       checkedSubsectionIds,
       notifyChange,
-    ]
+    ],
   );
 
   // Handle create
@@ -211,29 +233,50 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
       try {
         switch (type) {
           case "chapter":
-            if (parentId) await createChapter(name, parentId);
+            if (parentId)
+              await createChapter(
+                name,
+                parentId,
+                effectiveCollection || undefined,
+              );
             break;
           case "section":
-            if (parentId) await createSection(name, parentId);
+            if (parentId)
+              await createSection(
+                name,
+                parentId,
+                effectiveCollection || undefined,
+              );
             break;
           case "subsection":
-            if (parentId) await createSubsection(name, parentId);
+            if (parentId)
+              await createSubsection(
+                name,
+                parentId,
+                effectiveCollection || undefined,
+              );
             break;
         }
       } catch (error) {
         console.error(`Failed to create ${type}:`, error);
       }
     },
-    [createChapter, createSection, createSubsection]
+    [createChapter, createSection, createSubsection, effectiveCollection],
   );
 
   // Refresh data
   const handleRefresh = useCallback(() => {
-    loadFields();
-    loadChapters();
-    loadSections();
-    loadSubsections();
-  }, [loadFields, loadChapters, loadSections, loadSubsections]);
+    loadFields(effectiveCollection || undefined);
+    loadChapters(undefined, effectiveCollection || undefined);
+    loadSections(undefined, effectiveCollection || undefined);
+    loadSubsections(undefined, effectiveCollection || undefined);
+  }, [
+    loadFields,
+    loadChapters,
+    loadSections,
+    loadSubsections,
+    effectiveCollection,
+  ]);
 
   // Handle delete for any hierarchy type
   const handleDelete = useCallback(
@@ -257,7 +300,7 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
         console.error(`Failed to delete ${type}:`, error);
       }
     },
-    [deleteField, deleteChapter, deleteSection, deleteSubsection]
+    [deleteField, deleteChapter, deleteSection, deleteSubsection],
   );
 
   // Handle rename for any hierarchy type
@@ -282,19 +325,19 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
         console.error(`Failed to rename ${type}:`, error);
       }
     },
-    [renameField, renameChapter, renameSection, renameSubsection]
+    [renameField, renameChapter, renameSection, renameSubsection],
   );
 
   const handleCreateField = useCallback(async () => {
     if (!newFieldName.trim()) return;
     try {
-      await createField(newFieldName.trim());
+      await createField(newFieldName.trim(), effectiveCollection || undefined);
       setNewFieldName("");
       setNewFieldPopoverOpened(false);
     } catch (error) {
       console.error("Failed to create field:", error);
     }
-  }, [createField, newFieldName]);
+  }, [createField, newFieldName, effectiveCollection]);
 
   return (
     <Paper

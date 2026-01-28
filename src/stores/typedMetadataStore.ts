@@ -49,10 +49,13 @@ interface TypedMetadataState {
   isLoadingLookupData: boolean;
 
   // Load Actions
-  loadFields: () => Promise<void>;
-  loadChapters: (fieldId?: string) => Promise<void>;
-  loadSections: (chapterId?: string) => Promise<void>;
-  loadSubsections: (sectionId?: string) => Promise<void>;
+  loadFields: (collectionName?: string) => Promise<void>;
+  loadChapters: (fieldId?: string, collectionName?: string) => Promise<void>;
+  loadSections: (chapterId?: string, collectionName?: string) => Promise<void>;
+  loadSubsections: (
+    sectionId?: string,
+    collectionName?: string,
+  ) => Promise<void>;
   loadExerciseTypes: () => Promise<void>;
   loadFileTypes: () => Promise<void>;
   loadDocumentTypes: () => Promise<void>;
@@ -62,13 +65,26 @@ interface TypedMetadataState {
   loadMacroCommandTypes: () => Promise<void>;
   loadCommandTypes: () => Promise<void>;
   loadPreambleTypes: () => Promise<void>;
-  loadAllLookupData: () => Promise<void>;
+  loadAllLookupData: (collectionName?: string) => Promise<void>;
+  clearAllLookupData: () => void;
 
   // Create Actions (for creatable dropdowns)
-  createField: (name: string) => Promise<Field>;
-  createChapter: (name: string, fieldId: string) => Promise<Chapter>;
-  createSection: (name: string, chapterId: string) => Promise<Section>;
-  createSubsection: (name: string, sectionId: string) => Promise<Subsection>;
+  createField: (name: string, collectionName?: string) => Promise<Field>;
+  createChapter: (
+    name: string,
+    fieldId: string,
+    collectionName?: string,
+  ) => Promise<Chapter>;
+  createSection: (
+    name: string,
+    chapterId: string,
+    collectionName?: string,
+  ) => Promise<Section>;
+  createSubsection: (
+    name: string,
+    sectionId: string,
+    collectionName?: string,
+  ) => Promise<Subsection>;
   createFileType: (name: string) => Promise<FileType>;
   createExerciseType: (name: string) => Promise<ExerciseType>;
   createDocumentType: (name: string) => Promise<DocumentType>;
@@ -108,11 +124,11 @@ interface TypedMetadataState {
   saveTypedMetadata: (
     resourceId: string,
     resourceType: ResourceType,
-    metadata: any
+    metadata: any,
   ) => Promise<void>;
   loadTypedMetadata: (
     resourceId: string,
-    resourceType: ResourceType
+    resourceType: ResourceType,
   ) => Promise<any>;
   migrateResourceToTyped: (resourceId: string) => Promise<string>;
 
@@ -144,53 +160,98 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   macroCommandTypes: [],
   commandTypes: [],
   preambleTypes: [],
+
   isLoadingLookupData: false,
 
+  // Clear all lookup data (reset to empty)
+  clearAllLookupData: () => {
+    console.log("[TypedMetadataStore] Clearing all lookup data...");
+    set({
+      fields: [],
+      chapters: [],
+      sections: [],
+      subsections: [],
+      exerciseTypes: [],
+      fileTypes: [],
+      documentTypes: [],
+      tableTypes: [],
+      figureTypes: [],
+      packageTopics: [],
+      macroCommandTypes: [],
+      commandTypes: [],
+      preambleTypes: [],
+    });
+  },
+
   // Load fields
-  loadFields: async () => {
+  loadFields: async (collectionName?: string) => {
     try {
-      const fields = await invoke<Field[]>("get_fields_cmd");
+      console.log(
+        `[TypedMetadataStore] Loading fields (collection: ${collectionName})...`,
+      );
+      const fields = await invoke<Field[]>("get_fields_cmd", {
+        collectionName,
+      });
+      console.log(
+        `[TypedMetadataStore] Loaded ${fields.length} fields`,
+        fields,
+      );
       set({ fields });
     } catch (error) {
       console.error("Failed to load fields:", error);
-      throw error;
     }
   },
 
   // Load chapters
-  loadChapters: async (fieldId?: string) => {
+  loadChapters: async (fieldId?: string, collectionName?: string) => {
     try {
-      const chapters = await invoke<Chapter[]>("get_chapters_cmd", { fieldId });
+      console.log(
+        `[TypedMetadataStore] Loading chapters (field: ${fieldId}, collection: ${collectionName})...`,
+      );
+      const chapters = await invoke<Chapter[]>("get_chapters_cmd", {
+        fieldId,
+        collectionName,
+      });
+      console.log(`[TypedMetadataStore] Loaded ${chapters.length} chapters`);
       set({ chapters });
     } catch (error) {
       console.error("Failed to load chapters:", error);
-      throw error;
     }
   },
 
   // Load sections
-  loadSections: async (chapterId?: string) => {
+  loadSections: async (chapterId?: string, collectionName?: string) => {
     try {
+      console.log(
+        `[TypedMetadataStore] Loading sections (chapter: ${chapterId}, collection: ${collectionName})...`,
+      );
       const sections = await invoke<Section[]>("get_sections_cmd", {
         chapterId,
+        collectionName,
       });
+      console.log(`[TypedMetadataStore] Loaded ${sections.length} sections`);
       set({ sections });
     } catch (error) {
       console.error("Failed to load sections:", error);
-      throw error;
     }
   },
 
   // Load subsections
-  loadSubsections: async (sectionId?: string) => {
+  loadSubsections: async (sectionId?: string, collectionName?: string) => {
     try {
+      console.log(
+        `[TypedMetadataStore] Loading subsections (section: ${sectionId}, collection: ${collectionName})...`,
+      );
       const subsections = await invoke<Subsection[]>("get_subsections_cmd", {
         sectionId,
+        collectionName,
       });
+      console.log(
+        `[TypedMetadataStore] Loaded ${subsections.length} subsections`,
+      );
       set({ subsections });
     } catch (error) {
       console.error("Failed to load subsections:", error);
-      throw error;
     }
   },
 
@@ -198,12 +259,11 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   loadExerciseTypes: async () => {
     try {
       const exerciseTypes = await invoke<ExerciseType[]>(
-        "get_exercise_types_cmd"
+        "get_exercise_types_cmd",
       );
       set({ exerciseTypes });
     } catch (error) {
       console.error("Failed to load exercise types:", error);
-      throw error;
     }
   },
 
@@ -214,7 +274,6 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
       set({ fileTypes });
     } catch (error) {
       console.error("Failed to load file types:", error);
-      throw error;
     }
   },
 
@@ -222,12 +281,11 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   loadDocumentTypes: async () => {
     try {
       const documentTypes = await invoke<DocumentType[]>(
-        "get_document_types_cmd"
+        "get_document_types_cmd",
       );
       set({ documentTypes });
     } catch (error) {
       console.error("Failed to load document types:", error);
-      throw error;
     }
   },
 
@@ -238,7 +296,6 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
       set({ tableTypes });
     } catch (error) {
       console.error("Failed to load table types:", error);
-      throw error;
     }
   },
 
@@ -249,7 +306,6 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
       set({ figureTypes });
     } catch (error) {
       console.error("Failed to load figure types:", error);
-      throw error;
     }
   },
 
@@ -257,12 +313,11 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   loadPackageTopics: async () => {
     try {
       const packageTopics = await invoke<PackageTopic[]>(
-        "get_package_topics_cmd"
+        "get_package_topics_cmd",
       );
       set({ packageTopics });
     } catch (error) {
       console.error("Failed to load package topics:", error);
-      throw error;
     }
   },
 
@@ -270,12 +325,11 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   loadMacroCommandTypes: async () => {
     try {
       const macroCommandTypes = await invoke<MacroCommandType[]>(
-        "get_macro_command_types_cmd"
+        "get_macro_command_types_cmd",
       );
       set({ macroCommandTypes });
     } catch (error) {
       console.error("Failed to load macro command types:", error);
-      throw error;
     }
   },
 
@@ -286,7 +340,6 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
       set({ commandTypes });
     } catch (error) {
       console.error("Failed to load command types:", error);
-      throw error;
     }
   },
 
@@ -294,42 +347,51 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   loadPreambleTypes: async () => {
     try {
       const preambleTypes = await invoke<PreambleType[]>(
-        "get_preamble_types_cmd"
+        "get_preamble_types_cmd",
       );
       set({ preambleTypes });
     } catch (error) {
       console.error("Failed to load preamble types:", error);
-      throw error;
     }
   },
 
   // Load all lookup data
-  loadAllLookupData: async () => {
+  loadAllLookupData: (collectionName?: string) => {
+    console.log(
+      "[TypedMetadataStore] loadAllLookupData triggered for:",
+      collectionName,
+    );
     set({ isLoadingLookupData: true });
-    try {
-      await Promise.all([
-        get().loadFields(),
-        get().loadChapters(),
-        get().loadSections(),
-        get().loadExerciseTypes(),
-        get().loadFileTypes(),
-        get().loadDocumentTypes(),
-        get().loadTableTypes(),
-        get().loadFigureTypes(),
-        get().loadPackageTopics(),
-        get().loadMacroCommandTypes(),
-        get().loadCommandTypes(),
-        get().loadPreambleTypes(),
-      ]);
-    } finally {
-      set({ isLoadingLookupData: false });
-    }
+    return Promise.all([
+      get().loadFields(collectionName),
+      get().loadChapters(undefined, collectionName),
+      get().loadSections(undefined, collectionName),
+      get().loadSubsections(undefined, collectionName),
+      get().loadExerciseTypes(),
+      get().loadFileTypes(),
+      get().loadDocumentTypes(),
+      get().loadTableTypes(),
+      get().loadFigureTypes(),
+      get().loadPackageTopics(),
+      get().loadMacroCommandTypes(),
+      get().loadCommandTypes(),
+      get().loadPreambleTypes(),
+    ])
+      .then(() => {
+        console.log("[TypedMetadataStore] All lookup data loaded successfully");
+      })
+      .finally(() => {
+        set({ isLoadingLookupData: false });
+      });
   },
 
   // Create new field
-  createField: async (name: string) => {
+  createField: async (name: string, collectionName?: string) => {
     try {
-      const field = await invoke<Field>("create_field_cmd", { name });
+      const field = await invoke<Field>("create_field_cmd", {
+        name,
+        collectionName,
+      });
       set((state) => ({ fields: [...state.fields, field] }));
       return field;
     } catch (error) {
@@ -339,11 +401,16 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   },
 
   // Create new chapter
-  createChapter: async (name: string, fieldId: string) => {
+  createChapter: async (
+    name: string,
+    fieldId: string,
+    collectionName?: string,
+  ) => {
     try {
       const chapter = await invoke<Chapter>("create_chapter_cmd", {
         name,
         fieldId,
+        collectionName,
       });
       set((state) => ({ chapters: [...state.chapters, chapter] }));
       return chapter;
@@ -354,11 +421,16 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   },
 
   // Create new section
-  createSection: async (name: string, chapterId: string) => {
+  createSection: async (
+    name: string,
+    chapterId: string,
+    collectionName?: string,
+  ) => {
     try {
       const section = await invoke<Section>("create_section_cmd", {
         name,
         chapterId,
+        collectionName,
       });
       set((state) => ({ sections: [...state.sections, section] }));
       return section;
@@ -369,11 +441,16 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   },
 
   // Create new subsection
-  createSubsection: async (name: string, sectionId: string) => {
+  createSubsection: async (
+    name: string,
+    sectionId: string,
+    collectionName?: string,
+  ) => {
     try {
       const subsection = await invoke<Subsection>("create_subsection_cmd", {
         name,
         sectionId,
+        collectionName,
       });
       set((state) => ({ subsections: [...state.subsections, subsection] }));
       return subsection;
@@ -400,7 +477,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     try {
       const exerciseType = await invoke<ExerciseType>(
         "create_exercise_type_cmd",
-        { name }
+        { name },
       );
       set((state) => ({
         exerciseTypes: [...state.exerciseTypes, exerciseType],
@@ -417,7 +494,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     try {
       const documentType = await invoke<DocumentType>(
         "create_document_type_cmd",
-        { name }
+        { name },
       );
       set((state) => ({
         documentTypes: [...state.documentTypes, documentType],
@@ -480,7 +557,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     try {
       const type = await invoke<MacroCommandType>(
         "create_macro_command_type_cmd",
-        { name }
+        { name },
       );
       set((state) => ({
         macroCommandTypes: [...state.macroCommandTypes, type],
@@ -568,7 +645,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     await invoke("rename_chapter_cmd", { id, name });
     set((state) => ({
       chapters: state.chapters.map((ch) =>
-        ch.id === id ? { ...ch, name } : ch
+        ch.id === id ? { ...ch, name } : ch,
       ),
     }));
   },
@@ -584,7 +661,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     await invoke("rename_subsection_cmd", { id, name });
     set((state) => ({
       subsections: state.subsections.map((ss) =>
-        ss.id === id ? { ...ss, name } : ss
+        ss.id === id ? { ...ss, name } : ss,
       ),
     }));
   },
@@ -601,7 +678,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     await invoke("rename_file_type_cmd", { id, name });
     set((state) => ({
       fileTypes: state.fileTypes.map((ft) =>
-        ft.id === id ? { ...ft, name } : ft
+        ft.id === id ? { ...ft, name } : ft,
       ),
     }));
   },
@@ -618,7 +695,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     await invoke("rename_exercise_type_cmd", { id, name });
     set((state) => ({
       exerciseTypes: state.exerciseTypes.map((et) =>
-        et.id === id ? { ...et, name } : et
+        et.id === id ? { ...et, name } : et,
       ),
     }));
   },
@@ -635,7 +712,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     await invoke("rename_document_type_cmd", { id, name });
     set((state) => ({
       documentTypes: state.documentTypes.map((dt) =>
-        dt.id === id ? { ...dt, name } : dt
+        dt.id === id ? { ...dt, name } : dt,
       ),
     }));
   },
@@ -652,7 +729,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     await invoke("rename_table_type_cmd", { id, name });
     set((state) => ({
       tableTypes: state.tableTypes.map((tt) =>
-        tt.id === id ? { ...tt, name } : tt
+        tt.id === id ? { ...tt, name } : tt,
       ),
     }));
   },
@@ -669,7 +746,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     await invoke("rename_figure_type_cmd", { id, name });
     set((state) => ({
       figureTypes: state.figureTypes.map((ft) =>
-        ft.id === id ? { ...ft, name } : ft
+        ft.id === id ? { ...ft, name } : ft,
       ),
     }));
   },
@@ -686,7 +763,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     await invoke("rename_command_type_cmd", { id, name });
     set((state) => ({
       commandTypes: state.commandTypes.map((ct) =>
-        ct.id === id ? { ...ct, name } : ct
+        ct.id === id ? { ...ct, name } : ct,
       ),
     }));
   },
@@ -703,7 +780,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     await invoke("rename_preamble_type_cmd", { id, name });
     set((state) => ({
       preambleTypes: state.preambleTypes.map((pt) =>
-        pt.id === id ? { ...pt, name } : pt
+        pt.id === id ? { ...pt, name } : pt,
       ),
     }));
   },
@@ -712,7 +789,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   saveTypedMetadata: async (
     resourceId: string,
     resourceType: ResourceType,
-    metadata: any
+    metadata: any,
   ) => {
     try {
       await invoke("save_typed_metadata_cmd", {
@@ -792,7 +869,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
 export const useChaptersForField = (fieldId?: string) => {
   const chapters = useTypedMetadataStore((state) => state.chapters);
   const getChaptersByField = useTypedMetadataStore(
-    (state) => state.getChaptersByField
+    (state) => state.getChaptersByField,
   );
 
   if (!fieldId) return chapters;
@@ -803,7 +880,7 @@ export const useChaptersForField = (fieldId?: string) => {
 export const useSectionsForChapter = (chapterId?: string) => {
   const sections = useTypedMetadataStore((state) => state.sections);
   const getSectionsByChapter = useTypedMetadataStore(
-    (state) => state.getSectionsByChapter
+    (state) => state.getSectionsByChapter,
   );
 
   if (!chapterId) return sections;
@@ -813,10 +890,10 @@ export const useSectionsForChapter = (chapterId?: string) => {
 // Hook to initialize lookup data on mount
 export const useInitializeLookupData = () => {
   const loadAllLookupData = useTypedMetadataStore(
-    (state) => state.loadAllLookupData
+    (state) => state.loadAllLookupData,
   );
   const isLoadingLookupData = useTypedMetadataStore(
-    (state) => state.isLoadingLookupData
+    (state) => state.isLoadingLookupData,
   );
 
   React.useEffect(() => {

@@ -21,6 +21,7 @@ INSERT OR IGNORE INTO figure_types (id, name, description) VALUES
 CREATE TABLE IF NOT EXISTS resource_figures (
     resource_id TEXT PRIMARY KEY NOT NULL,
     figure_type_id TEXT,  -- FK to figure_types
+    field_id TEXT, -- FK to fields (added by consolidation)
     environment TEXT,  -- tikzpicture, axis, includegraphics
     date DATE,
     content TEXT,  -- LaTeX/TikZ code
@@ -44,8 +45,11 @@ CREATE TABLE IF NOT EXISTS resource_figures (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(resource_id) REFERENCES resources(id) ON DELETE CASCADE,
     FOREIGN KEY(figure_type_id) REFERENCES figure_types(id) ON UPDATE CASCADE ON DELETE SET NULL,
-    FOREIGN KEY(preamble_id) REFERENCES resources(id) ON DELETE SET NULL
+    FOREIGN KEY(preamble_id) REFERENCES resources(id) ON DELETE SET NULL,
+    FOREIGN KEY(field_id) REFERENCES fields(id) ON UPDATE CASCADE ON DELETE SET NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_resource_figures_field ON resource_figures(field_id);
 
 CREATE INDEX IF NOT EXISTS idx_resource_figures_type ON resource_figures(figure_type_id);
 CREATE INDEX IF NOT EXISTS idx_resource_figures_environment ON resource_figures(environment);
@@ -69,6 +73,36 @@ CREATE TABLE IF NOT EXISTS resource_figure_tags (
     FOREIGN KEY(resource_id) REFERENCES resource_figures(resource_id) ON DELETE CASCADE,
     FOREIGN KEY(tag) REFERENCES custom_tags(tag) ON UPDATE CASCADE ON DELETE CASCADE
 );
+
+-- Figures Chapters
+CREATE TABLE IF NOT EXISTS resource_figure_chapters (
+    resource_id TEXT NOT NULL,
+    chapter_id TEXT NOT NULL,
+    PRIMARY KEY(resource_id, chapter_id),
+    FOREIGN KEY(resource_id) REFERENCES resource_figures(resource_id) ON DELETE CASCADE,
+    FOREIGN KEY(chapter_id) REFERENCES chapters(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_figure_chapters_resource ON resource_figure_chapters(resource_id);
+
+-- Figures Sections
+CREATE TABLE IF NOT EXISTS resource_figure_sections (
+    resource_id TEXT NOT NULL,
+    section_id TEXT NOT NULL,
+    PRIMARY KEY(resource_id, section_id),
+    FOREIGN KEY(resource_id) REFERENCES resource_figures(resource_id) ON DELETE CASCADE,
+    FOREIGN KEY(section_id) REFERENCES sections(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_figure_sections_resource ON resource_figure_sections(resource_id);
+
+-- Figures Subsections
+CREATE TABLE IF NOT EXISTS resource_figure_subsections (
+    resource_id TEXT NOT NULL,
+    subsection_id TEXT NOT NULL,
+    PRIMARY KEY(resource_id, subsection_id),
+    FOREIGN KEY(resource_id) REFERENCES resource_figures(resource_id) ON DELETE CASCADE,
+    FOREIGN KEY(subsection_id) REFERENCES subsections(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_figure_subsections_resource ON resource_figure_subsections(resource_id);
 
 -- ============================================================================
 -- EDIT HISTORY for Figures

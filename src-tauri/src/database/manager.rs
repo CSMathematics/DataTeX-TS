@@ -3,6 +3,7 @@ use sqlx::{migrate::MigrateDatabase, sqlite::SqlitePoolOptions, Pool, Row, Sqlit
 
 pub struct DatabaseManager {
     pub pool: Pool<Sqlite>,
+    pub path: String,
 }
 
 impl DatabaseManager {
@@ -19,7 +20,10 @@ impl DatabaseManager {
         // Initialize schema
         Self::init_schema(&pool).await?;
 
-        Ok(Self { pool })
+        Ok(Self {
+            pool,
+            path: db_path,
+        })
     }
 
     async fn init_schema(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
@@ -36,11 +40,8 @@ impl DatabaseManager {
             include_str!("../../migrations/008_resource_packages.sql"), // 7
             include_str!("../../migrations/009_resource_preambles.sql"), // 8
             include_str!("../../migrations/010_resource_classes.sql"), // 9
-            include_str!("../../migrations/011_migrate_json_to_typed.sql"), // 10
             include_str!("../../migrations/012_resource_bibliographies.sql"), // 11
             include_str!("../../migrations/013_resource_dtx_ins.sql"), // 12
-            include_str!("../../migrations/014_add_collection_path.sql"), // 13
-            include_str!("../../migrations/015_file_history.sql"), // 14 - Local history
         ];
 
         // Check current version

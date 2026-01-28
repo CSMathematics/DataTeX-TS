@@ -49,9 +49,22 @@ struct AppState {
 
 // 2. Open Project Command
 #[tauri::command]
-async fn open_project(path: String, _state: State<'_, AppState>) -> Result<String, String> {
-    println!("Setting active project path to: {}", path);
-    Ok("Project path set (Global DB in use)".to_string())
+async fn open_project(path: String, state: State<'_, AppState>) -> Result<String, String> {
+    println!("Switching active project database to: {}", path);
+
+    // Re-initialize the database manager with the new path
+    match DatabaseManager::new(&path).await {
+        Ok(new_manager) => {
+            let mut db_guard = state.db_manager.lock().await;
+            *db_guard = Some(new_manager);
+            println!("Database successfully switched to: {}/project.db", path);
+            Ok(format!("Database switched to {}", path))
+        }
+        Err(e) => {
+            eprintln!("Failed to switch database: {}", e);
+            Err(format!("Failed to switch database: {}", e))
+        }
+    }
 }
 
 #[tauri::command]
@@ -287,7 +300,9 @@ async fn update_cell_cmd(
 #[tauri::command]
 async fn get_collections_cmd(state: State<'_, AppState>) -> Result<Vec<Collection>, String> {
     let db_guard = state.db_manager.lock().await;
+
     if let Some(db) = &*db_guard {
+        eprintln!("get_collections_cmd querying DB: {}", db.path);
         db.get_collections().await
     } else {
         Err("Database not initialized".to_string())
@@ -302,6 +317,11 @@ async fn create_collection_cmd(
 ) -> Result<(), String> {
     let db_guard = state.db_manager.lock().await;
     let db = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    eprintln!(
+        "create_collection_cmd: name='{}', path='{}' in DB: {}",
+        name, path, db.path
+    );
 
     let collection = Collection {
         name: name.clone(),
@@ -344,11 +364,26 @@ async fn get_resources_by_collections_cmd(
 }
 
 #[tauri::command]
+async fn get_resource_cmd(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Option<Resource>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let manager = db_guard.as_ref().ok_or("Database not initialized")?;
+
+    manager.get_resource_by_id(&id).await
+}
+
+#[tauri::command]
 async fn import_folder_cmd(
     path: String,
     collection_name: String,
     state: State<'_, AppState>,
 ) -> Result<usize, String> {
+    eprintln!(
+        "import_folder_cmd called with path: {}, name: {}",
+        path, collection_name
+    );
     let db_guard = state.db_manager.lock().await;
     let db = db_guard.as_ref().ok_or("Database not initialized")?;
 
@@ -987,14 +1022,26 @@ async fn lsp_did_change(
 // ============================================================================
 
 #[tauri::command]
-async fn get_fields_cmd(state: State<'_, AppState>) -> Result<Vec<serde_json::Value>, String> {
+async fn get_fields_cmd(
+    state: State<'_, AppState>,
+    collection_name: Option<String>,
+) -> Result<Vec<serde_json::Value>, String> {
     let db_guard = state.db_manager.lock().await;
     let manager = db_guard.as_ref().ok_or("Database not initialized")?;
 
-    let rows = sqlx::query("SELECT id, name FROM fields ORDER BY name")
+    let rows = if let Some(col) = &collection_name {
+        sqlx::query(
+            "SELECT id, name FROM fields WHERE collection IS NULL OR collection = ? ORDER BY name",
+        )
+        .bind(col)
         .fetch_all(&manager.pool)
         .await
-        .map_err(|e| e.to_string())?;
+    } else {
+        sqlx::query("SELECT id, name FROM fields WHERE collection IS NULL ORDER BY name")
+            .fetch_all(&manager.pool)
+            .await
+    }
+    .map_err(|e| e.to_string())?;
 
     let mut fields = Vec::new();
     for row in rows {
@@ -1009,14 +1056,16 @@ async fn get_fields_cmd(state: State<'_, AppState>) -> Result<Vec<serde_json::Va
 async fn create_field_cmd(
     state: State<'_, AppState>,
     name: String,
+    collection_name: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let db_guard = state.db_manager.lock().await;
     let manager = db_guard.as_ref().ok_or("Database not initialized")?;
 
     let id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO fields (id, name) VALUES (?, ?)")
+    sqlx::query("INSERT INTO fields (id, name, collection) VALUES (?, ?, ?)")
         .bind(&id)
         .bind(&name)
+        .bind(&collection_name)
         .execute(&manager.pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -1029,15 +1078,17 @@ async fn create_chapter_cmd(
     state: State<'_, AppState>,
     name: String,
     field_id: String,
+    collection_name: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let db_guard = state.db_manager.lock().await;
     let manager = db_guard.as_ref().ok_or("Database not initialized")?;
 
     let id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO chapters (id, name, field_id) VALUES (?, ?, ?)")
+    sqlx::query("INSERT INTO chapters (id, name, field_id, collection) VALUES (?, ?, ?, ?)")
         .bind(&id)
         .bind(&name)
         .bind(&field_id)
+        .bind(&collection_name)
         .execute(&manager.pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -1050,15 +1101,17 @@ async fn create_section_cmd(
     state: State<'_, AppState>,
     name: String,
     chapter_id: String,
+    collection_name: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let db_guard = state.db_manager.lock().await;
     let manager = db_guard.as_ref().ok_or("Database not initialized")?;
 
     let id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO sections (id, name, chapter_id) VALUES (?, ?, ?)")
+    sqlx::query("INSERT INTO sections (id, name, chapter_id, collection) VALUES (?, ?, ?, ?)")
         .bind(&id)
         .bind(&name)
         .bind(&chapter_id)
+        .bind(&collection_name)
         .execute(&manager.pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -1074,41 +1127,42 @@ async fn create_section_cmd(
 async fn get_subsections_cmd(
     state: State<'_, AppState>,
     section_id: Option<String>,
+    collection_name: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
     let db_guard = state.db_manager.lock().await;
     let manager = db_guard.as_ref().ok_or("Database not initialized")?;
 
-    let mut subsections = Vec::new();
+    let mut query_str = "SELECT id, name, section_id FROM subsections WHERE 1=1".to_string();
+    if section_id.is_some() {
+        query_str.push_str(" AND section_id = ?");
+    }
+    if collection_name.is_some() {
+        query_str.push_str(" AND (collection IS NULL OR collection = ?)");
+    } else {
+        query_str.push_str(" AND collection IS NULL");
+    }
+    query_str.push_str(" ORDER BY name");
 
-    if let Some(sid) = section_id {
-        let rows = sqlx::query(
-            "SELECT id, name, section_id FROM subsections WHERE section_id = ? ORDER BY name",
-        )
-        .bind(&sid)
+    let mut query = sqlx::query(&query_str);
+    if let Some(sid) = &section_id {
+        query = query.bind(sid);
+    }
+    if let Some(col) = &collection_name {
+        query = query.bind(col);
+    }
+
+    let rows = query
         .fetch_all(&manager.pool)
         .await
         .map_err(|e| e.to_string())?;
 
-        for row in rows {
-            let id: String = row.get("id");
-            let name: String = row.get("name");
-            let section_id: String = row.get("section_id");
-            subsections.push(serde_json::json!({"id": id, "name": name, "sectionId": section_id}));
-        }
-    } else {
-        let rows = sqlx::query("SELECT id, name, section_id FROM subsections ORDER BY name")
-            .fetch_all(&manager.pool)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        for row in rows {
-            let id: String = row.get("id");
-            let name: String = row.get("name");
-            let section_id: String = row.get("section_id");
-            subsections.push(serde_json::json!({"id": id, "name": name, "sectionId": section_id}));
-        }
+    let mut subsections = Vec::new();
+    for row in rows {
+        let id: String = row.get("id");
+        let name: String = row.get("name");
+        let section_id: String = row.get("section_id");
+        subsections.push(serde_json::json!({"id": id, "name": name, "sectionId": section_id}));
     }
-
     Ok(subsections)
 }
 
@@ -1117,15 +1171,17 @@ async fn create_subsection_cmd(
     state: State<'_, AppState>,
     name: String,
     section_id: String,
+    collection_name: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let db_guard = state.db_manager.lock().await;
     let manager = db_guard.as_ref().ok_or("Database not initialized")?;
 
     let id = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO subsections (id, name, section_id) VALUES (?, ?, ?)")
+    sqlx::query("INSERT INTO subsections (id, name, section_id, collection) VALUES (?, ?, ?, ?)")
         .bind(&id)
         .bind(&name)
         .bind(&section_id)
+        .bind(&collection_name)
         .execute(&manager.pool)
         .await
         .map_err(|e| e.to_string())?;
@@ -1506,40 +1562,42 @@ async fn create_macro_command_type_cmd(
 async fn get_chapters_cmd(
     state: State<'_, AppState>,
     field_id: Option<String>,
+    collection_name: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
     let db_guard = state.db_manager.lock().await;
     let manager = db_guard.as_ref().ok_or("Database not initialized")?;
 
-    let mut chapters = Vec::new();
-
-    if let Some(fid) = field_id {
-        let rows =
-            sqlx::query("SELECT id, name, field_id FROM chapters WHERE field_id = ? ORDER BY name")
-                .bind(&fid)
-                .fetch_all(&manager.pool)
-                .await
-                .map_err(|e| e.to_string())?;
-
-        for row in rows {
-            let id: String = row.get("id");
-            let name: String = row.get("name");
-            let field_id: String = row.get("field_id");
-            chapters.push(serde_json::json!({"id": id, "name": name, "fieldId": field_id}));
-        }
+    let mut query_str = "SELECT id, name, field_id FROM chapters WHERE 1=1".to_string();
+    if field_id.is_some() {
+        query_str.push_str(" AND field_id = ?");
+    }
+    if collection_name.is_some() {
+        query_str.push_str(" AND (collection IS NULL OR collection = ?)");
     } else {
-        let rows = sqlx::query("SELECT id, name, field_id FROM chapters ORDER BY name")
-            .fetch_all(&manager.pool)
-            .await
-            .map_err(|e| e.to_string())?;
+        query_str.push_str(" AND collection IS NULL");
+    }
+    query_str.push_str(" ORDER BY name");
 
-        for row in rows {
-            let id: String = row.get("id");
-            let name: String = row.get("name");
-            let field_id: String = row.get("field_id");
-            chapters.push(serde_json::json!({"id": id, "name": name, "fieldId": field_id}));
-        }
+    let mut query = sqlx::query(&query_str);
+    if let Some(fid) = &field_id {
+        query = query.bind(fid);
+    }
+    if let Some(col) = &collection_name {
+        query = query.bind(col);
     }
 
+    let rows = query
+        .fetch_all(&manager.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let mut chapters = Vec::new();
+    for row in rows {
+        let id: String = row.get("id");
+        let name: String = row.get("name");
+        let field_id: String = row.get("field_id");
+        chapters.push(serde_json::json!({"id": id, "name": name, "fieldId": field_id}));
+    }
     Ok(chapters)
 }
 
@@ -1547,41 +1605,42 @@ async fn get_chapters_cmd(
 async fn get_sections_cmd(
     state: State<'_, AppState>,
     chapter_id: Option<String>,
+    collection_name: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
     let db_guard = state.db_manager.lock().await;
     let manager = db_guard.as_ref().ok_or("Database not initialized")?;
 
-    let mut sections = Vec::new();
+    let mut query_str = "SELECT id, name, chapter_id FROM sections WHERE 1=1".to_string();
+    if chapter_id.is_some() {
+        query_str.push_str(" AND chapter_id = ?");
+    }
+    if collection_name.is_some() {
+        query_str.push_str(" AND (collection IS NULL OR collection = ?)");
+    } else {
+        query_str.push_str(" AND collection IS NULL");
+    }
+    query_str.push_str(" ORDER BY name");
 
-    if let Some(cid) = chapter_id {
-        let rows = sqlx::query(
-            "SELECT id, name, chapter_id FROM sections WHERE chapter_id = ? ORDER BY name",
-        )
-        .bind(&cid)
+    let mut query = sqlx::query(&query_str);
+    if let Some(cid) = &chapter_id {
+        query = query.bind(cid);
+    }
+    if let Some(col) = &collection_name {
+        query = query.bind(col);
+    }
+
+    let rows = query
         .fetch_all(&manager.pool)
         .await
         .map_err(|e| e.to_string())?;
 
-        for row in rows {
-            let id: String = row.get("id");
-            let name: String = row.get("name");
-            let chapter_id: String = row.get("chapter_id");
-            sections.push(serde_json::json!({"id": id, "name": name, "chapterId": chapter_id}));
-        }
-    } else {
-        let rows = sqlx::query("SELECT id, name, chapter_id FROM sections ORDER BY name")
-            .fetch_all(&manager.pool)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        for row in rows {
-            let id: String = row.get("id");
-            let name: String = row.get("name");
-            let chapter_id: String = row.get("chapter_id");
-            sections.push(serde_json::json!({"id": id, "name": name, "chapterId": chapter_id}));
-        }
+    let mut sections = Vec::new();
+    for row in rows {
+        let id: String = row.get("id");
+        let name: String = row.get("name");
+        let chapter_id: String = row.get("chapter_id");
+        sections.push(serde_json::json!({"id": id, "name": name, "chapterId": chapter_id}));
     }
-
     Ok(sections)
 }
 
@@ -2353,19 +2412,20 @@ async fn save_typed_metadata_cmd(
 
             let stmt = if exists {
                 "UPDATE resource_figures SET 
-                    figure_type_id=?, environment=?, caption=?, description=?, 
+                    figure_type_id=?, field_id=?, environment=?, caption=?, description=?, 
                     width=?, height=?, options=?, tikz_style=?, label=?, placement=?, alignment=?
                  WHERE resource_id=?"
             } else {
                 "INSERT INTO resource_figures (
-                    figure_type_id, environment, caption, description,
+                    figure_type_id, field_id, environment, caption, description,
                     width, height, options, tikz_style, label, placement, alignment,
                     resource_id
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
             };
 
             sqlx::query(stmt)
                 .bind(get_str("figureTypeId"))
+                .bind(get_str("fieldId")) // Added field_id
                 .bind(get_str("environment"))
                 .bind(get_str("caption"))
                 .bind(get_str("description"))
@@ -2391,9 +2451,77 @@ async fn save_typed_metadata_cmd(
 
                 for pkg in packages {
                     if let Some(pkg_id) = pkg.as_str() {
+                        // Ensure package exists in dictionary to avoid FK error
+                        sqlx::query("INSERT OR IGNORE INTO texlive_packages (id) VALUES (?)")
+                            .bind(pkg_id)
+                            .execute(&manager.pool)
+                            .await
+                            .map_err(|e| e.to_string())?;
+
                         sqlx::query("INSERT OR IGNORE INTO resource_figure_packages (resource_id, package_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(pkg_id)
+                            .execute(&manager.pool)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                }
+            }
+
+            // Save Hierarchy (Chapters, Sections, Subsections)
+            // Chapters
+            if let Some(chapters) = metadata.get("chapters").and_then(|v| v.as_array()) {
+                sqlx::query("DELETE FROM resource_figure_chapters WHERE resource_id = ?")
+                    .bind(&resource_id)
+                    .execute(&manager.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                for ch in chapters {
+                    if let Some(ch_id) = ch.as_str() {
+                        sqlx::query("INSERT OR IGNORE INTO resource_figure_chapters (resource_id, chapter_id) VALUES (?, ?)")
+                            .bind(&resource_id)
+                            .bind(ch_id)
+                            .execute(&manager.pool)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                }
+            }
+
+            // Sections
+            if let Some(sections) = metadata.get("sections").and_then(|v| v.as_array()) {
+                sqlx::query("DELETE FROM resource_figure_sections WHERE resource_id = ?")
+                    .bind(&resource_id)
+                    .execute(&manager.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                for s in sections {
+                    if let Some(s_id) = s.as_str() {
+                        sqlx::query("INSERT OR IGNORE INTO resource_figure_sections (resource_id, section_id) VALUES (?, ?)")
+                            .bind(&resource_id)
+                            .bind(s_id)
+                            .execute(&manager.pool)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                }
+            }
+
+            // Subsections
+            if let Some(subsections) = metadata.get("subsections").and_then(|v| v.as_array()) {
+                sqlx::query("DELETE FROM resource_figure_subsections WHERE resource_id = ?")
+                    .bind(&resource_id)
+                    .execute(&manager.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                for ss in subsections {
+                    if let Some(ss_id) = ss.as_str() {
+                        sqlx::query("INSERT OR IGNORE INTO resource_figure_subsections (resource_id, subsection_id) VALUES (?, ?)")
+                            .bind(&resource_id)
+                            .bind(ss_id)
                             .execute(&manager.pool)
                             .await
                             .map_err(|e| e.to_string())?;
@@ -2545,21 +2673,22 @@ async fn save_typed_metadata_cmd(
 
             let stmt = if exists {
                 "UPDATE resource_tables SET 
-                    table_type_id=?, date=?, caption=?, description=?, 
+                    table_type_id=?, field_id=?, date=?, caption=?, description=?, 
                     environment=?, placement=?, label=?, width=?, alignment=?,
                     rows=?, columns=?
                  WHERE resource_id=?"
             } else {
                 "INSERT INTO resource_tables (
-                    table_type_id, date, caption, description,
+                    table_type_id, field_id, date, caption, description,
                     environment, placement, label, width, alignment,
                     rows, columns,
                     resource_id
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
             };
 
             sqlx::query(stmt)
                 .bind(get_str("tableTypeId"))
+                .bind(get_str("fieldId")) // Added field_id
                 .bind(get_str("date"))
                 .bind(get_str("caption"))
                 .bind(get_str("description"))
@@ -2585,14 +2714,77 @@ async fn save_typed_metadata_cmd(
 
                 for pkg in packages {
                     if let Some(pkg_id) = pkg.as_str() {
-                        // Ensure package exists (simple heuristic for now or strict FK)
-                        // Assuming texlive_packages are pre-populated or we ignore errors?
-                        // Actually FK constraint ON DELETE CASCADE usually implies strict.
-                        // For now we assume package_id is valid or we insert it?
-                        // Usually packages are selected from a list.
+                        // Ensure package exists in dictionary to avoid FK error
+                        sqlx::query("INSERT OR IGNORE INTO texlive_packages (id) VALUES (?)")
+                            .bind(pkg_id)
+                            .execute(&manager.pool)
+                            .await
+                            .map_err(|e| e.to_string())?;
+
                         sqlx::query("INSERT OR IGNORE INTO resource_table_packages (resource_id, package_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(pkg_id)
+                            .execute(&manager.pool)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                }
+            }
+
+            // Save Hierarchy (Chapters, Sections, Subsections)
+            // Chapters
+            if let Some(chapters) = metadata.get("chapters").and_then(|v| v.as_array()) {
+                sqlx::query("DELETE FROM resource_table_chapters WHERE resource_id = ?")
+                    .bind(&resource_id)
+                    .execute(&manager.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                for ch in chapters {
+                    if let Some(ch_id) = ch.as_str() {
+                        sqlx::query("INSERT OR IGNORE INTO resource_table_chapters (resource_id, chapter_id) VALUES (?, ?)")
+                            .bind(&resource_id)
+                            .bind(ch_id)
+                            .execute(&manager.pool)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                }
+            }
+
+            // Sections
+            if let Some(sections) = metadata.get("sections").and_then(|v| v.as_array()) {
+                sqlx::query("DELETE FROM resource_table_sections WHERE resource_id = ?")
+                    .bind(&resource_id)
+                    .execute(&manager.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                for s in sections {
+                    if let Some(s_id) = s.as_str() {
+                        sqlx::query("INSERT OR IGNORE INTO resource_table_sections (resource_id, section_id) VALUES (?, ?)")
+                            .bind(&resource_id)
+                            .bind(s_id)
+                            .execute(&manager.pool)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                }
+            }
+
+            // Subsections
+            if let Some(subsections) = metadata.get("subsections").and_then(|v| v.as_array()) {
+                sqlx::query("DELETE FROM resource_table_subsections WHERE resource_id = ?")
+                    .bind(&resource_id)
+                    .execute(&manager.pool)
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                for ss in subsections {
+                    if let Some(ss_id) = ss.as_str() {
+                        sqlx::query("INSERT OR IGNORE INTO resource_table_subsections (resource_id, subsection_id) VALUES (?, ?)")
+                            .bind(&resource_id)
+                            .bind(ss_id)
                             .execute(&manager.pool)
                             .await
                             .map_err(|e| e.to_string())?;
@@ -3445,8 +3637,42 @@ async fn load_typed_metadata_cmd(
                         .map_err(|e| e.to_string())?;
                 let custom_tags: Vec<String> = tag_rows.iter().map(|r| r.get("tag")).collect();
 
+                // Fetch Hierarchy (Chapters, Sections, Subsections)
+                let chapter_rows = sqlx::query(
+                    "SELECT chapter_id FROM resource_figure_chapters WHERE resource_id = ?",
+                )
+                .bind(&resource_id)
+                .fetch_all(&manager.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+                let chapters: Vec<String> =
+                    chapter_rows.iter().map(|r| r.get("chapter_id")).collect();
+
+                let section_rows = sqlx::query(
+                    "SELECT section_id FROM resource_figure_sections WHERE resource_id = ?",
+                )
+                .bind(&resource_id)
+                .fetch_all(&manager.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+                let sections: Vec<String> =
+                    section_rows.iter().map(|r| r.get("section_id")).collect();
+
+                let subsection_rows = sqlx::query(
+                    "SELECT subsection_id FROM resource_figure_subsections WHERE resource_id = ?",
+                )
+                .bind(&resource_id)
+                .fetch_all(&manager.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+                let subsections: Vec<String> = subsection_rows
+                    .iter()
+                    .map(|r| r.get("subsection_id"))
+                    .collect();
+
                 return Ok(Some(serde_json::json!({
                     "figureTypeId": row.try_get::<String, _>("figure_type_id").ok(),
+                    "fieldId": row.try_get::<String, _>("field_id").ok(),
                     "environment": row.try_get::<String, _>("environment").ok(),
                     "caption": row.try_get::<String, _>("caption").ok(),
                     "description": row.try_get::<String, _>("description").ok(),
@@ -3458,7 +3684,10 @@ async fn load_typed_metadata_cmd(
                     "placement": row.try_get::<String, _>("placement").ok(),
                     "alignment": row.try_get::<String, _>("alignment").ok(),
                     "requiredPackages": if packages.is_empty() { None } else { Some(packages) },
-                    "customTags": if custom_tags.is_empty() { None } else { Some(custom_tags) }
+                    "customTags": if custom_tags.is_empty() { None } else { Some(custom_tags) },
+                    "chapters": if chapters.is_empty() { None } else { Some(chapters) },
+                    "sections": if sections.is_empty() { None } else { Some(sections) },
+                    "subsections": if subsections.is_empty() { None } else { Some(subsections) }
                 })));
             }
         }
@@ -3545,8 +3774,42 @@ async fn load_typed_metadata_cmd(
                         .map_err(|e| e.to_string())?;
                 let custom_tags: Vec<String> = tag_rows.iter().map(|r| r.get("tag")).collect();
 
+                // Fetch Hierarchy
+                let chapter_rows = sqlx::query(
+                    "SELECT chapter_id FROM resource_table_chapters WHERE resource_id = ?",
+                )
+                .bind(&resource_id)
+                .fetch_all(&manager.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+                let chapters: Vec<String> =
+                    chapter_rows.iter().map(|r| r.get("chapter_id")).collect();
+
+                let section_rows = sqlx::query(
+                    "SELECT section_id FROM resource_table_sections WHERE resource_id = ?",
+                )
+                .bind(&resource_id)
+                .fetch_all(&manager.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+                let sections: Vec<String> =
+                    section_rows.iter().map(|r| r.get("section_id")).collect();
+
+                let subsection_rows = sqlx::query(
+                    "SELECT subsection_id FROM resource_table_subsections WHERE resource_id = ?",
+                )
+                .bind(&resource_id)
+                .fetch_all(&manager.pool)
+                .await
+                .map_err(|e| e.to_string())?;
+                let subsections: Vec<String> = subsection_rows
+                    .iter()
+                    .map(|r| r.get("subsection_id"))
+                    .collect();
+
                 // Extract fields
                 let table_type_id: Option<String> = row.try_get("table_type_id").ok();
+                let field_id: Option<String> = row.try_get("field_id").ok(); // Added field_id
                 let date: Option<String> = row.try_get("date").ok();
 
                 let caption: Option<String> = row.try_get("caption").ok();
@@ -3570,9 +3833,14 @@ async fn load_typed_metadata_cmd(
                     "width": width,
                     "alignment": alignment,
                     "rows": rows_count,
+                    "rows": rows_count,
                     "columns": cols_count,
-                    "requiredPackages": packages,
-                    "customTags": custom_tags
+                    "fieldId": field_id,
+                    "requiredPackages": if packages.is_empty() { None } else { Some(packages) },
+                    "customTags": if custom_tags.is_empty() { None } else { Some(custom_tags) },
+                    "chapters": if chapters.is_empty() { None } else { Some(chapters) },
+                    "sections": if sections.is_empty() { None } else { Some(sections) },
+                    "subsections": if subsections.is_empty() { None } else { Some(subsections) }
                 })));
             } else {
                 return Ok(None);
@@ -3967,6 +4235,7 @@ pub fn run() {
             create_collection_cmd,
             get_resources_by_collection_cmd,
             get_resources_by_collections_cmd, // Batch version for performance
+            get_resource_cmd,                 // Single resource
             import_folder_cmd,
             delete_collection_cmd,
             delete_resource_cmd,
