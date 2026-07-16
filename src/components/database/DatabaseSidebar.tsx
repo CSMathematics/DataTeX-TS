@@ -27,6 +27,7 @@ import {
   faTrash,
   faTable,
   faFolderOpen,
+  faFolderPlus,
   faFile,
   faChevronRight,
   faFilePdf,
@@ -39,6 +40,7 @@ import {
   faExpand,
   faFileImport,
   faEllipsisVertical,
+  faFileCirclePlus,
 } from "@fortawesome/free-solid-svg-icons";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -854,8 +856,18 @@ export const DatabaseSidebar = ({
       {
         icon: faSearch,
         tooltip: "Toggle Search",
-        variant: isSearchVisible ? "filled" : "light",
+        variant: isSearchVisible ? "filled" : "subtle",
         onClick: () => setIsSearchVisible((v) => !v),
+      },
+      {
+        icon: isToggleExpanded ? faCompress : faExpand,
+        tooltip: isToggleExpanded ? t("file.collapseAll") : t("file.expandAll"),
+        onClick: handleToggleExpand,
+      },
+      {
+        icon: faSync,
+        tooltip: t("common.refresh"),
+        onClick: () => fetchCollections(),
       },
       // Toggle View Action
       {
@@ -868,21 +880,11 @@ export const DatabaseSidebar = ({
           ),
         variant: "subtle",
       },
-      {
-        icon: isToggleExpanded ? faCompress : faExpand,
-        tooltip: isToggleExpanded ? t("file.collapseAll") : t("file.expandAll"),
-        onClick: handleToggleExpand,
-      },
-      {
-        icon: faSync,
-        tooltip: t("common.refresh"),
-        onClick: () => fetchCollections(),
-      },
     ];
 
     if (activeView === "collections") {
-      actions.splice(3, 0, {
-        icon: faFolder,
+      actions.splice(1, 0, {
+        icon: faFolderOpen,
         tooltip: t("database.importFolderAsCollection"),
         onClick: handleImport,
       });
@@ -1074,7 +1076,10 @@ export const DatabaseSidebar = ({
                       handleStartCreation(node.label as string, "file");
                     }}
                   >
-                    <FontAwesomeIcon icon={faFile} style={{ height: 12 }} />
+                    <FontAwesomeIcon
+                      icon={faFileCirclePlus}
+                      style={{ height: 12 }}
+                    />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip
@@ -1091,7 +1096,10 @@ export const DatabaseSidebar = ({
                       handleStartCreation(node.label as string, "folder");
                     }}
                   >
-                    <FontAwesomeIcon icon={faFolder} style={{ height: 12 }} />
+                    <FontAwesomeIcon
+                      icon={faFolderPlus}
+                      style={{ height: 14 }}
+                    />
                   </ActionIcon>
                 </Tooltip>
                 {/* Import Actions */}
@@ -1109,7 +1117,10 @@ export const DatabaseSidebar = ({
                       handleImportFileToCollection(node.label as string);
                     }}
                   >
-                    <FontAwesomeIcon icon={faPlus} style={{ height: 12 }} />
+                    <FontAwesomeIcon
+                      icon={faFileImport}
+                      style={{ height: 12 }}
+                    />
                   </ActionIcon>
                 </Tooltip>
                 <Tooltip
@@ -1179,7 +1190,7 @@ export const DatabaseSidebar = ({
                       <Menu.Item
                         leftSection={
                           <FontAwesomeIcon
-                            icon={faFile}
+                            icon={faFileCirclePlus}
                             style={{ width: 14 }}
                           />
                         }
@@ -1193,7 +1204,7 @@ export const DatabaseSidebar = ({
                       <Menu.Item
                         leftSection={
                           <FontAwesomeIcon
-                            icon={faFolder}
+                            icon={faFolderPlus}
                             style={{ width: 14 }}
                           />
                         }
@@ -1250,6 +1261,27 @@ export const DatabaseSidebar = ({
                       >
                         Export to .dtex
                       </Menu.Item>
+                      {path.toLowerCase().endsWith(".dtex") && (
+                        <Menu.Item
+                          leftSection={
+                            <FontAwesomeIcon
+                              icon={faFileCode}
+                              style={{ width: 14 }}
+                            />
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const resource = allLoadedResources.find(
+                              (r) => r.path === path,
+                            );
+                            if (resource && onExportToTex) {
+                              onExportToTex(resource.id);
+                            }
+                          }}
+                        >
+                          Export to .tex
+                        </Menu.Item>
+                      )}
                       <Menu.Divider />
                       <Menu.Item
                         color="red"

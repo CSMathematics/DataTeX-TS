@@ -1,123 +1,151 @@
-import { useState, useEffect, useCallback, useRef, RefObject } from 'react';
+import { useLayoutEffect, useRef, useState } from "react";
+import type React from "react";
+import { useResizeDrag } from "./useResizeDrag";
 
 interface UseResizableOptions {
-    /** Direction of resize: 'horizontal' for width, 'vertical' for height */
-    direction: 'horizontal' | 'vertical';
-    /** Minimum size as percentage (0-100) or pixels */
-    minSize?: number;
-    /** Maximum size as percentage (0-100) or pixels */
-    maxSize?: number;
-    /** Initial size as percentage (0-100) */
-    initialSize?: number;
-    /** Whether to use percentage (true) or pixels (false) */
-    usePercentage?: boolean;
+  /** Direction of resize: horizontal changes width, vertical changes height. */
+  direction: "horizontal" | "vertical";
+  /** Minimum size in percent or pixels, depending on usePercentage. */
+  minSize?: number;
+  /** Maximum size in percent or pixels, depending on usePercentage. */
+  maxSize?: number;
+  /** For pixel sizing, optionally keep this many pixels for the other pane. */
+  maxSizeOffset?: number;
+  /** Initial size in percent or pixels, depending on usePercentage. */
+  initialSize?: number;
+  /** Use percentages when true and pixels when false. */
+  usePercentage?: boolean;
 }
 
 interface UseResizableReturn {
-    /** Current size (percentage or pixels based on usePercentage) */
-    size: number;
-    /** Whether currently resizing */
-    isResizing: boolean;
-    /** Start resizing handler - attach to onMouseDown of handle */
-    startResizing: (e: React.MouseEvent) => void;
-    /** Ref for the container element that will be measured */
-    containerRef: RefObject<HTMLDivElement | null>;
-    /** Style object for the resize handle */
-    handleStyle: React.CSSProperties;
+  size: number;
+  startResizing: (event: React.PointerEvent<HTMLElement>) => void;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  targetRef: React.RefObject<HTMLDivElement | null>;
 }
 
 /**
- * Hook for creating resizable panels with mouse drag support.
- * 
- * @example
- * const { size, isResizing, startResizing, containerRef, handleStyle } = useResizable({
- *     direction: 'vertical',
- *     initialSize: 55,
- *     minSize: 20,
- *     maxSize: 80
- * });
+ * Resizes a target element without causing React renders during pointer move.
+ * Attach containerRef to the measured split container and targetRef to the pane.
  */
 export function useResizable({
-    direction,
-    minSize = 10,
-    maxSize = 90,
-    initialSize = 50,
-    usePercentage = true
+  direction,
+  minSize = 10,
+  maxSize = 90,
+  maxSizeOffset,
+  initialSize = 50,
+  usePercentage = true,
 }: UseResizableOptions): UseResizableReturn {
-    const [size, setSize] = useState(initialSize);
-    const [isResizing, setIsResizing] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
+  const clamp = (value: number, containerLength?: number) => {
+    const effectiveMax =
+      !usePercentage &&
+      maxSizeOffset !== undefined &&
+      containerLength !== undefined
+        ? Math.min(maxSize, containerLength - maxSizeOffset)
+        : maxSize;
+    return Math.max(minSize, Math.min(value, Math.max(minSize, effectiveMax)));
+  };
+  const [size, setSize] = useState(() => clamp(initialSize));
+  const sizeRef = useRef(size);
+  const dragSizeRef = useRef(size);
+  const containerRectRef = useRef<DOMRect | null>(null);
+  const startPointerRef = useRef(0);
+  const startSizeRef = useRef(size);
+  const dragMinRef = useRef(minSize);
+  const dragMaxRef = useRef(maxSize);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const targetRef = useRef<HTMLDivElement>(null);
 
-    const startResizing = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        setIsResizing(true);
-    }, []);
+  sizeRef.current = size;
 
-    useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!isResizing || !containerRef.current) return;
+  const applyTargetSize = (nextSize: number) => {
+    const target = targetRef.current;
+    if (!target) return;
 
-            const rect = containerRef.current.getBoundingClientRect();
-            
-            let newSize: number;
-            if (direction === 'horizontal') {
-                if (usePercentage) {
-                    newSize = ((e.clientX - rect.left) / rect.width) * 100;
-                } else {
-                    newSize = e.clientX - rect.left;
-                }
-            } else {
-                if (usePercentage) {
-                    newSize = ((e.clientY - rect.top) / rect.height) * 100;
-                } else {
-                    newSize = e.clientY - rect.top;
-                }
-            }
+    const property = direction === "horizontal" ? "width" : "height";
+    target.style[property] = `${nextSize}${usePercentage ? "%" : "px"}`;
+  };
 
-            // Clamp to min/max
-            newSize = Math.max(minSize, Math.min(newSize, maxSize));
-            setSize(newSize);
-        };
+  useLayoutEffect(() => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    const containerLength = rect
+      ? direction === "horizontal"
+        ? rect.width
+        : rect.height
+      : undefined;
+    const nextSize = clamp(sizeRef.current, containerLength);
+    sizeRef.current = nextSize;
+    dragSizeRef.current = nextSize;
+    applyTargetSize(nextSize);
+    if (nextSize !== size) setSize(nextSize);
+  }, [direction, maxSize, maxSizeOffset, minSize, size, usePercentage]);
 
-        const handleMouseUp = () => {
-            setIsResizing(false);
-        };
+  const { startResizing } = useResizeDrag({
+    cursor: direction === "horizontal" ? "col-resize" : "row-resize",
+    onStart: (event) => {
+      const rect = containerRef.current?.getBoundingClientRect() ?? null;
+      const targetRect = targetRef.current?.getBoundingClientRect() ?? null;
+      if (!rect || !targetRect) return false;
 
-        if (isResizing) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-            document.body.style.cursor = direction === 'horizontal' ? 'col-resize' : 'row-resize';
-            document.body.style.userSelect = 'none';
-        } else {
-            document.body.style.cursor = 'default';
-            document.body.style.userSelect = 'auto';
-        }
+      containerRectRef.current = rect;
+      const containerLength =
+        direction === "horizontal" ? rect.width : rect.height;
+      if (containerLength <= 0) return false;
+      const targetLength =
+        direction === "horizontal" ? targetRect.width : targetRect.height;
+      const renderedSize = usePercentage
+        ? (targetLength / containerLength) * 100
+        : targetLength;
+      const effectiveMax =
+        !usePercentage && maxSizeOffset !== undefined
+          ? Math.min(maxSize, containerLength - maxSizeOffset)
+          : maxSize;
+      startPointerRef.current =
+        direction === "horizontal" ? event.clientX : event.clientY;
+      startSizeRef.current = renderedSize;
+      dragMinRef.current = Math.min(minSize, renderedSize);
+      dragMaxRef.current = Math.max(
+        renderedSize,
+        Math.max(minSize, effectiveMax),
+      );
+      dragSizeRef.current = startSizeRef.current;
+      return true;
+    },
+    onMove: (event) => {
+      const rect = containerRectRef.current;
+      if (!rect) return;
 
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isResizing, direction, minSize, maxSize, usePercentage]);
+      const containerLength =
+        direction === "horizontal" ? rect.width : rect.height;
+      if (containerLength <= 0) return;
 
-    const handleStyle: React.CSSProperties = {
-        width: direction === 'horizontal' ? 6 : '100%',
-        height: direction === 'vertical' ? 6 : '100%',
-        backgroundColor: isResizing 
-            ? 'var(--mantine-color-blue-6)' 
-            : 'var(--mantine-color-dark-6)',
-        cursor: direction === 'horizontal' ? 'col-resize' : 'row-resize',
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transition: 'background-color 0.2s'
-    };
+      const pointerPosition =
+        direction === "horizontal"
+          ? event.clientX
+          : event.clientY;
+      const pointerDelta = pointerPosition - startPointerRef.current;
+      const rawSize = usePercentage
+        ? startSizeRef.current + (pointerDelta / containerLength) * 100
+        : startSizeRef.current + pointerDelta;
+      const nextSize = Math.max(
+        dragMinRef.current,
+        Math.min(rawSize, dragMaxRef.current),
+      );
 
-    return {
-        size,
-        isResizing,
-        startResizing,
-        containerRef,
-        handleStyle
-    };
+      dragSizeRef.current = nextSize;
+      applyTargetSize(nextSize);
+    },
+    onEnd: () => {
+      containerRectRef.current = null;
+      sizeRef.current = dragSizeRef.current;
+      setSize(dragSizeRef.current);
+    },
+  });
+
+  return {
+    size,
+    startResizing,
+    containerRef,
+    targetRef,
+  };
 }

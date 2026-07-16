@@ -1,5 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+
+const PDF_SOURCE_EXTENSION = /\.(?:tex|sty|cls|bib|dtx|ins)$/i;
+const toPdfPath = (path: string) =>
+  PDF_SOURCE_EXTENSION.test(path)
+    ? path.replace(PDF_SOURCE_EXTENSION, ".pdf")
+    : null;
 
 interface UsePdfStateOptions {
   activeTab: any;
@@ -11,9 +17,20 @@ interface UsePdfStateOptions {
 
 interface UsePdfStateReturn {
   pdfUrl: string | null;
-  syncTexCoords: { page: number; x: number; y: number } | null;
+  pdfLoading: boolean;
+  syncTexCoords: {
+    page: number;
+    x: number;
+    y: number;
+    requestId?: number;
+  } | null;
   setSyncTexCoords: React.Dispatch<
-    React.SetStateAction<{ page: number; x: number; y: number } | null>
+    React.SetStateAction<{
+      page: number;
+      x: number;
+      y: number;
+      requestId?: number;
+    } | null>
   >;
   handleSyncTexForward: (line: number, column: number) => Promise<void>;
   handleSyncTexInverse: (
@@ -30,55 +47,129 @@ export function usePdfState({
   setCompileError,
   onRequirePanelOpen,
 }: UsePdfStateOptions): UsePdfStateReturn {
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const expectedPdfPath =
+    activeTab?.id && isTexFile
+      ? toPdfPath(activeTab.id)
+      : null;
+  const [loadedPdf, setLoadedPdf] = useState<{
+    path: string;
+    url: string;
+  } | null>(null);
+  const loadedPdfRef = useRef(loadedPdf);
+  loadedPdfRef.current = loadedPdf;
+  const [pdfLoadStatus, setPdfLoadStatus] = useState<{
+    path: string;
+    version: number;
+    status: "loading" | "settled";
+  } | null>(null);
+  const pdfUrl =
+    expectedPdfPath && loadedPdf?.path === expectedPdfPath
+      ? loadedPdf.url
+      : null;
+  const pdfLoading =
+    expectedPdfPath !== null &&
+    (!pdfLoadStatus ||
+      pdfLoadStatus.path !== expectedPdfPath ||
+      pdfLoadStatus.version !== pdfRefreshTrigger ||
+      pdfLoadStatus.status === "loading");
   const [syncTexCoords, setSyncTexCoords] = useState<{
     page: number;
     x: number;
     y: number;
+    requestId?: number;
   } | null>(null);
+  const syncTexRequestIdRef = useRef(0);
+
+  // Object URLs are revoked only after React has committed their replacement.
+  // This keeps the current document visible while a freshly compiled PDF is
+  // being read, without leaking the previous Blob URL.
+  useEffect(() => {
+    if (!loadedPdf) return;
+    return () => URL.revokeObjectURL(loadedPdf.url);
+  }, [loadedPdf]);
 
   useEffect(() => {
-    let activeBlobUrl: string | null = null;
+    let cancelled = false;
 
     const loadPdf = async () => {
-      if (!activeTab || !activeTab.id || !isTexFile) {
-        setPdfUrl(null);
+      if (!expectedPdfPath) {
+        setPdfLoadStatus(null);
+        setLoadedPdf(null);
         return;
       }
 
+      const pdfPath = expectedPdfPath;
+      const isSamePathRefresh = loadedPdfRef.current?.path === pdfPath;
+      setPdfLoadStatus({
+        path: pdfPath,
+        version: pdfRefreshTrigger,
+        status: "loading",
+      });
+      // The derived pdfUrl already hides a PDF owned by another tab before
+      // this effect runs. Dropping it here releases its Blob after commit.
+      setLoadedPdf((current) =>
+        current?.path === pdfPath ? current : null,
+      );
+
       try {
-        const filePath = activeTab.id;
-        const pdfPath = filePath.replace(/\.tex$/i, ".pdf");
-
         // Use Tauri to read the file as binary
-        const { readFile, exists } = await import("@tauri-apps/plugin-fs");
+        const { readFile } = await import("@tauri-apps/plugin-fs");
+        const retryDelays =
+          pdfRefreshTrigger > 0 ? [0, 40, 120] : [0];
+        let pdfData: Uint8Array | null = null;
+        let readError: unknown;
 
-        // Add a small delay to ensure file system is flushed
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        for (const delay of retryDelays) {
+          if (delay > 0) {
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+          if (cancelled) return;
 
-        if (await exists(pdfPath)) {
-          const pdfData = await readFile(pdfPath);
-          const blob = new Blob([pdfData], { type: "application/pdf" });
-          activeBlobUrl = URL.createObjectURL(blob);
-          setPdfUrl(activeBlobUrl);
-        } else {
-          setPdfUrl(null);
+          try {
+            pdfData = await readFile(pdfPath);
+            if (pdfData.byteLength === 0) {
+              throw new Error("The generated PDF is empty.");
+            }
+            break;
+          } catch (error) {
+            readError = error;
+          }
         }
+
+        if (!pdfData) throw readError;
+        const blob = new Blob([pdfData], { type: "application/pdf" });
+        const nextBlobUrl = URL.createObjectURL(blob);
+
+        if (cancelled) {
+          URL.revokeObjectURL(nextBlobUrl);
+          return;
+        }
+
+        setLoadedPdf({ path: pdfPath, url: nextBlobUrl });
       } catch (e) {
-        console.error("Failed to load PDF:", e);
-        setPdfUrl(null);
+        // Missing PDFs are expected before the first compilation. Reading
+        // directly avoids a separate `exists` IPC round-trip on every load.
+        console.debug("PDF is not available yet:", e);
+        // A transient post-compile read failure must not destroy a still valid
+        // canvas. New paths have no stale document to preserve.
+        if (!cancelled && !isSamePathRefresh) setLoadedPdf(null);
+      } finally {
+        if (!cancelled) {
+          setPdfLoadStatus({
+            path: pdfPath,
+            version: pdfRefreshTrigger,
+            status: "settled",
+          });
+        }
       }
     };
-    loadPdf();
+    void loadPdf();
     return () => {
-      if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
+      cancelled = true;
     };
   }, [
-    activeTab?.id,
-    activeTab?.title,
-    activeTab?.type,
+    expectedPdfPath,
     pdfRefreshTrigger,
-    isTexFile,
   ]);
 
   const handleSyncTexForward = useCallback(
@@ -87,7 +178,8 @@ export function usePdfState({
 
       try {
         const texPath = activeTab.id;
-        const pdfPath = texPath.replace(/\.tex$/i, ".pdf");
+        const pdfPath = toPdfPath(texPath);
+        if (!pdfPath) return;
         const lastSlash = texPath.lastIndexOf(
           texPath.includes("\\") ? "\\" : "/",
         );
@@ -132,7 +224,12 @@ export function usePdfState({
             return;
           }
 
-          setSyncTexCoords({ page, x, y });
+          setSyncTexCoords({
+            page,
+            x,
+            y,
+            requestId: ++syncTexRequestIdRef.current,
+          });
           onRequirePanelOpen?.();
         } else {
           setCompileError(
@@ -151,7 +248,7 @@ export function usePdfState({
         }
       }
     },
-    [activeTab, isTexFile, setCompileError],
+    [activeTab?.id, isTexFile, setCompileError, onRequirePanelOpen],
   );
 
   const handleSyncTexInverse = useCallback(
@@ -164,7 +261,8 @@ export function usePdfState({
 
       try {
         const texPath = activeTab.id;
-        const pdfPath = texPath.replace(/\.tex$/i, ".pdf");
+        const pdfPath = toPdfPath(texPath);
+        if (!pdfPath) return null;
         const lastSlash = texPath.lastIndexOf(
           texPath.includes("\\") ? "\\" : "/",
         );
@@ -196,11 +294,12 @@ export function usePdfState({
         return null;
       }
     },
-    [activeTab, isTexFile],
+    [activeTab?.id, isTexFile],
   );
 
   return {
     pdfUrl,
+    pdfLoading,
     syncTexCoords,
     setSyncTexCoords,
     handleSyncTexForward,

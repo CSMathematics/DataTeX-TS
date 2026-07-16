@@ -1,4 +1,7 @@
-import { KeyMod, KeyCode } from "monaco-editor";
+type MonacoKeyBindingApi = Pick<
+  typeof import("monaco-editor"),
+  "KeyMod" | "KeyCode"
+>;
 
 /**
  * Standardizes a keyboard event into a string representation.
@@ -42,9 +45,13 @@ export const getShortcutFromEvent = (
  * Converts a string shortcut (e.g. "Ctrl+S") into a Monaco KeyBinding.
  * Used for editor.addCommand()
  */
-export const getMonacoKeyBinding = (shortcut: string): number => {
+export const getMonacoKeyBinding = (
+  shortcut: string,
+  monaco: MonacoKeyBindingApi,
+): number => {
   if (!shortcut) return 0;
 
+  const { KeyMod, KeyCode } = monaco;
   const parts = shortcut.split("+");
   let binding = 0;
 
@@ -62,7 +69,7 @@ export const getMonacoKeyBinding = (shortcut: string): number => {
         break;
       default:
         // Parse key code
-        const code = getMonacoKeyCode(part);
+        const code = getMonacoKeyCode(part, KeyCode);
         binding |= code;
     }
   });
@@ -70,7 +77,10 @@ export const getMonacoKeyBinding = (shortcut: string): number => {
   return binding;
 };
 
-const getMonacoKeyCode = (key: string): number => {
+const getMonacoKeyCode = (
+  key: string,
+  KeyCode: MonacoKeyBindingApi["KeyCode"],
+): number => {
   // Basic mapping
   const upper = key.toUpperCase();
   if (upper >= "A" && upper <= "Z") {

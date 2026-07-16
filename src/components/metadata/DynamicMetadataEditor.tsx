@@ -119,7 +119,14 @@ export const DynamicMetadataEditor: React.FC<DynamicMetadataEditorProps> = ({
 
       // Save to database (unless skipDatabaseSave is true for standalone .dtex files)
       if (!skipDatabaseSave) {
+        // 1. Save to typed metadata tables (for relational queries)
         await saveTypedMetadata(resourceId, resourceType, metadata);
+
+        // 2. Sync to main resource metadata JSON (for UI display in table view)
+        // This ensures the DatabaseView sees the changes immediately without re-fetching
+        await useDatabaseStore
+          .getState()
+          .updateResourceMetadata(resourceId, metadata);
       }
 
       // Notify parent about metadata change (for .dtex file saving)

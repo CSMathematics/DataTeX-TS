@@ -34,10 +34,10 @@ import {
   faArrowRight,
   faPalette,
   faChevronDown,
-  faGripLines,
-  faGripLinesVertical,
 } from "@fortawesome/free-solid-svg-icons";
 import { TIKZ_TEMPLATES } from "./tikzTemplates";
+import { useResizable } from "../../hooks/useResizable";
+import { ResizerHandle } from "../ui/ResizerHandle";
 
 interface TikzWizardProps {
   onInsert: (code: string) => void;
@@ -69,14 +69,31 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
   const [codeValue, setCodeValue] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // --- Resizing State ---
-  const [topSectionHeight, setTopSectionHeight] = useState(250);
-  const [isResizingVert, setIsResizingVert] = useState(false);
-  const [leftColWidth, setLeftColWidth] = useState(40);
-  const [isResizingHoriz, setIsResizingHoriz] = useState(false);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const rightColRef = useRef<HTMLDivElement>(null);
+  const {
+    size: leftColWidth,
+    startResizing: startResizingHoriz,
+    containerRef,
+    targetRef: leftColRef,
+  } = useResizable({
+    direction: "horizontal",
+    initialSize: 40,
+    minSize: 20,
+    maxSize: 80,
+    usePercentage: true,
+  });
+  const {
+    size: topSectionHeight,
+    startResizing: startResizingVert,
+    containerRef: rightColRef,
+    targetRef: topSectionRef,
+  } = useResizable({
+    direction: "vertical",
+    initialSize: 250,
+    minSize: 100,
+    maxSize: Number.POSITIVE_INFINITY,
+    maxSizeOffset: 150,
+    usePercentage: false,
+  });
 
   // Quick Color Picker State
   const [quickColor, setQuickColor] = useState("#339af0");
@@ -224,52 +241,17 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
 
   // Specific updaters for complex cases (e.g. shapes) can call this or do custom logic
 
-  // --- Resize Logics ---
-  const startResizingVert = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizingVert(true);
-  }, []);
-  const startResizingHoriz = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizingHoriz(true);
-  }, []);
-
   useEffect(() => {
-    const move = (e: MouseEvent) => {
-      if (isDragging && dragStartRef.current && selectedId) {
-        // Drag Logic
-      }
-
-      if (isResizingVert && rightColRef.current) {
-        const rect = rightColRef.current.getBoundingClientRect();
-        setTopSectionHeight(
-          Math.max(100, Math.min(e.clientY - rect.top, rect.height - 150))
-        );
-      }
-      if (isResizingHoriz && containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setLeftColWidth(
-          Math.max(
-            20,
-            Math.min(((e.clientX - rect.left) / rect.width) * 100, 80)
-          )
-        );
-      }
-    };
     const up = () => {
-      setIsResizingVert(false);
-      setIsResizingHoriz(false);
       setIsDragging(false);
       dragStartRef.current = null;
     };
 
-    window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);
     return () => {
-      window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
     };
-  }, [isResizingVert, isResizingHoriz, isDragging, selectedId]);
+  }, []);
 
   // --- SVG Drag & Click ---
   const handleSvgMouseDown = (e: React.MouseEvent<SVGElement>, id?: string) => {
@@ -858,6 +840,7 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
     >
       {/* --- COLUMN 1: CONTROLS --- */}
       <Box
+        ref={leftColRef}
         style={{
           width: `${leftColWidth}%`,
           borderRight: "1px solid var(--mantine-color-default-border)",
@@ -1302,25 +1285,10 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
       </Box>
 
       {/* --- HORIZONTAL RESIZER --- */}
-      <Box
-        onMouseDown={startResizingHoriz}
-        style={{
-          width: 6,
-          backgroundColor: isResizingHoriz
-            ? "var(--mantine-color-blue-6)"
-            : "var(--mantine-color-default-border)",
-          cursor: "col-resize",
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <FontAwesomeIcon
-          icon={faGripLinesVertical}
-          style={{ width: 12, height: 12, opacity: 0.5, color: "gray" }}
-        />
-      </Box>
+      <ResizerHandle
+        onPointerDown={startResizingHoriz}
+        orientation="vertical"
+      />
 
       {/* --- COLUMN 2: PREVIEW & CODE --- */}
       <Box
@@ -1335,6 +1303,7 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
         }}
       >
         <Box
+          ref={topSectionRef}
           h={topSectionHeight}
           style={{
             flexShrink: 0,
@@ -1473,25 +1442,10 @@ export function TikzWizard({ onInsert }: TikzWizardProps) {
           )}
         </Box>
 
-        <Box
-          onMouseDown={startResizingVert}
-          style={{
-            height: 6,
-            backgroundColor: isResizingVert
-              ? "var(--mantine-color-blue-6)"
-              : "var(--mantine-color-default-border)",
-            cursor: "row-resize",
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <FontAwesomeIcon
-            icon={faGripLines}
-            style={{ width: 12, height: 12, opacity: 0.5, color: "gray" }}
-          />
-        </Box>
+        <ResizerHandle
+          onPointerDown={startResizingVert}
+          orientation="horizontal"
+        />
 
         <Box
           className="tikz-code-editor"

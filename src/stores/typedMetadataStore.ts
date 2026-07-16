@@ -145,6 +145,11 @@ interface TypedMetadataState {
 // Store Implementation
 // ============================================================================
 
+const ALL_COLLECTIONS_LOOKUP_KEY = "__all_collections__";
+let loadedLookupKey: string | null = null;
+let lookupLoadGeneration = 0;
+let lookupLoadInFlight: { key: string; promise: Promise<void> } | null = null;
+
 export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   // Initial state
   fields: [],
@@ -165,7 +170,9 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
 
   // Clear all lookup data (reset to empty)
   clearAllLookupData: () => {
-    console.log("[TypedMetadataStore] Clearing all lookup data...");
+    lookupLoadGeneration += 1;
+    loadedLookupKey = null;
+    lookupLoadInFlight = null;
     set({
       fields: [],
       chapters: [],
@@ -180,22 +187,16 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
       macroCommandTypes: [],
       commandTypes: [],
       preambleTypes: [],
+      isLoadingLookupData: false,
     });
   },
 
   // Load fields
   loadFields: async (collectionName?: string) => {
     try {
-      console.log(
-        `[TypedMetadataStore] Loading fields (collection: ${collectionName})...`,
-      );
       const fields = await invoke<Field[]>("get_fields_cmd", {
         collectionName,
       });
-      console.log(
-        `[TypedMetadataStore] Loaded ${fields.length} fields`,
-        fields,
-      );
       set({ fields });
     } catch (error) {
       console.error("Failed to load fields:", error);
@@ -205,14 +206,10 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   // Load chapters
   loadChapters: async (fieldId?: string, collectionName?: string) => {
     try {
-      console.log(
-        `[TypedMetadataStore] Loading chapters (field: ${fieldId}, collection: ${collectionName})...`,
-      );
       const chapters = await invoke<Chapter[]>("get_chapters_cmd", {
         fieldId,
         collectionName,
       });
-      console.log(`[TypedMetadataStore] Loaded ${chapters.length} chapters`);
       set({ chapters });
     } catch (error) {
       console.error("Failed to load chapters:", error);
@@ -222,14 +219,10 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   // Load sections
   loadSections: async (chapterId?: string, collectionName?: string) => {
     try {
-      console.log(
-        `[TypedMetadataStore] Loading sections (chapter: ${chapterId}, collection: ${collectionName})...`,
-      );
       const sections = await invoke<Section[]>("get_sections_cmd", {
         chapterId,
         collectionName,
       });
-      console.log(`[TypedMetadataStore] Loaded ${sections.length} sections`);
       set({ sections });
     } catch (error) {
       console.error("Failed to load sections:", error);
@@ -239,16 +232,10 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   // Load subsections
   loadSubsections: async (sectionId?: string, collectionName?: string) => {
     try {
-      console.log(
-        `[TypedMetadataStore] Loading subsections (section: ${sectionId}, collection: ${collectionName})...`,
-      );
       const subsections = await invoke<Subsection[]>("get_subsections_cmd", {
         sectionId,
         collectionName,
       });
-      console.log(
-        `[TypedMetadataStore] Loaded ${subsections.length} subsections`,
-      );
       set({ subsections });
     } catch (error) {
       console.error("Failed to load subsections:", error);
@@ -357,12 +344,13 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
 
   // Load all lookup data
   loadAllLookupData: (collectionName?: string) => {
-    console.log(
-      "[TypedMetadataStore] loadAllLookupData triggered for:",
-      collectionName,
-    );
+    const key = collectionName ?? ALL_COLLECTIONS_LOOKUP_KEY;
+    if (loadedLookupKey === key) return Promise.resolve();
+    if (lookupLoadInFlight?.key === key) return lookupLoadInFlight.promise;
+
+    const generation = lookupLoadGeneration;
     set({ isLoadingLookupData: true });
-    return Promise.all([
+    const promise = Promise.all([
       get().loadFields(collectionName),
       get().loadChapters(undefined, collectionName),
       get().loadSections(undefined, collectionName),
@@ -376,13 +364,22 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
       get().loadMacroCommandTypes(),
       get().loadCommandTypes(),
       get().loadPreambleTypes(),
-    ])
-      .then(() => {
-        console.log("[TypedMetadataStore] All lookup data loaded successfully");
+    ]).then(() => {
+        if (generation === lookupLoadGeneration) {
+          loadedLookupKey = key;
+        }
       })
       .finally(() => {
-        set({ isLoadingLookupData: false });
+        if (lookupLoadInFlight?.promise === promise) {
+          lookupLoadInFlight = null;
+        }
+        if (generation === lookupLoadGeneration) {
+          set({ isLoadingLookupData: false });
+        }
       });
+
+    lookupLoadInFlight = { key, promise };
+    return promise;
   },
 
   // Create new field

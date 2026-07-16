@@ -9,7 +9,7 @@ import {
   Tooltip,
   Menu,
 } from "@mantine/core";
-import Editor, { OnMount } from "@monaco-editor/react";
+import type { OnMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import { useDroppable } from "@dnd-kit/core";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -49,7 +49,6 @@ import {
   IconLayoutSidebarLeftCollapseFilled,
 } from "@tabler/icons-react";
 import { writeText, readText } from "@tauri-apps/plugin-clipboard-manager";
-import { TableDataView } from "../database/TableDataView";
 import { AppTab } from "./Sidebar";
 import { StartPage } from "./StartPage";
 import { EditorToolbar } from "./EditorToolbar";
@@ -60,8 +59,30 @@ import { LogEntry } from "../../utils/logParser";
 import { TexlabLspClient } from "../../services/lspClient";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import { getMonacoKeyBinding } from "../../utils/ShortcutUtils";
-import { GitFileViewer } from "../git/GitFileViewer";
-import { AIReviewTab } from "../ai/AIReviewTab";
+import { loadLocalMonaco } from "../../services/monacoLoader";
+
+const MonacoEditor = React.lazy(() =>
+  loadLocalMonaco().then(({ reactMonaco }) => ({
+    default: reactMonaco.default,
+  })),
+);
+const TableDataView = React.lazy(() =>
+  import("../database/TableDataView").then((module) => ({
+    default: module.TableDataView,
+  })),
+);
+const GitFileViewer = React.lazy(() =>
+  import("../git/GitFileViewer").then((module) => ({
+    default: module.GitFileViewer,
+  })),
+);
+const AIReviewTab = React.lazy(() =>
+  Promise.all([import("../ai/AIReviewTab"), loadLocalMonaco()]).then(
+    ([module]) => ({
+      default: module.AIReviewTab,
+    }),
+  ),
+);
 
 interface EditorAreaProps {
   files: AppTab[];
@@ -454,7 +475,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
 
       // Handle Save Shortcut (Dynamic)
       const saveShortcut = shortcuts?.["file.save"] || "Ctrl+S";
-      const saveBinding = getMonacoKeyBinding(saveShortcut);
+      const saveBinding = getMonacoKeyBinding(saveShortcut, monaco);
 
       if (saveBinding) {
         editor.addCommand(saveBinding, () => {
@@ -1595,7 +1616,23 @@ export const EditorArea = React.memo<EditorAreaProps>(
             flexDirection: "column",
           }}
         >
-          {activeFile?.type === "editor" ? (
+          <React.Suspense
+            fallback={
+              <Box
+                h="100%"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text size="sm" c="dimmed">
+                  Loading editor…
+                </Text>
+              </Box>
+            }
+          >
+            {activeFile?.type === "editor" ? (
             <>
               <Box
                 style={{
@@ -1618,7 +1655,7 @@ export const EditorArea = React.memo<EditorAreaProps>(
                     position: "relative",
                   }}
                 >
-                  <Editor
+                  <MonacoEditor
                     path={activeFile.id}
                     height="100%"
                     defaultLanguage="my-latex"
@@ -1692,7 +1729,8 @@ export const EditorArea = React.memo<EditorAreaProps>(
                 Select a file
               </Text>
             </Box>
-          )}
+            )}
+          </React.Suspense>
         </Box>
       </Stack>
     );

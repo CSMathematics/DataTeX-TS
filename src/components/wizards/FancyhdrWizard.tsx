@@ -28,6 +28,8 @@ import {
   faList,
 } from "@fortawesome/free-solid-svg-icons";
 import { FancyhdrVisualizer } from "./FancyhdrVisualizer";
+import { useResizable } from "../../hooks/useResizable";
+import { ResizerHandle } from "../ui/ResizerHandle";
 
 interface FancyhdrWizardProps {
   onInsert: (code: string) => void;
@@ -115,8 +117,18 @@ const PRESETS = {
 
 export const FancyhdrWizard: React.FC<FancyhdrWizardProps> = ({ onInsert }) => {
   const [activeTab, setActiveTab] = useState<string>("config");
-  const [leftPanelWidth, setLeftPanelWidth] = useState(65); // Percentage
-  const [isResizing, setIsResizing] = useState(false);
+  const {
+    size: leftPanelWidth,
+    startResizing,
+    containerRef,
+    targetRef,
+  } = useResizable({
+    direction: "horizontal",
+    initialSize: 65,
+    minSize: 40,
+    maxSize: 80,
+    usePercentage: true,
+  });
 
   // Configuration options
   const [documentType, setDocumentType] = useState<"oneside" | "twoside">(
@@ -296,55 +308,16 @@ export const FancyhdrWizard: React.FC<FancyhdrWizardProps> = ({ onInsert }) => {
     setFootRuleWidth(preset.footRuleWidth);
   };
 
-  // Resize handling
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-
-      const container = document.getElementById("fancyhdr-wizard-container");
-      if (!container) return;
-
-      const containerRect = container.getBoundingClientRect();
-      const newWidth =
-        ((e.clientX - containerRect.left) / containerRect.width) * 100;
-
-      // Constrain between 40% and 80%
-      const clampedWidth = Math.max(40, Math.min(80, newWidth));
-      setLeftPanelWidth(clampedWidth);
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    if (isResizing) {
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-    }
-
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.body.style.cursor = "default";
-      document.body.style.userSelect = "auto";
-    };
-  }, [isResizing]);
-
   return (
     <Box
       id="fancyhdr-wizard-container"
+      ref={containerRef}
       h="100%"
       style={{ display: "flex", overflow: "hidden", position: "relative" }}
     >
       {/* LEFT PANEL: Controls */}
       <Box
+        ref={targetRef}
         style={{
           width: `${leftPanelWidth}%`,
           display: "flex",
@@ -849,19 +822,9 @@ export const FancyhdrWizard: React.FC<FancyhdrWizardProps> = ({ onInsert }) => {
       </Box>
 
       {/* RESIZE HANDLE */}
-      <Box
-        onMouseDown={handleMouseDown}
-        style={{
-          width: 4,
-          cursor: "col-resize",
-          backgroundColor: isResizing
-            ? "var(--mantine-primary-color-filled)"
-            : "transparent",
-          transition: "background-color 0.2s",
-          ":hover": {
-            backgroundColor: "var(--mantine-primary-color-light)",
-          },
-        }}
+      <ResizerHandle
+        onPointerDown={startResizing}
+        orientation="vertical"
       />
 
       {/* RIGHT PANEL: Preview */}

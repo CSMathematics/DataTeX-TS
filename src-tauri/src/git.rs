@@ -235,14 +235,12 @@ pub fn get_log(
 
     // Get local branches
     if let Ok(branches) = repo.branches(None) {
-        for branch in branches {
-            if let Ok((b, _)) = branch {
-                if let Ok(Some(name)) = b.name() {
-                    // branches(None) gives local & remote.
-                    // Local: "master", Remote: "origin/master"
-                    if let Some(target) = b.get().target() {
-                        refs_map.entry(target).or_default().push(name.to_string());
-                    }
+        for (branch, _) in branches.flatten() {
+            if let Ok(Some(name)) = branch.name() {
+                // branches(None) gives local & remote.
+                // Local: "master", Remote: "origin/master"
+                if let Some(target) = branch.get().target() {
+                    refs_map.entry(target).or_default().push(name.to_string());
                 }
             }
         }
@@ -670,18 +668,110 @@ pub fn delete_branch(repo_path: &str, name: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Guard operations that update HEAD and the working tree.  The previous
+/// implementation used a forced checkout after moving a branch reference,
+/// which could silently overwrite staged, unstaged, or untracked files.
+fn ensure_clean_worktree(repo: &Repository) -> Result<(), String> {
+    if repo.state() != git2::RepositoryState::Clean {
+        return Err(format!(
+            "Repository has an unfinished {:?} operation. Finish or abort it before merging or pulling.",
+            repo.state()
+        ));
+    }
+
+    let mut options = StatusOptions::new();
+    options
+        .include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .include_ignored(false);
+
+    let statuses = repo
+        .statuses(Some(&mut options))
+        .map_err(|e| format!("Failed to inspect working tree: {e}"))?;
+
+    if !statuses.is_empty() {
+        return Err(
+            "Working tree has local changes. Commit or stash them before merging or pulling."
+                .to_string(),
+        );
+    }
+
+    Ok(())
+}
+
+/// Move the checked-out branch to `target` without using a forced checkout.
+/// The safe checkout runs before the branch reference moves; if updating that
+/// reference then fails, the original tree is restored.
+fn fast_forward_checked_out_branch(
+    repo: &Repository,
+    ref_name: &str,
+    target: Oid,
+) -> Result<(), String> {
+    ensure_clean_worktree(repo)?;
+
+    let head = repo.find_reference("HEAD").map_err(|e| e.to_string())?;
+    if head.symbolic_target() != Some(ref_name) {
+        return Err(format!(
+            "Branch reference '{ref_name}' is not the currently checked-out branch"
+        ));
+    }
+
+    let mut reference = repo.find_reference(ref_name).map_err(|e| e.to_string())?;
+    let original_target = reference
+        .target()
+        .ok_or_else(|| format!("Branch reference '{ref_name}' has no direct target"))?;
+    let target_commit = repo.find_commit(target).map_err(|e| e.to_string())?;
+    let target_tree = target_commit.tree().map_err(|e| e.to_string())?;
+
+    // Checkout while HEAD still identifies the old commit, so libgit2 can
+    // distinguish the clean old worktree from uncommitted user changes.
+    let mut checkout = git2::build::CheckoutBuilder::new();
+    checkout.safe();
+    repo.checkout_tree(target_tree.as_object(), Some(&mut checkout))
+        .map_err(|e| format!("Fast-forward checkout failed: {e}"))?;
+
+    if let Err(reference_error) = reference.set_target(target, "Fast-forward") {
+        let rollback_result = repo
+            .find_commit(original_target)
+            .and_then(|commit| commit.tree())
+            .and_then(|tree| {
+                let mut rollback_checkout = git2::build::CheckoutBuilder::new();
+                rollback_checkout.safe();
+                repo.checkout_tree(tree.as_object(), Some(&mut rollback_checkout))
+            });
+
+        return match rollback_result {
+            Ok(()) => Err(format!(
+                "Fast-forward reference update failed; the checkout was restored: {reference_error}"
+            )),
+            Err(rollback_error) => Err(format!(
+                "Fast-forward reference update failed ({reference_error}) and the checkout could not be restored ({rollback_error})"
+            )),
+        };
+    }
+
+    Ok(())
+}
+
 /// Merge a branch into the current HEAD
 pub fn merge_branch(repo_path: &str, branch_name: &str) -> Result<String, String> {
     let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
 
+    ensure_clean_worktree(&repo)?;
+
     // 1. Resolve the branch to commit
-    let (_, reference) = repo
+    let (object, reference) = repo
         .revparse_ext(branch_name)
         .map_err(|e| format!("Branch not found: {}", e))?;
 
-    let annotated_commit = repo
-        .reference_to_annotated_commit(&reference.unwrap())
-        .map_err(|e| e.to_string())?;
+    let annotated_commit = match reference {
+        Some(reference) => repo
+            .reference_to_annotated_commit(&reference)
+            .map_err(|e| e.to_string())?,
+        None => repo
+            .find_annotated_commit(object.id())
+            .map_err(|e| e.to_string())?,
+    };
 
     // 2. Analyze merge possibility
     let analysis = repo
@@ -689,19 +779,12 @@ pub fn merge_branch(repo_path: &str, branch_name: &str) -> Result<String, String
         .map_err(|e| e.to_string())?;
 
     if analysis.0.is_fast_forward() {
-        // Fast-forward
-        let reference = repo.find_reference("HEAD").map_err(|e| e.to_string())?;
-        let ref_target = reference.symbolic_target().unwrap().to_string();
-        let mut target_ref = repo
-            .find_reference(&ref_target)
-            .map_err(|e| e.to_string())?;
+        let head = repo.find_reference("HEAD").map_err(|e| e.to_string())?;
+        let ref_target = head
+            .symbolic_target()
+            .ok_or_else(|| "Cannot fast-forward a detached HEAD".to_string())?;
 
-        target_ref
-            .set_target(annotated_commit.id(), "Fast-Forward")
-            .map_err(|e| e.to_string())?;
-
-        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
-            .map_err(|e| e.to_string())?;
+        fast_forward_checked_out_branch(&repo, ref_target, annotated_commit.id())?;
 
         return Ok("Fast-forward merge successful".to_string());
     }
@@ -712,7 +795,7 @@ pub fn merge_branch(repo_path: &str, branch_name: &str) -> Result<String, String
             .map_err(|e| e.to_string())?;
 
         // Check for conflicts
-        if repo.index().unwrap().has_conflicts() {
+        if repo.index().map_err(|e| e.to_string())?.has_conflicts() {
             return Ok("Merge result: Conflicts detected. Please resolve them.".to_string());
         }
 
@@ -722,10 +805,17 @@ pub fn merge_branch(repo_path: &str, branch_name: &str) -> Result<String, String
             let sig = repo
                 .signature()
                 .unwrap_or_else(|_| Signature::now("DataTeX", "user@datatex.local").unwrap());
-            let head_commit = repo.head().unwrap().peel_to_commit().unwrap();
-            let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+            let head_commit = repo
+                .head()
+                .map_err(|e| e.to_string())?
+                .peel_to_commit()
+                .map_err(|e| e.to_string())?;
+            let tree_id = index.write_tree().map_err(|e| e.to_string())?;
+            let tree = repo.find_tree(tree_id).map_err(|e| e.to_string())?;
             let commit_msg = format!("Merge branch '{}' into HEAD", branch_name);
-            let other_commit = repo.find_commit(annotated_commit.id()).unwrap();
+            let other_commit = repo
+                .find_commit(annotated_commit.id())
+                .map_err(|e| e.to_string())?;
 
             repo.commit(
                 Some("HEAD"),
@@ -736,6 +826,8 @@ pub fn merge_branch(repo_path: &str, branch_name: &str) -> Result<String, String
                 &[&head_commit, &other_commit],
             )
             .map_err(|e| e.to_string())?;
+
+            repo.cleanup_state().map_err(|e| e.to_string())?;
 
             return Ok("Merge successful".to_string());
         } else {
@@ -761,49 +853,6 @@ pub fn rename_branch(repo_path: &str, old_name: &str, new_name: &str) -> Result<
     branch
         .rename(new_name, false)
         .map_err(|e| format!("Failed to rename: {}", e))?;
-
-    Ok(())
-}
-
-/// Rebase current branch onto uppercase (Simplified)
-pub fn rebase_branch(repo_path: &str, upstream_branch: &str) -> Result<(), String> {
-    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
-
-    let upstream_ref = repo
-        .find_reference(&format!("refs/heads/{}", upstream_branch))
-        .or_else(|_| repo.find_reference(upstream_branch))
-        .map_err(|_| format!("Upstream {} not found", upstream_branch))?;
-
-    let annotated_upstream = repo
-        .reference_to_annotated_commit(&upstream_ref)
-        .map_err(|e| e.to_string())?;
-
-    let mut rebase = repo
-        .rebase(None, Some(&annotated_upstream), None, None)
-        .map_err(|e| format!("Failed to init rebase: {}", e))?;
-
-    while let Some(op) = rebase.next() {
-        if let Err(e) = op {
-            rebase.abort().ok();
-            return Err(format!("Rebase error: {}", e));
-        }
-
-        // Commit this operation
-        let sig = repo
-            .signature()
-            .unwrap_or_else(|_| Signature::now("DataTeX", "user@datatex.local").unwrap());
-        if let Err(e) = rebase.commit(None, &sig, None) {
-            // Conflict?
-            return Err(format!(
-                "Rebase stopped at conflict: {}. Resolve manually.",
-                e
-            ));
-        }
-    }
-
-    rebase
-        .finish(None)
-        .map_err(|e| format!("Failed to finish rebase: {}", e))?;
 
     Ok(())
 }
@@ -901,15 +950,37 @@ pub fn pull_from_remote(
     remote_name: &str,
     branch_name: &str,
 ) -> Result<(), String> {
+    let ref_name = format!("refs/heads/{branch_name}");
+
+    // Pull updates the currently checked-out branch only.  Validate this and
+    // the working tree before the network operation, then check cleanliness
+    // again immediately before checkout to cover edits made while fetching.
+    let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
+    let head = repo.find_reference("HEAD").map_err(|e| e.to_string())?;
+    let current_ref = head
+        .symbolic_target()
+        .ok_or_else(|| "Cannot pull while HEAD is detached".to_string())?;
+
+    if current_ref != ref_name {
+        return Err(format!(
+            "Cannot pull branch '{branch_name}' while '{current_ref}' is checked out"
+        ));
+    }
+
+    ensure_clean_worktree(&repo)?;
+    drop(head);
+    drop(repo);
+
     // 1. Fetch
     fetch_remote(repo_path, remote_name)?;
 
     let repo = Repository::open(repo_path).map_err(|e| e.to_string())?;
 
     // 2. Prepare for merge
+    let remote_ref_name = format!("refs/remotes/{remote_name}/{branch_name}");
     let fetch_head = repo
-        .find_reference("FETCH_HEAD")
-        .map_err(|e| e.to_string())?;
+        .find_reference(&remote_ref_name)
+        .map_err(|e| format!("Fetched branch '{remote_name}/{branch_name}' was not found: {e}"))?;
     let fetch_commit = repo
         .reference_to_annotated_commit(&fetch_head)
         .map_err(|e| e.to_string())?;
@@ -918,50 +989,26 @@ pub fn pull_from_remote(
         .merge_analysis(&[&fetch_commit])
         .map_err(|e| e.to_string())?;
 
+    if analysis.0.is_up_to_date() {
+        return Ok(());
+    }
+
+    // libgit2 may report NORMAL together with FASTFORWARD.  Prefer the safe
+    // fast-forward path whenever that flag is available.
     if analysis.0.is_fast_forward() {
-        // Fast-forward
-        let ref_name = format!("refs/heads/{}", branch_name);
-        let mut reference = repo.find_reference(&ref_name).map_err(|e| e.to_string())?;
-        reference
-            .set_target(fetch_commit.id(), "Fast-Forward")
-            .map_err(|e| e.to_string())?;
-        repo.set_head(&ref_name).map_err(|e| e.to_string())?;
-        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
-            .map_err(|e| e.to_string())?;
-    } else if analysis.0.is_normal() {
-        // Merge
-        repo.merge(&[&fetch_commit], None, None)
-            .map_err(|e| e.to_string())?;
+        ensure_clean_worktree(&repo)?;
+        return fast_forward_checked_out_branch(&repo, &ref_name, fetch_commit.id());
+    }
 
-        // This leaves the repo in a merging state. User needs to commit.
-        // Or we can try to commit automatically if no conflicts?
-        // For now, let's leave it to user to commit if it's a merge.
-        // Actually, normal `git pull` does commit.
-
-        // Implementing full merge commit logic is complex in git2.
-        // For MVP, we stop here. The Index should be updated with merge result.
-        // If conflicts, they will be in index.
-        // Creating the merge commit is needed to finish.
-
-        // Simplification: Check index for conflicts. If none, commit.
-        if repo.index().unwrap().has_conflicts() {
-            return Err("Merge conflicts detected. Please resolve them.".to_string());
-        }
-
-        // Make the commit
-        // This is getting complicated for a single function.
-        // Let's stick to Fast-Forward only for this iteration or return "Non-fast-forward merge required".
-        // Or better: Let user know.
-
-        // Just return Ok() - the files are updated (or conflicted). User sees changes in Git Panel.
-        // BUT "merge" function updates files in working dir.
-        // We need to write the commit if no conflicts.
-
-        // Let's define: Pull only supports Fast-Forward for now to be safe.
+    if analysis.0.is_normal() {
+        // This command intentionally supports fast-forward pulls only.  Reject
+        // a divergent history before calling `repo.merge`, because that call
+        // mutates the index and working tree even if we subsequently return an
+        // "unsupported" error.
         return Err("Only fast-forward pull is supported currently.".to_string());
     }
 
-    Ok(())
+    Err("Pull cannot be completed with a fast-forward update.".to_string())
 }
 
 /// Read .gitignore content
@@ -1396,23 +1443,21 @@ pub fn get_conflict_files(repo_path: &str) -> Result<Vec<ConflictFile>, String> 
     let mut conflicts = Vec::new();
 
     if let Ok(conflict_iter) = index.conflicts() {
-        for conflict in conflict_iter {
-            if let Ok(entry) = conflict {
-                let path = entry
-                    .ancestor
-                    .as_ref()
-                    .or(entry.our.as_ref())
-                    .or(entry.their.as_ref())
-                    .map(|e| String::from_utf8_lossy(&e.path).to_string())
-                    .unwrap_or_default();
+        for entry in conflict_iter.flatten() {
+            let path = entry
+                .ancestor
+                .as_ref()
+                .or(entry.our.as_ref())
+                .or(entry.their.as_ref())
+                .map(|e| String::from_utf8_lossy(&e.path).to_string())
+                .unwrap_or_default();
 
-                conflicts.push(ConflictFile {
-                    path,
-                    ancestor_oid: entry.ancestor.map(|e| e.id.to_string()),
-                    our_oid: entry.our.map(|e| e.id.to_string()),
-                    their_oid: entry.their.map(|e| e.id.to_string()),
-                });
-            }
+            conflicts.push(ConflictFile {
+                path,
+                ancestor_oid: entry.ancestor.map(|e| e.id.to_string()),
+                our_oid: entry.our.map(|e| e.id.to_string()),
+                their_oid: entry.their.map(|e| e.id.to_string()),
+            });
         }
     }
 
@@ -1521,4 +1566,144 @@ pub fn get_side_by_side_diff(
     let new_content = std::fs::read_to_string(&full_path).map_err(|e| e.to_string())?;
 
     Ok(generate_side_by_side_diff(&old_content, &new_content))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+
+    struct TestWorkspace {
+        path: PathBuf,
+    }
+
+    impl TestWorkspace {
+        fn new(name: &str) -> Self {
+            let path =
+                std::env::temp_dir().join(format!("datatex-git-{name}-{}", uuid::Uuid::new_v4()));
+            fs::create_dir_all(&path).unwrap();
+            Self { path }
+        }
+    }
+
+    impl Drop for TestWorkspace {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn commit_file(repo: &Repository, path: &str, content: &str, message: &str) -> Oid {
+        fs::write(repo.workdir().unwrap().join(path), content).unwrap();
+
+        let mut index = repo.index().unwrap();
+        index.add_path(Path::new(path)).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let signature = Signature::now("DataTeX Test", "test@datatex.local").unwrap();
+        let parent = repo.head().ok().and_then(|head| head.peel_to_commit().ok());
+
+        match parent.as_ref() {
+            Some(parent) => repo
+                .commit(
+                    Some("HEAD"),
+                    &signature,
+                    &signature,
+                    message,
+                    &tree,
+                    &[parent],
+                )
+                .unwrap(),
+            None => repo
+                .commit(Some("HEAD"), &signature, &signature, message, &tree, &[])
+                .unwrap(),
+        }
+    }
+
+    fn current_branch(repo: &Repository) -> String {
+        repo.head().unwrap().shorthand().unwrap().to_string()
+    }
+
+    #[test]
+    fn fast_forward_merge_preserves_untracked_local_file() {
+        let workspace = TestWorkspace::new("dirty-merge");
+        let repo = Repository::init(&workspace.path).unwrap();
+        let repo_path = workspace.path.to_str().unwrap();
+
+        let base_id = commit_file(&repo, "base.tex", "base", "base");
+        let base_branch = current_branch(&repo);
+        let base_commit = repo.find_commit(base_id).unwrap();
+        repo.branch("feature", &base_commit, false).unwrap();
+        drop(base_commit);
+
+        switch_branch(repo_path, "feature").unwrap();
+        commit_file(&repo, "new.tex", "feature version", "feature");
+        switch_branch(repo_path, &base_branch).unwrap();
+
+        // This path is tracked by the fast-forward target but untracked on the
+        // current branch.  A forced checkout would overwrite it.
+        fs::write(workspace.path.join("new.tex"), "local version").unwrap();
+
+        let head_before = repo.head().unwrap().target().unwrap();
+        let error = merge_branch(repo_path, "feature").unwrap_err();
+
+        assert!(error.contains("Working tree has local changes"));
+        assert_eq!(repo.head().unwrap().target().unwrap(), head_before);
+        assert_eq!(
+            fs::read_to_string(workspace.path.join("new.tex")).unwrap(),
+            "local version"
+        );
+    }
+
+    #[test]
+    fn non_fast_forward_pull_does_not_mutate_head_index_or_worktree() {
+        let workspace = TestWorkspace::new("divergent-pull");
+        let source_path = workspace.path.join("source");
+        let local_path = workspace.path.join("local");
+        let source = Repository::init(&source_path).unwrap();
+
+        commit_file(&source, "document.tex", "base", "base");
+        let branch = current_branch(&source);
+        let local = Repository::clone(source_path.to_str().unwrap(), &local_path).unwrap();
+
+        commit_file(&local, "document.tex", "local commit", "local");
+        commit_file(&source, "document.tex", "remote commit", "remote");
+
+        let local_path_str = local_path.to_str().unwrap();
+        let head_before = local.head().unwrap().target().unwrap();
+        let error = pull_from_remote(local_path_str, "origin", &branch).unwrap_err();
+
+        assert!(error.contains("Only fast-forward pull is supported"));
+        assert_eq!(local.head().unwrap().target().unwrap(), head_before);
+        assert_eq!(
+            fs::read_to_string(local_path.join("document.tex")).unwrap(),
+            "local commit"
+        );
+        assert_eq!(local.state(), git2::RepositoryState::Clean);
+        assert!(!local.index().unwrap().has_conflicts());
+        assert!(local.statuses(None).unwrap().is_empty());
+    }
+
+    #[test]
+    fn clean_fast_forward_pull_updates_branch_and_worktree() {
+        let workspace = TestWorkspace::new("fast-forward-pull");
+        let source_path = workspace.path.join("source");
+        let local_path = workspace.path.join("local");
+        let source = Repository::init(&source_path).unwrap();
+
+        commit_file(&source, "document.tex", "base", "base");
+        let branch = current_branch(&source);
+        let local = Repository::clone(source_path.to_str().unwrap(), &local_path).unwrap();
+        let remote_id = commit_file(&source, "document.tex", "remote commit", "remote");
+
+        pull_from_remote(local_path.to_str().unwrap(), "origin", &branch).unwrap();
+
+        assert_eq!(local.head().unwrap().target().unwrap(), remote_id);
+        assert_eq!(
+            fs::read_to_string(local_path.join("document.tex")).unwrap(),
+            "remote commit"
+        );
+        assert!(local.statuses(None).unwrap().is_empty());
+    }
 }

@@ -74,3 +74,27 @@
     transform: scale(1);
   }
 }
+
+/* Keep PDF layout/paint work isolated from the editor/right-panel split. */
+.pdf-viewer-container,
+.pdf-viewer-scroll {
+  contain: layout paint;
+}
+
+.pdf-viewer-page {
+  contain: layout paint style;
+}
+
+.pdf-viewer-toolbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--mantine-color-dimmed) transparent;
+}
+
+.pdf-viewer-toolbar::-webkit-scrollbar {
+  height: 3px;
+}
+
+.pdf-viewer-toolbar::-webkit-scrollbar-thumb {
+  background: var(--mantine-color-dimmed);
+  border-radius: 999px;
+}

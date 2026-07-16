@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { FileSystemNode } from "../components/layout/Sidebar";
 // Note: We'll import openTab/renameTab actions via props or store to keep hook reusable
 
@@ -50,39 +50,85 @@ export function useProjectFiles({
   const [projectRoots, setProjectRoots] = useState<string[]>([]);
   const [rootPath, setRootPath] = useState<string | null>(null);
   const [loadingFiles, setLoadingFiles] = useState(false);
+  const projectRootsRef = useRef<string[]>([]);
+  const reloadGenerationRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      reloadGenerationRef.current += 1;
+    };
+  }, []);
+
+  const updateProjectRoots = useCallback((roots: string[]) => {
+    projectRootsRef.current = roots;
+    setProjectRoots(roots);
+  }, []);
 
   // --- HELPER: Load Project Files ---
-  const loadFolderNode = async (rootPath: string): Promise<FileSystemNode> => {
-    const { invoke } = await import("@tauri-apps/api/core");
-    try {
-      return await invoke<FileSystemNode>("get_project_files", { rootPath });
-    } catch (e) {
-      console.error("Failed to load project files via Rust:", e);
-      // Fallback or re-throw? Re-throwing ensures logic upstream handles it (logging error)
-      throw e;
-    }
-  };
+  const loadFolderNode = useCallback(
+    async (rootPath: string): Promise<FileSystemNode> => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      try {
+        return await invoke<FileSystemNode>("get_project_files", { rootPath });
+      } catch (e) {
+        console.error("Failed to load project files via Rust:", e);
+        // Fallback or re-throw? Re-throwing ensures logic upstream handles it (logging error)
+        throw e;
+      }
+    },
+    [],
+  );
 
-  const reloadProjectFiles = async (roots: string[]) => {
-    if (roots.length === 0) {
-      setProjectData([]);
-      return;
-    }
-    setLoadingFiles(true);
-    try {
-      const promises = roots.map((root) => loadFolderNode(root));
-      const rootNodes = await Promise.all(promises);
-      setProjectData(rootNodes);
-    } catch (e) {
-      console.error("Failed to load project database", e);
-    } finally {
-      setLoadingFiles(false);
-    }
-  };
+  const reloadProjectFiles = useCallback(
+    async (roots: string[]) => {
+      const requestGeneration = ++reloadGenerationRef.current;
+      const requestedRoots = [...roots];
 
-  const loadProjectFiles = useCallback(async (path: string) => {
-    await reloadProjectFiles([path]);
-  }, []);
+      if (requestedRoots.length === 0) {
+        if (mountedRef.current) {
+          setProjectData([]);
+          setLoadingFiles(false);
+        }
+        return;
+      }
+
+      if (mountedRef.current) {
+        setLoadingFiles(true);
+      }
+
+      try {
+        const rootNodes = await Promise.all(
+          requestedRoots.map((root) => loadFolderNode(root)),
+        );
+        if (
+          mountedRef.current &&
+          requestGeneration === reloadGenerationRef.current
+        ) {
+          setProjectData(rootNodes);
+        }
+      } catch (e) {
+        console.error("Failed to load project database", e);
+      } finally {
+        if (
+          mountedRef.current &&
+          requestGeneration === reloadGenerationRef.current
+        ) {
+          setLoadingFiles(false);
+        }
+      }
+    },
+    [loadFolderNode],
+  );
+
+  const loadProjectFiles = useCallback(
+    async (path: string) => {
+      await reloadProjectFiles([path]);
+    },
+    [reloadProjectFiles],
+  );
 
   // --- Handlers ---
 
@@ -98,7 +144,7 @@ export function useProjectFiles({
       if (selectedPath && typeof selectedPath === "string") {
         setRootPath(selectedPath);
         const newRoots = [selectedPath];
-        setProjectRoots(newRoots);
+        updateProjectRoots(newRoots);
         await reloadProjectFiles(newRoots);
         onSetActiveActivity("database");
         onAddToRecent(selectedPath);
@@ -106,7 +152,13 @@ export function useProjectFiles({
     } catch (e) {
       onSetCompileError("Failed to open folder: " + String(e));
     }
-  }, [onAddToRecent, onSetActiveActivity, onSetCompileError]);
+  }, [
+    onAddToRecent,
+    onSetActiveActivity,
+    onSetCompileError,
+    reloadProjectFiles,
+    updateProjectRoots,
+  ]);
 
   const handleAddFolder = useCallback(async () => {
     try {
@@ -118,29 +170,36 @@ export function useProjectFiles({
       });
 
       if (selectedPath && typeof selectedPath === "string") {
-        setProjectRoots((prev) => {
-          if (prev.includes(selectedPath)) return prev;
-          const newRoots = [...prev, selectedPath];
-          reloadProjectFiles(newRoots);
-          return newRoots;
-        });
+        const currentRoots = projectRootsRef.current;
+        if (!currentRoots.includes(selectedPath)) {
+          const newRoots = [...currentRoots, selectedPath];
+          updateProjectRoots(newRoots);
+          void reloadProjectFiles(newRoots);
+        }
         onSetActiveActivity("database");
       }
     } catch (e) {
       onSetCompileError("Failed to add folder: " + String(e));
     }
-  }, [onSetActiveActivity, onSetCompileError]);
+  }, [
+    onSetActiveActivity,
+    onSetCompileError,
+    reloadProjectFiles,
+    updateProjectRoots,
+  ]);
 
   const handleRemoveFolder = useCallback(
     async (folderPath: string) => {
-      setProjectRoots((prev) => {
-        const newRoots = prev.filter((r) => r !== folderPath);
-        reloadProjectFiles(newRoots);
-        return newRoots;
-      });
-      if (rootPath === folderPath) setRootPath(null);
+      const newRoots = projectRootsRef.current.filter(
+        (root) => root !== folderPath,
+      );
+      updateProjectRoots(newRoots);
+      void reloadProjectFiles(newRoots);
+      setRootPath((currentRoot) =>
+        currentRoot === folderPath ? null : currentRoot,
+      );
     },
-    [rootPath],
+    [reloadProjectFiles, updateProjectRoots],
   );
 
   const handleOpenRecent = useCallback(
@@ -148,7 +207,7 @@ export function useProjectFiles({
       try {
         setRootPath(path);
         const newRoots = [path];
-        setProjectRoots(newRoots);
+        updateProjectRoots(newRoots);
         await reloadProjectFiles(newRoots);
         onSetActiveActivity("database");
         onAddToRecent(path);
@@ -156,7 +215,13 @@ export function useProjectFiles({
         onSetCompileError("Failed to open recent project: " + String(e));
       }
     },
-    [onAddToRecent, onSetActiveActivity, onSetCompileError],
+    [
+      onAddToRecent,
+      onSetActiveActivity,
+      onSetCompileError,
+      reloadProjectFiles,
+      updateProjectRoots,
+    ],
   );
 
   const handleCreateItem = useCallback(
@@ -183,15 +248,12 @@ export function useProjectFiles({
           await mkdir(fullPath);
         }
 
-        setProjectRoots((currentRoots) => {
-          reloadProjectFiles(currentRoots);
-          return currentRoots;
-        });
+        void reloadProjectFiles(projectRootsRef.current);
       } catch (e) {
         onSetCompileError(`Failed to create ${type}: ${String(e)}`);
       }
     },
-    [rootPath, openTab, onSetCompileError],
+    [rootPath, openTab, onSetCompileError, reloadProjectFiles],
   );
 
   const handleRenameItem = useCallback(
@@ -212,15 +274,12 @@ export function useProjectFiles({
           renameTab(node.path, newPath, newName);
         }
 
-        setProjectRoots((currentRoots) => {
-          reloadProjectFiles(currentRoots);
-          return currentRoots;
-        });
+        void reloadProjectFiles(projectRootsRef.current);
       } catch (e) {
         onSetCompileError(`Failed to rename: ${String(e)}`);
       }
     },
-    [renameTab, onSetCompileError],
+    [renameTab, onSetCompileError, reloadProjectFiles],
   );
 
   const handleDeleteItem = useCallback(
@@ -241,15 +300,12 @@ export function useProjectFiles({
           closeTab(node.path);
         }
 
-        setProjectRoots((currentRoots) => {
-          reloadProjectFiles(currentRoots);
-          return currentRoots;
-        });
+        void reloadProjectFiles(projectRootsRef.current);
       } catch (e) {
         onSetCompileError(`Failed to delete: ${String(e)}`);
       }
     },
-    [closeTab, onSetCompileError],
+    [closeTab, onSetCompileError, reloadProjectFiles],
   );
 
   const handleMoveItem = useCallback(
@@ -273,15 +329,12 @@ export function useProjectFiles({
         // For simplicity, we just call renameTab - it should handle non-existent tabs gracefully or we assume success.
         renameTab(sourcePath, newPath, sourceName);
 
-        setProjectRoots((currentRoots) => {
-          reloadProjectFiles(currentRoots);
-          return currentRoots;
-        });
+        void reloadProjectFiles(projectRootsRef.current);
       } catch (e) {
         onSetCompileError(`Failed to move item: ${String(e)}`);
       }
     },
-    [renameTab, onSetCompileError],
+    [renameTab, onSetCompileError, reloadProjectFiles],
   );
 
   return {

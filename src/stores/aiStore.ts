@@ -66,6 +66,7 @@ interface AIState {
   // Active Conversation Message Actions
   getMessages: () => Message[]; // Helper to get current messages
   addMessage: (msg: Message) => void;
+  addMessageToConversation: (id: string, msg: Message) => void;
   setMessages: (msgs: Message[]) => void;
   deleteMessage: (index: number) => void;
   clearMessages: () => void;
@@ -197,6 +198,19 @@ export const useAIStore = create<AIState>()(
             ),
           };
         }),
+
+      addMessageToConversation: (id, msg) =>
+        set((state) => ({
+          conversations: state.conversations.map((conversation) =>
+            conversation.id === id
+              ? {
+                  ...conversation,
+                  messages: [...conversation.messages, msg],
+                  updatedAt: Date.now(),
+                }
+              : conversation,
+          ),
+        })),
 
       setMessages: (msgs) =>
         set((state) => {

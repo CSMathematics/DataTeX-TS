@@ -42,43 +42,41 @@ fn scan_directory(dir_path: &Path) -> Vec<FileSystemNode> {
     let mut nodes = Vec::new();
 
     if let Ok(entries) = fs::read_dir(dir_path) {
-        for entry in entries {
-            if let Ok(entry) = entry {
-                let path = entry.path();
-                let name = entry.file_name().to_string_lossy().to_string();
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
 
-                if name.starts_with('.') {
+            if name.starts_with('.') {
+                continue;
+            }
+
+            if path.is_dir() {
+                if IGNORED_DIRS.contains(&name.as_str()) {
                     continue;
                 }
 
-                if path.is_dir() {
-                    if IGNORED_DIRS.contains(&name.as_str()) {
+                let children = scan_directory(&path);
+                nodes.push(FileSystemNode {
+                    id: path.to_string_lossy().to_string(),
+                    name: name.clone(),
+                    r#type: "folder".to_string(),
+                    path: path.to_string_lossy().to_string(),
+                    children,
+                });
+            } else {
+                if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
+                    if IGNORED_EXTS.contains(&ext.to_lowercase().as_str()) {
                         continue;
                     }
-
-                    let children = scan_directory(&path);
-                    nodes.push(FileSystemNode {
-                        id: path.to_string_lossy().to_string(),
-                        name: name.clone(),
-                        r#type: "folder".to_string(),
-                        path: path.to_string_lossy().to_string(),
-                        children,
-                    });
-                } else {
-                    if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                        if IGNORED_EXTS.contains(&ext.to_lowercase().as_str()) {
-                            continue;
-                        }
-                    }
-
-                    nodes.push(FileSystemNode {
-                        id: path.to_string_lossy().to_string(),
-                        name: name.clone(),
-                        r#type: "file".to_string(),
-                        path: path.to_string_lossy().to_string(),
-                        children: Vec::new(),
-                    });
                 }
+
+                nodes.push(FileSystemNode {
+                    id: path.to_string_lossy().to_string(),
+                    name: name.clone(),
+                    r#type: "file".to_string(),
+                    path: path.to_string_lossy().to_string(),
+                    children: Vec::new(),
+                });
             }
         }
     }
@@ -87,12 +85,10 @@ fn scan_directory(dir_path: &Path) -> Vec<FileSystemNode> {
     nodes.sort_by(|a, b| {
         if a.r#type == b.r#type {
             a.name.to_lowercase().cmp(&b.name.to_lowercase())
+        } else if a.r#type == "folder" {
+            std::cmp::Ordering::Less
         } else {
-            if a.r#type == "folder" {
-                std::cmp::Ordering::Less
-            } else {
-                std::cmp::Ordering::Greater
-            }
+            std::cmp::Ordering::Greater
         }
     });
 

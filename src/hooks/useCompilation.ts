@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useDatabaseStore } from "../stores/databaseStore";
 import { parseLatexLog, LogEntry } from "../utils/logParser";
@@ -7,7 +7,7 @@ import { getPreambleContent } from "../data/preambles";
 interface UseCompilationOptions {
   activeTab: any; // Type should be imported if available
   isTexFile: boolean;
-  onSave: (id: string) => Promise<void>;
+  onSave: (id: string) => Promise<boolean>;
   setCompileError: (error: string | null) => void;
 }
 
@@ -18,7 +18,7 @@ interface UseCompilationReturn {
   setShowLogPanel: React.Dispatch<React.SetStateAction<boolean>>;
   pdfRefreshTrigger: number;
   handleCompile: (engine?: string) => Promise<void>;
-  handleStopCompile: () => void;
+  handleStopCompile: () => Promise<void>;
   handleCloseLogPanel: () => void;
 }
 
@@ -32,18 +32,40 @@ export function useCompilation({
   // compileError managed externally
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [showLogPanel, setShowLogPanel] = useState(false);
-  const [pdfRefreshTrigger, setPdfRefreshTrigger] = useState(0);
+  const [pdfRefreshVersions, setPdfRefreshVersions] = useState<
+    Record<string, number>
+  >({});
+  const pdfRefreshTrigger = activeTab?.id
+    ? (pdfRefreshVersions[activeTab.id] ?? 0)
+    : 0;
+  const compilationBusyRef = useRef(false);
+  const activeCompilationIdRef = useRef<string | null>(null);
 
   const handleCompile = useCallback(
     async (engine?: string) => {
       if (!activeTab || !activeTab.id || !isTexFile) {
         return;
       }
+      if (compilationBusyRef.current) return;
+      compilationBusyRef.current = true;
 
       // Save before compiling
-      await onSave(activeTab.id);
+      let saved = false;
+      try {
+        saved = await onSave(activeTab.id);
+      } catch (error) {
+        setCompileError(String(error));
+      }
+      if (!saved) {
+        compilationBusyRef.current = false;
+        return;
+      }
 
       const filePath = activeTab.id;
+      const compilationId =
+        globalThis.crypto?.randomUUID?.() ??
+        `compile-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      activeCompilationIdRef.current = compilationId;
 
       try {
         setIsCompiling(true);
@@ -92,6 +114,7 @@ export function useCompilation({
           await invoke("compile_resource_cmd", {
             id: resource.id,
             preambleOverride, // Pass optional override
+            compilationId,
           });
         } else {
           // Standard Compilation
@@ -100,10 +123,14 @@ export function useCompilation({
             engine: selectedEngine,
             args,
             outputDir,
+            compilationId,
           });
         }
 
-        setPdfRefreshTrigger((prev) => prev + 1);
+        setPdfRefreshVersions((previous) => ({
+          ...previous,
+          [filePath]: (previous[filePath] ?? 0) + 1,
+        }));
       } catch (error: any) {
         setCompileError(String(error));
       } finally {
@@ -122,15 +149,27 @@ export function useCompilation({
           // Failed to read/parse log file
         }
         setIsCompiling(false);
+        compilationBusyRef.current = false;
+        if (activeCompilationIdRef.current === compilationId) {
+          activeCompilationIdRef.current = null;
+        }
       }
     },
-    [activeTab, isTexFile, onSave],
+    [activeTab, isTexFile, onSave, setCompileError],
   );
 
-  const handleStopCompile = useCallback(() => {
-    setIsCompiling(false);
-    setCompileError("Compilation stopped by user (UI reset).");
-  }, []);
+  const handleStopCompile = useCallback(async () => {
+    const compilationId = activeCompilationIdRef.current;
+    if (!compilationId) return;
+
+    setCompileError("Stopping compilation…");
+    try {
+      await invoke("stop_compile", { compilationId });
+      setCompileError("Compilation stopped by user.");
+    } catch (error) {
+      setCompileError(`Failed to stop compilation: ${String(error)}`);
+    }
+  }, [setCompileError]);
 
   const handleCloseLogPanel = useCallback(() => {
     setShowLogPanel(false);

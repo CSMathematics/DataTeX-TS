@@ -36,11 +36,27 @@ import { SymbolPanel } from "./SymbolPanel";
 import { SymbolCategory } from "../wizards/preamble/SymbolDB";
 import { PACKAGES_DB, Category } from "../wizards/preamble/packages";
 import { getWizardConfig } from "../wizards/preamble/wizardRegistry";
-import { DatabaseSidebar } from "../database/DatabaseSidebar";
-import { SearchPanel } from "../search/SearchPanel";
-import { GitPanel } from "../git/GitPanel";
-import { HistoryPanel } from "../history/HistoryPanel";
 import { useDatabaseStore } from "../../stores/databaseStore";
+import { ResizerHandle } from "../ui/ResizerHandle";
+
+const DatabaseSidebar = React.lazy(() =>
+  import("../database/DatabaseSidebar").then((module) => ({
+    default: module.DatabaseSidebar,
+  })),
+);
+const SearchPanel = React.lazy(() =>
+  import("../search/SearchPanel").then((module) => ({
+    default: module.SearchPanel,
+  })),
+);
+const GitPanel = React.lazy(() =>
+  import("../git/GitPanel").then((module) => ({ default: module.GitPanel })),
+);
+const HistoryPanel = React.lazy(() =>
+  import("../history/HistoryPanel").then((module) => ({
+    default: module.HistoryPanel,
+  })),
+);
 
 // --- Types ---
 export type SidebarSection =
@@ -82,7 +98,7 @@ export type { AppTab } from "../../stores/useTabsStore";
 interface SidebarProps {
   width: number | string;
   isOpen: boolean;
-  onResizeStart: (e: React.MouseEvent) => void;
+  onResizeStart: (e: React.PointerEvent<HTMLElement>) => void;
   activeSection: SidebarSection;
   onToggleSection: (s: SidebarSection) => void;
   onNavigate: (view: ViewType) => void;
@@ -441,6 +457,7 @@ export const Sidebar = React.memo<SidebarProps>(
         {/* Sidebar Content Panel with Transition */}
         <>
           <Box
+            className="sidebar-content-panel"
             w={isOpen ? width : 0}
             h="100%"
             style={{
@@ -448,16 +465,24 @@ export const Sidebar = React.memo<SidebarProps>(
               flexDirection: "column",
               overflow: "hidden",
               backgroundColor: "var(--app-sidebar-bg)",
-              /* TRANSITION STYLES */
               minWidth: 0,
               flexShrink: 0,
-              transition: "width 300ms ease-in-out, opacity 200ms ease-in-out",
               opacity: isOpen ? 1 : 0,
               whiteSpace: "nowrap",
             }}
           >
-            {activeSection !== "symbols" && (
-              <Group
+            {isOpen && (
+              <React.Suspense
+                fallback={
+                  <Box p="md">
+                    <Text size="sm" c="dimmed">
+                      Loading…
+                    </Text>
+                  </Box>
+                }
+              >
+                {activeSection !== "symbols" && (
+                  <Group
                 h={35}
                 px="sm"
                 justify="space-between"
@@ -472,11 +497,11 @@ export const Sidebar = React.memo<SidebarProps>(
                     defaultValue: activeSection,
                   })}
                 </Text>
-              </Group>
-            )}
+                  </Group>
+                )}
 
-            {activeSection === "symbols" ? (
-              <Group
+                {activeSection === "symbols" ? (
+                  <Group
                 h="100%"
                 gap={0}
                 align="stretch"
@@ -634,21 +659,17 @@ export const Sidebar = React.memo<SidebarProps>(
                     )}
                   </Stack>
                 )}
-              </ScrollArea>
+                  </ScrollArea>
+                )}
+              </React.Suspense>
             )}
           </Box>
 
           {/* Resizer Handle - Visible only when sidebar is effectively open */}
           {isOpen && (
-            <Box
-              onMouseDown={onResizeStart}
-              w={4}
-              h="100%"
-              bg="transparent"
-              style={{
-                cursor: "col-resize",
-                ":hover": { backgroundColor: "var(--mantine-primary-color-6)" },
-              }}
+            <ResizerHandle
+              onPointerDown={onResizeStart}
+              orientation="vertical"
             />
           )}
         </>

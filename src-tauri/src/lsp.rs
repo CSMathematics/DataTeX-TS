@@ -2,7 +2,7 @@
 
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{Child, Command};
+use tokio::process::{Child, ChildStdout, Command};
 
 /// LSP Request structure
 #[derive(Debug, Clone)]
@@ -23,6 +23,7 @@ pub struct LspResponse {
 /// Manager για το texlab LSP server process
 pub struct TexlabManager {
     process: Option<Child>,
+    stdout: Option<BufReader<ChildStdout>>,
     request_id: i64,
 }
 
@@ -30,6 +31,7 @@ impl TexlabManager {
     pub fn new() -> Self {
         Self {
             process: None,
+            stdout: None,
             request_id: 0,
         }
     }
@@ -44,30 +46,58 @@ impl TexlabManager {
         let texlab_path = crate::texlab_downloader::ensure_texlab().await?;
 
         // Δημιουργία child process για το texlab
-        let child = Command::new(&texlab_path)
+        let mut child = Command::new(&texlab_path)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()
             .map_err(|e| format!("Failed to start texlab at {:?}: {}", texlab_path, e))?;
 
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or("Failed to capture texlab stdout")?;
+
+        if let Some(stderr) = child.stderr.take() {
+            tokio::spawn(async move {
+                let mut reader = BufReader::new(stderr);
+                let mut line = String::new();
+                while let Ok(bytes_read) = reader.read_line(&mut line).await {
+                    if bytes_read == 0 {
+                        break;
+                    }
+                    line.clear();
+                }
+            });
+        }
+
+        self.stdout = Some(BufReader::new(stdout));
         self.process = Some(child);
         Ok(())
     }
 
     /// Σταματάει το texlab server
     pub async fn stop(&mut self) -> Result<(), String> {
-        if let Some(mut child) = self.process.take() {
-            // Προσπάθεια graceful shutdown με LSP shutdown request
-            let _ = self.send_shutdown_request().await;
+        if self.process.is_none() {
+            return Err("Texlab server is not running".to_string());
+        }
 
-            child
+        // Attempt the LSP shutdown handshake before detaching the process.
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            self.send_shutdown_request(),
+        )
+        .await;
+
+        self.stdout = None;
+        let mut child = self.process.take().expect("process checked above");
+        match tokio::time::timeout(std::time::Duration::from_secs(2), child.wait()).await {
+            Ok(Ok(_)) => Ok(()),
+            Ok(Err(error)) => Err(format!("Failed waiting for texlab: {}", error)),
+            Err(_) => child
                 .kill()
                 .await
-                .map_err(|e| format!("Failed to kill texlab: {}", e))?;
-            Ok(())
-        } else {
-            Err("Texlab server is not running".to_string())
+                .map_err(|error| format!("Failed to kill texlab: {}", error)),
         }
     }
 
@@ -103,23 +133,6 @@ impl TexlabManager {
         // Αποστολή του LSP message
         let child = self.process.as_mut().unwrap();
 
-        // Read stderr in background to suppress errors
-        if let Some(stderr) = child.stderr.take() {
-            tokio::spawn(async move {
-                let mut reader = tokio::io::BufReader::new(stderr);
-                let mut line = String::new();
-                while let Ok(n) =
-                    tokio::io::AsyncBufReadExt::read_line(&mut reader, &mut line).await
-                {
-                    if n == 0 {
-                        break;
-                    }
-                    // Suppress stderr output
-                    line.clear();
-                }
-            });
-        }
-
         let stdin = child
             .stdin
             .as_mut()
@@ -135,12 +148,10 @@ impl TexlabManager {
             .map_err(|e| format!("Failed to flush: {}", e))?;
 
         // Ανάγνωση απάντησης - LOOP μέχρι να βρούμε το σωστό response
-        let stdout = child
+        let reader = self
             .stdout
             .as_mut()
             .ok_or("Failed to get stdout".to_string())?;
-
-        let mut reader = BufReader::new(stdout);
 
         // Loop για να διαβάσουμε πολλαπλά μηνύματα μέχρι να βρούμε το response με το σωστό id
         loop {
@@ -198,7 +209,7 @@ impl TexlabManager {
 
             // Διάβασμα του JSON message
             let mut buffer = vec![0; content_length];
-            tokio::io::AsyncReadExt::read_exact(&mut reader, &mut buffer)
+            tokio::io::AsyncReadExt::read_exact(reader, &mut buffer)
                 .await
                 .map_err(|e| format!("Failed to read message: {}", e))?;
 
@@ -280,8 +291,8 @@ impl TexlabManager {
 
     /// Στέλνει shutdown request
     async fn send_shutdown_request(&mut self) -> Result<(), String> {
-        let _ = self.send_request("shutdown", Value::Null).await?;
-        let _ = self.send_notification("exit", Value::Null).await?;
+        self.send_request("shutdown", Value::Null).await?;
+        self.send_notification("exit", Value::Null).await?;
         Ok(())
     }
 
@@ -293,12 +304,8 @@ impl TexlabManager {
 
 impl Drop for TexlabManager {
     fn drop(&mut self) {
-        // Sync drop - just kill the process
-        if let Some(child) = self.process.take() {
-            let _ = std::process::Command::new("kill")
-                .arg("-9")
-                .arg(child.id().unwrap().to_string())
-                .output();
+        if let Some(mut child) = self.process.take() {
+            let _ = child.start_kill();
         }
     }
 }

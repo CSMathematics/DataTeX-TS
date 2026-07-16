@@ -235,7 +235,7 @@ pub async fn process_graph_data(
             let kind = r.kind.as_deref().unwrap_or("document").to_string();
             let name = r.title.clone().unwrap_or_else(|| {
                 r.path
-                    .rsplit(|c| c == '/' || c == '\\')
+                    .rsplit(['/', '\\'])
                     .next()
                     .unwrap_or(&r.id)
                     .to_string()

@@ -81,7 +81,7 @@ function buildHierarchyTree(
   chapters: Chapter[],
   sections: Section[],
   subsections: Subsection[],
-  filterFieldId?: string
+  filterFieldId?: string,
 ): HierarchyNode[] {
   const filteredFields = filterFieldId
     ? fields.filter((f) => f.id === filterFieldId)
@@ -191,7 +191,7 @@ const HierarchyTreeNode: React.FC<HierarchyTreeNodeProps> = ({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       onCheck(node.type, node.id, e.target.checked);
     },
-    [node.type, node.id, onCheck]
+    [node.type, node.id, onCheck],
   );
 
   const handleStartCreate = useCallback(() => {
@@ -222,7 +222,7 @@ const HierarchyTreeNode: React.FC<HierarchyTreeNodeProps> = ({
         handleCancelCreate();
       }
     },
-    [handleCommitCreate, handleCancelCreate]
+    [handleCommitCreate, handleCancelCreate],
   );
 
   // Rename handlers
@@ -252,7 +252,7 @@ const HierarchyTreeNode: React.FC<HierarchyTreeNodeProps> = ({
         handleCancelRename();
       }
     },
-    [handleCommitRename, handleCancelRename]
+    [handleCommitRename, handleCancelRename],
   );
 
   // Delete handler
@@ -319,7 +319,7 @@ const HierarchyTreeNode: React.FC<HierarchyTreeNodeProps> = ({
             style={{ flex: 1 }}
           />
         ) : (
-          <Text size="sm" style={{ flex: 1 }}>
+          <Text size="xs" style={{ flex: 1 }}>
             {node.name}
           </Text>
         )}
@@ -454,9 +454,9 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
         chapters,
         sections,
         subsections,
-        filterFieldId
+        filterFieldId,
       ),
-    [fields, chapters, sections, subsections, filterFieldId]
+    [fields, chapters, sections, subsections, filterFieldId],
   );
 
   // Create Sets for O(1) lookups
@@ -472,7 +472,7 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
       checkedChapterIds,
       checkedSectionIds,
       checkedSubsectionIds,
-    ]
+    ],
   );
 
   // Default handlers
@@ -480,28 +480,28 @@ export const HierarchyTree: React.FC<HierarchyTreeProps> = ({
     (type: HierarchyType, id: string, checked: boolean) => {
       onCheck?.(type, id, checked);
     },
-    [onCheck]
+    [onCheck],
   );
 
   const handleCreate = useCallback(
     (type: HierarchyType, name: string, parentId?: string) => {
       onCreate?.(type, name, parentId);
     },
-    [onCreate]
+    [onCreate],
   );
 
   const handleDelete = useCallback(
     (type: HierarchyType, id: string) => {
       onDelete?.(type, id);
     },
-    [onDelete]
+    [onDelete],
   );
 
   const handleRename = useCallback(
     (type: HierarchyType, id: string, newName: string) => {
       onRename?.(type, id, newName);
     },
-    [onRename]
+    [onRename],
   );
 
   if (tree.length === 0) {

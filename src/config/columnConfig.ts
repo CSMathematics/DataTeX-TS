@@ -14,23 +14,40 @@ export interface ColumnDef {
 // Standard columns shown for all resource types
 const STANDARD_COLUMNS: ColumnDef[] = [
   { key: "title", label: "Τίτλος", priority: 1, formatType: "text" },
-  { key: "collection", label: "Συλλογή", priority: 2, formatType: "badge" },
+  {
+    key: "collection",
+    label: "Βάση Δεδομένων",
+    priority: 2,
+    formatType: "badge",
+  },
   { key: "kind", label: "Τύπος", priority: 3, formatType: "badge" },
+];
+
+// Shared hierarchy columns for resources with educational taxonomy
+const HIERARCHY_COLUMNS: ColumnDef[] = [
+  { key: "fieldId", label: "Πεδίο", priority: 5, formatType: "badge" },
+  { key: "chapters", label: "Κεφάλαια", priority: 6, formatType: "tags" },
+  { key: "sections", label: "Ενότητες", priority: 7, formatType: "tags" },
+  { key: "subsections", label: "Υποενότητες", priority: 8, formatType: "tags" },
 ];
 
 // Column schemas per resource kind
 export const COLUMN_SCHEMAS: Record<string, ColumnDef[]> = {
   file: [
     ...STANDARD_COLUMNS,
+    ...HIERARCHY_COLUMNS,
     {
       key: "difficulty",
       label: "Δυσκολία",
       priority: 10,
       formatType: "rating",
     },
-    { key: "field", label: "Πεδίο", priority: 11, formatType: "text" },
-    { key: "chapters", label: "Κεφάλαια", priority: 12, formatType: "tags" },
-    { key: "sections", label: "Ενότητες", priority: 13, formatType: "tags" },
+    {
+      key: "fileTypeId",
+      label: "Τύπος Αρχείου",
+      priority: 11,
+      formatType: "badge",
+    },
     {
       key: "exerciseTypes",
       label: "Τύπος Άσκησης",
@@ -38,7 +55,7 @@ export const COLUMN_SCHEMAS: Record<string, ColumnDef[]> = {
       formatType: "tags",
     },
     {
-      key: "solved_prooved",
+      key: "solvedProoved",
       label: "Λυμένο",
       priority: 15,
       formatType: "text",
@@ -60,6 +77,7 @@ export const COLUMN_SCHEMAS: Record<string, ColumnDef[]> = {
 
   document: [
     ...STANDARD_COLUMNS,
+    ...HIERARCHY_COLUMNS,
     {
       key: "documentTypeId",
       label: "Τύπος Εγγράφου",
@@ -81,6 +99,7 @@ export const COLUMN_SCHEMAS: Record<string, ColumnDef[]> = {
 
   table: [
     ...STANDARD_COLUMNS,
+    ...HIERARCHY_COLUMNS,
     {
       key: "tableTypeId",
       label: "Τύπος Πίνακα",
@@ -100,8 +119,9 @@ export const COLUMN_SCHEMAS: Record<string, ColumnDef[]> = {
 
   figure: [
     ...STANDARD_COLUMNS,
+    ...HIERARCHY_COLUMNS,
     {
-      key: "plotTypeId",
+      key: "figureTypeId",
       label: "Τύπος Σχήματος",
       priority: 10,
       formatType: "badge",

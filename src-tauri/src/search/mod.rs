@@ -1,9 +1,11 @@
 use crate::database::entities::Resource;
 use rayon::prelude::*;
-use regex::Regex;
+use regex::{NoExpand, Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 /// Search query parameters
@@ -59,6 +61,14 @@ pub fn search_in_files(
     resources: Vec<Resource>,
 ) -> Result<SearchResult, String> {
     let start_time = Instant::now();
+    if query.text.is_empty() || query.max_results == 0 {
+        return Ok(SearchResult {
+            matches: Vec::new(),
+            total_files_searched: 0,
+            search_duration_ms: 0,
+        });
+    }
+    let regex = build_search_regex(query)?;
 
     // Filter resources by file type if specified
     let filtered_resources: Vec<Resource> = if query.file_types.is_empty() {
@@ -80,14 +90,28 @@ pub fn search_in_files(
 
     // Use Rayon for parallel search across files
     // Collect all matches from all files, then flatten and limit
-    let mut all_matches: Vec<SearchMatch> = filtered_resources
+    let remaining = AtomicUsize::new(query.max_results);
+    let all_matches: Vec<SearchMatch> = filtered_resources
         .par_iter()
-        .map(|resource| search_single_file(&resource.path, &resource.id, query).unwrap_or_default())
+        .map(|resource| {
+            if remaining.load(Ordering::Relaxed) == 0 {
+                return Vec::new();
+            }
+
+            search_single_file(&resource.path, &resource.id, &regex, query.max_results)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|_| {
+                    remaining
+                        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+                            value.checked_sub(1)
+                        })
+                        .is_ok()
+                })
+                .collect()
+        })
         .flatten()
         .collect();
-
-    // Limit results
-    all_matches.truncate(query.max_results);
 
     let duration = start_time.elapsed();
 
@@ -102,33 +126,13 @@ pub fn search_in_files(
 fn search_single_file(
     file_path: &str,
     resource_id: &str,
-    query: &SearchQuery,
+    regex: &Regex,
+    max_results: usize,
 ) -> Result<Vec<SearchMatch>, String> {
-    let file = File::open(file_path).map_err(|e| format!("Failed to open file: {}", e))?;
-    let reader = BufReader::new(file);
-
     let mut matches = Vec::new();
-    let mut lines: Vec<String> = Vec::new();
-
-    // Read all lines first for context access
-    for line in reader.lines() {
-        if let Ok(line) = line {
-            lines.push(line);
-        }
-    }
-
-    // Prepare search pattern
-    let pattern = if query.use_regex {
-        query.text.clone()
-    } else {
-        regex::escape(&query.text)
-    };
-
-    let regex_pattern = if query.case_sensitive {
-        Regex::new(&pattern).map_err(|e| format!("Invalid regex: {}", e))?
-    } else {
-        Regex::new(&format!("(?i){}", pattern)).map_err(|e| format!("Invalid regex: {}", e))?
-    };
+    let content = fs::read_to_string(file_path)
+        .map_err(|error| format!("Failed to read '{}': {}", file_path, error))?;
+    let lines: Vec<&str> = content.lines().collect();
 
     // Extract file name from path
     let file_name = std::path::Path::new(file_path)
@@ -139,24 +143,33 @@ fn search_single_file(
 
     // Search through lines
     for (line_idx, line_content) in lines.iter().enumerate() {
-        if let Some(mat) = regex_pattern.find(line_content) {
-            // Debug log
-            println!("Found match at line {}: '{}'", line_idx + 1, line_content);
-            println!("Match positions: start={}, end={}", mat.start(), mat.end());
-
-            // Get context lines (2 before and 2 after)
+        let line_matches = regex.find_iter(line_content);
+        for mat in line_matches {
+            // Get context lines (2 before and 2 after).
             let context_before: Vec<String> = if line_idx >= 2 {
-                lines[line_idx - 2..line_idx].to_vec()
+                lines[line_idx - 2..line_idx]
+                    .iter()
+                    .map(|line| (*line).to_string())
+                    .collect()
             } else if line_idx >= 1 {
-                lines[line_idx - 1..line_idx].to_vec()
+                lines[line_idx - 1..line_idx]
+                    .iter()
+                    .map(|line| (*line).to_string())
+                    .collect()
             } else {
                 Vec::new()
             };
 
             let context_after: Vec<String> = if line_idx + 3 <= lines.len() {
-                lines[line_idx + 1..line_idx + 3].to_vec()
+                lines[line_idx + 1..line_idx + 3]
+                    .iter()
+                    .map(|line| (*line).to_string())
+                    .collect()
             } else if line_idx + 2 <= lines.len() {
-                lines[line_idx + 1..line_idx + 2].to_vec()
+                lines[line_idx + 1..line_idx + 2]
+                    .iter()
+                    .map(|line| (*line).to_string())
+                    .collect()
             } else {
                 Vec::new()
             };
@@ -166,17 +179,22 @@ fn search_single_file(
                 file_path: file_path.to_string(),
                 file_name: file_name.clone(),
                 line_number: line_idx + 1, // 1-indexed
-                line_content: line_content.clone(),
+                line_content: (*line_content).to_string(),
                 match_start: mat.start(),
                 match_end: mat.end(),
                 context_before,
                 context_after,
             });
 
-            // Stop if we've reached max results
-            if matches.len() >= query.max_results {
+            // Stop if we've reached the per-task upper bound. The caller also
+            // enforces one global bound across all parallel tasks.
+            if matches.len() >= max_results {
                 break;
             }
+        }
+
+        if matches.len() >= max_results {
+            break;
         }
     }
 
@@ -189,6 +207,10 @@ pub fn replace_in_files(
     resources: Vec<Resource>,
 ) -> Result<ReplaceResult, String> {
     let start_time = Instant::now();
+    if query.search.text.is_empty() {
+        return Err("Search query cannot be empty".to_string());
+    }
+    let regex = build_search_regex(&query.search)?;
 
     // Filter resources by file type if specified
     let filtered_resources: Vec<Resource> = if query.search.file_types.is_empty() {
@@ -208,13 +230,31 @@ pub fn replace_in_files(
     };
 
     // Use Rayon for parallel replace across files
-    let results: Vec<(bool, usize)> = filtered_resources
+    let results: Vec<Result<(bool, usize), String>> = filtered_resources
         .par_iter()
-        .map(|resource| replace_in_single_file(&resource.path, query).unwrap_or((false, 0)))
+        .map(|resource| replace_in_single_file(&resource.path, query, &regex))
         .collect();
 
-    let total_files_changed = results.iter().filter(|(changed, _)| *changed).count();
-    let total_replacements = results.iter().map(|(_, count)| count).sum();
+    let mut total_files_changed = 0;
+    let mut total_replacements = 0;
+    let mut errors = Vec::new();
+    for result in results {
+        match result {
+            Ok((changed, count)) => {
+                total_files_changed += usize::from(changed);
+                total_replacements += count;
+            }
+            Err(error) => errors.push(error),
+        }
+    }
+
+    if !errors.is_empty() {
+        return Err(format!(
+            "Replace failed for {} file(s): {}",
+            errors.len(),
+            errors.join("; ")
+        ));
+    }
 
     let duration = start_time.elapsed();
 
@@ -226,85 +266,159 @@ pub fn replace_in_files(
 }
 
 /// Replace within a single file
-fn replace_in_single_file(file_path: &str, query: &ReplaceQuery) -> Result<(bool, usize), String> {
-    let file = File::open(file_path).map_err(|e| format!("Failed to open file: {}", e))?;
-    let reader = BufReader::new(file);
-
-    let mut lines: Vec<String> = Vec::new();
-    let mut changed = false;
-    let mut replacements = 0;
-
-    // Read all lines
-    for line in reader.lines() {
-        if let Ok(line) = line {
-            lines.push(line);
-        }
+fn replace_in_single_file(
+    file_path: &str,
+    query: &ReplaceQuery,
+    regex: &Regex,
+) -> Result<(bool, usize), String> {
+    let content = fs::read_to_string(file_path)
+        .map_err(|error| format!("Failed to read '{}': {}", file_path, error))?;
+    let replacements = regex.find_iter(&content).count();
+    if replacements == 0 {
+        return Ok((false, 0));
     }
 
-    // Prepare search pattern
-    let pattern = if query.search.use_regex {
-        query.search.text.clone()
+    let replaced = if query.search.use_regex {
+        regex.replace_all(&content, query.replace_with.as_str())
     } else {
-        regex::escape(&query.search.text)
+        regex.replace_all(&content, NoExpand(query.replace_with.as_str()))
     };
 
-    let regex_pattern = if query.search.case_sensitive {
-        Regex::new(&pattern).map_err(|e| format!("Invalid regex: {}", e))?
+    if replaced == content {
+        return Ok((false, 0));
+    }
+
+    atomic_write(Path::new(file_path), replaced.as_bytes())?;
+    Ok((true, replacements))
+}
+
+fn build_search_regex(query: &SearchQuery) -> Result<Regex, String> {
+    let pattern = if query.use_regex {
+        query.text.clone()
     } else {
-        Regex::new(&format!("(?i){}", pattern)).map_err(|e| format!("Invalid regex: {}", e))?
+        regex::escape(&query.text)
     };
 
-    // Perform replacement in memory
-    let mut new_lines = Vec::new();
-    for line in lines {
-        if regex_pattern.is_match(&line) {
-            let replaced = regex_pattern.replace_all(&line, &query.replace_with);
-            if replaced != line {
-                replacements += line.match_indices(&query.search.text).count(); // Approximate count for regex
-                if query.search.use_regex {
-                    replacements = regex_pattern.find_iter(&line).count();
-                }
-                new_lines.push(replaced.to_string());
-                changed = true;
-            } else {
-                new_lines.push(line);
-            }
-        } else {
-            new_lines.push(line);
-        }
-    }
+    RegexBuilder::new(&pattern)
+        .case_insensitive(!query.case_sensitive)
+        .build()
+        .map_err(|error| format!("Invalid regex: {}", error))
+}
 
-    // Write back to file if changed
-    if changed {
-        use std::io::Write;
-        let mut file = File::create(file_path)
-            .map_err(|e| format!("Failed to create file for writing: {}", e))?;
-        for line in new_lines {
-            writeln!(file, "{}", line).map_err(|e| format!("Failed to write line: {}", e))?;
-        }
-    }
+fn atomic_write(path: &Path, content: &[u8]) -> Result<(), String> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("datatex");
+    let temp_path = parent.join(format!(".{}.{}.tmp", file_name, uuid::Uuid::new_v4()));
 
-    Ok((changed, replacements))
+    let write_result = (|| -> Result<(), String> {
+        let mut temp_file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&temp_path)
+            .map_err(|error| format!("Failed to create temporary file: {}", error))?;
+        temp_file
+            .write_all(content)
+            .map_err(|error| format!("Failed to write temporary file: {}", error))?;
+        temp_file
+            .sync_all()
+            .map_err(|error| format!("Failed to flush temporary file: {}", error))?;
+
+        if let Ok(metadata) = fs::metadata(path) {
+            fs::set_permissions(&temp_path, metadata.permissions())
+                .map_err(|error| format!("Failed to preserve file permissions: {}", error))?;
+        }
+
+        fs::rename(&temp_path, path)
+            .map_err(|error| format!("Failed to replace '{}': {}", path.display(), error))?;
+        Ok(())
+    })();
+
+    if write_result.is_err() {
+        let _ = fs::remove_file(&temp_path);
+    }
+    write_result
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+
+    fn temporary_file(contents: &[u8]) -> PathBuf {
+        let path =
+            std::env::temp_dir().join(format!("datatex-search-{}.tex", uuid::Uuid::new_v4()));
+        fs::write(&path, contents).expect("temporary search fixture should be writable");
+        path
+    }
 
     #[test]
-    fn test_search_query_case_sensitive() {
-        // This is a placeholder test
-        // In a real scenario, we'd create a temp file and test searching
+    fn literal_replace_preserves_crlf_and_treats_dollar_as_text() {
+        let path = temporary_file(b"Foo $1\r\nfoo");
         let query = SearchQuery {
-            text: "test".to_string(),
-            case_sensitive: true,
+            text: "foo".to_string(),
+            case_sensitive: false,
             use_regex: false,
             file_types: vec!["tex".to_string()],
             max_results: 100,
         };
+        let replace_query = ReplaceQuery {
+            search: query.clone(),
+            replace_with: "$1".to_string(),
+        };
+        let regex = build_search_regex(&query).unwrap();
 
-        assert_eq!(query.text, "test");
-        assert!(query.case_sensitive);
+        let result = replace_in_single_file(path.to_str().unwrap(), &replace_query, &regex);
+        assert_eq!(result.unwrap(), (true, 2));
+        assert_eq!(fs::read(&path).unwrap(), b"$1 $1\r\n$1");
+
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn regex_replace_counts_every_match() {
+        let path = temporary_file(b"a1\na2\na3");
+        let query = SearchQuery {
+            text: r"a\d".to_string(),
+            case_sensitive: true,
+            use_regex: true,
+            file_types: Vec::new(),
+            max_results: usize::MAX,
+        };
+        let replace_query = ReplaceQuery {
+            search: query.clone(),
+            replace_with: "x".to_string(),
+        };
+        let regex = build_search_regex(&query).unwrap();
+
+        let result = replace_in_single_file(path.to_str().unwrap(), &replace_query, &regex);
+        assert_eq!(result.unwrap(), (true, 3));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "x\nx\nx");
+
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn search_reports_every_match_on_a_line() {
+        let path = temporary_file(b"foo foo foo");
+        let regex = build_search_regex(&SearchQuery {
+            text: "foo".to_string(),
+            case_sensitive: true,
+            use_regex: false,
+            file_types: Vec::new(),
+            max_results: 10,
+        })
+        .unwrap();
+
+        let matches = search_single_file(path.to_str().unwrap(), "resource", &regex, 10).unwrap();
+        assert_eq!(matches.len(), 3);
+        assert_eq!(matches[0].match_start, 0);
+        assert_eq!(matches[1].match_start, 4);
+        assert_eq!(matches[2].match_start, 8);
+
+        fs::remove_file(path).unwrap();
     }
 
     #[test]

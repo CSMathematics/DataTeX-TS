@@ -16,12 +16,19 @@ function pathToUri(path: string): string {
     // If decoding fails, the path wasn't encoded - use as-is
   }
 
-  // Encode each path segment while preserving slashes
-  const encoded = cleanPath
+  // Normalize Windows separators before encoding. Drive separators (C:) are
+  // URI syntax and must not be percent-encoded.
+  const normalizedPath = cleanPath.replace(/\\/g, "/");
+  const encoded = normalizedPath
     .split("/")
-    .map((segment) => encodeURIComponent(segment))
+    .map((segment) =>
+      /^[a-zA-Z]:$/.test(segment) ? segment : encodeURIComponent(segment),
+    )
     .join("/");
-  return `file://${encoded}`;
+
+  return encoded.startsWith("/")
+    ? `file://${encoded}`
+    : `file:///${encoded}`;
 }
 
 /**

@@ -35,6 +35,8 @@ import {
   faCompress,
 } from "@fortawesome/free-solid-svg-icons";
 import { TIKZ_TEMPLATES } from "./tikzTemplates";
+import { useResizable } from "../../hooks/useResizable";
+import { ResizerHandle } from "../ui/ResizerHandle";
 
 // --- Types ---
 export type WizardMode = "shapes" | "plots" | "text" | "templates";
@@ -138,19 +140,37 @@ const DEFAULT_STYLE: ElementStyle = {
 export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
   // --- Layout State ---
   const [activeTab, setActiveTab] = useState<string>("shapes");
-  const [leftColWidth, setLeftColWidth] = useState(30);
-  const [topSectionHeight, setTopSectionHeight] = useState(300);
-  const [isResizingHoriz, setIsResizingHoriz] = useState(false);
-  const [isResizingVert, setIsResizingVert] = useState(false);
+  const {
+    size: leftColWidth,
+    startResizing: startResizingHoriz,
+    containerRef,
+    targetRef: leftColRef,
+  } = useResizable({
+    direction: "horizontal",
+    initialSize: 30,
+    minSize: 20,
+    maxSize: 80,
+    usePercentage: true,
+  });
+  const {
+    size: topSectionHeight,
+    startResizing: startResizingVert,
+    containerRef: rightColRef,
+    targetRef: topSectionRef,
+  } = useResizable({
+    direction: "vertical",
+    initialSize: 300,
+    minSize: 100,
+    maxSize: Number.POSITIVE_INFINITY,
+    maxSizeOffset: 100,
+    usePercentage: false,
+  });
 
   // --- Data State ---
   const [elements, setElements] = useState<SceneElement[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [codeValue, setCodeValue] = useState("");
 
-  // Refs
-  const containerRef = useRef<HTMLDivElement>(null);
-  const rightColRef = useRef<HTMLDivElement>(null);
   const shouldSkipUpdate = useRef(false);
 
   // --- Default States for New Objects ---
@@ -467,10 +487,6 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
     setCodeValue(code);
   }, [elements]);
 
-  // --- Resize Logic ---
-  const startResizingHoriz = () => setIsResizingHoriz(true);
-  const startResizingVert = () => setIsResizingVert(true);
-
   // --- Pan & Zoom Logic ---
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
@@ -517,29 +533,13 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
 
   useEffect(() => {
     const handleUp = () => {
-      setIsResizingHoriz(false);
-      setIsResizingVert(false);
       setIsPanning(false);
     };
-    const handleMove = (e: MouseEvent) => {
-      if (isResizingHoriz && containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const newW = ((e.clientX - rect.left) / rect.width) * 100;
-        setLeftColWidth(Math.max(20, Math.min(newW, 80)));
-      }
-      if (isResizingVert && rightColRef.current) {
-        const rect = rightColRef.current.getBoundingClientRect();
-        const newH = e.clientY - rect.top;
-        setTopSectionHeight(Math.max(100, Math.min(newH, rect.height - 100)));
-      }
-    };
     window.addEventListener("mouseup", handleUp);
-    window.addEventListener("mousemove", handleMove);
     return () => {
       window.removeEventListener("mouseup", handleUp);
-      window.removeEventListener("mousemove", handleMove);
     };
-  }, [isResizingHoriz, isResizingVert]);
+  }, []);
 
   // --- Render ---
   return (
@@ -554,6 +554,7 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
     >
       {/* LEFT SIDEBAR */}
       <Box
+        ref={leftColRef}
         style={{
           width: `${leftColWidth}%`,
           borderRight: "1px solid var(--mantine-color-default-border)",
@@ -1267,13 +1268,9 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
       </Box>
 
       {/* RESIZER */}
-      <Box
-        onMouseDown={startResizingHoriz}
-        style={{
-          width: 2,
-          cursor: "col-resize",
-          background: "var(--mantine-color-default-border)",
-        }}
+      <ResizerHandle
+        onPointerDown={startResizingHoriz}
+        orientation="vertical"
       />
 
       {/* RIGHT PREVIEW & CODE */}
@@ -1288,6 +1285,7 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
       >
         {/* PREVIEW */}
         <Box
+          ref={topSectionRef}
           style={{
             height: topSectionHeight,
             borderBottom: "1px solid gray",
@@ -1586,18 +1584,10 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
         </Box>
 
         {/* VERTICAL RESIZER */}
-        <Box
-          onMouseDown={startResizingVert}
-          style={{
-            height: 2,
-            cursor: "row-resize",
-            background: "var(--mantine-color-default-border)",
-            display: "flex",
-            justifyContent: "center",
-          }}
-        >
-          <FontAwesomeIcon icon={faGripLines} style={{ opacity: 0.3 }} />
-        </Box>
+        <ResizerHandle
+          onPointerDown={startResizingVert}
+          orientation="horizontal"
+        />
 
         {/* CODE EDITOR */}
         <Box

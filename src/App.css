@@ -23,6 +23,176 @@ body,
   overflow: hidden;
 }
 
+/* Shared resize handles: a generous hit target around a neutral 1px divider. */
+.resize-handle {
+  position: relative;
+  z-index: 50;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  background: transparent;
+  user-select: none;
+  touch-action: none;
+}
+
+.resize-handle::before {
+  content: "";
+  position: absolute;
+  background: var(--mantine-color-default-border);
+  pointer-events: none;
+}
+
+.resize-handle:hover::before {
+  background: var(--mantine-color-dimmed);
+}
+
+.resize-handle--vertical {
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+.resize-handle--vertical::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+}
+
+.resize-handle--horizontal {
+  width: 100%;
+  height: 6px;
+  cursor: row-resize;
+}
+
+.resize-handle--horizontal::before {
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 1px;
+  transform: translateY(-50%);
+}
+
+body[data-resizing] {
+  user-select: none;
+}
+
+/* Imperative drag shield: avoids rendering the whole React tree on
+   pointer-down/up just to protect embedded viewers. */
+body[data-resizing]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: transparent;
+  touch-action: none;
+}
+
+body[data-resizing="col-resize"]::after {
+  cursor: col-resize;
+}
+
+body[data-resizing="row-resize"]::after {
+  cursor: row-resize;
+}
+
+/* The outer viewport follows the right splitter live. During the drag its
+   expensive contents keep their starting dimensions, so PDF canvases,
+   metadata forms and Monaco do not receive a resize on every frame. */
+.right-panel {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--right-panel-width);
+  min-width: 0;
+  contain: layout paint;
+}
+
+.right-panel__content {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.right-panel[data-resizing] .right-panel__content {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: var(--right-panel-frozen-width);
+  min-width: var(--right-panel-frozen-width);
+  max-width: var(--right-panel-frozen-width);
+  contain: strict;
+}
+
+/* The bottom database splitter follows the pointer through a scoped height
+   write. Its heavy descendants retain their starting dimensions during the
+   drag, preventing Monaco, ScrollArea and graph observers from relaying out
+   the application on every frame. */
+.database-bottom-layout {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.database-bottom-editor,
+.database-bottom-panel {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.database-bottom-editor__content,
+.database-bottom-panel__content {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  overflow-anchor: none;
+  contain: layout paint;
+}
+
+.database-bottom-panel {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  height: var(--database-panel-height);
+  min-height: 100px;
+  max-height: 80%;
+}
+
+.database-bottom-layout[data-resizing]
+  .database-bottom-editor__content {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: var(--database-editor-frozen-height);
+  min-height: var(--database-editor-frozen-height);
+  max-height: var(--database-editor-frozen-height);
+  contain: strict;
+}
+
+.database-bottom-layout[data-resizing]
+  .database-bottom-panel__content {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: var(--database-content-frozen-height);
+  min-height: var(--database-content-frozen-height);
+  max-height: var(--database-content-frozen-height);
+  contain: strict;
+}
+
+.sidebar-content-panel {
+  transition: width 300ms ease-in-out, opacity 200ms ease-in-out;
+}
+
+body[data-resizing] .sidebar-content-panel {
+  transition: none;
+}
+
 /* Global inputs/selects override */
 input,
 button,
@@ -107,3 +277,13 @@ a:hover {
     border-left-color: rgba(51, 154, 240, 0);
   }
 }
+
+/* Global Override for FontAwesome icons inside Mantine ActionIcon
+.svg-inline--fa:hover,
+.fa:hover,
+.fas:hover,
+.far:hover {
+  color: var(--app-accent-color);
+} */
+
+/* --- RESOURCE INSPECTOR FIXES --- */

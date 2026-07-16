@@ -1,4 +1,12 @@
-import { useState, useEffect } from "react";
+import {
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   Stack,
@@ -19,18 +27,37 @@ import {
   faMagic,
   faPlus,
 } from "@fortawesome/free-solid-svg-icons";
-import { PreambleWizard } from "../wizards/PreambleWizard";
 import { BUILTIN_PREAMBLES } from "../../data/preambles";
 import { useDatabaseStore } from "../../stores/databaseStore";
-import { DynamicMetadataEditor } from "../metadata/DynamicMetadataEditor";
 import { useTypedMetadataStore } from "../../stores/typedMetadataStore";
 import { useTabsStore } from "../../stores/useTabsStore";
-import { readFile, exists } from "@tauri-apps/plugin-fs";
+import { readFile } from "@tauri-apps/plugin-fs";
 import { PdfViewerContainer } from "./PdfViewerContainer";
 import { LoadingState, EmptyState, PanelHeader, ToolbarButton } from "../ui";
-import Editor from "@monaco-editor/react";
 import { faCode } from "@fortawesome/free-solid-svg-icons";
+import { loadLocalMonaco } from "../../services/monacoLoader";
 import "../../styles/pdf-viewer.css";
+
+const PreambleWizard = lazy(() =>
+  import("../wizards/PreambleWizard").then((module) => ({
+    default: module.PreambleWizard,
+  })),
+);
+
+const DynamicMetadataEditor = lazy(() =>
+  import("../metadata/DynamicMetadataEditor").then((module) => ({
+    default: module.DynamicMetadataEditor,
+  })),
+);
+
+const CodeEditor = lazy(() =>
+  loadLocalMonaco().then(({ reactMonaco }) => ({
+    default: reactMonaco.default,
+  })),
+);
+
+const PDF_SOURCE_EXTENSION = /\.(?:tex|sty|cls|bib|dtx|ins)$/i;
+const normalizePath = (path: string) => path.replace(/\\/g, "/");
 
 // Classification Options
 const RESOURCE_KINDS = [
@@ -50,8 +77,13 @@ const RESOURCE_KINDS = [
 interface ResourceInspectorProps {
   /** PDF URL from main editor */
   mainEditorPdfUrl?: string | null;
-  syncTexCoords?: { page: number; x: number; y: number } | null;
-  pdfRefreshTrigger?: number;
+  mainEditorPdfLoading?: boolean;
+  syncTexCoords?: {
+    page: number;
+    x: number;
+    y: number;
+    requestId?: number;
+  } | null;
   onInsertFragment?: (code: string) => void;
   canInsert?: boolean;
   onSyncTexInverse?: (page: number, x: number, y: number) => void;
@@ -60,33 +92,176 @@ interface ResourceInspectorProps {
   activeEditorTab?: import("../../stores/useTabsStore").AppTab;
 }
 
-export const ResourceInspector = ({
+const sameSyncTexCoords = (
+  previous: ResourceInspectorProps["syncTexCoords"],
+  next: ResourceInspectorProps["syncTexCoords"],
+) =>
+  previous === next ||
+  (previous?.page === next?.page &&
+    previous?.x === next?.x &&
+    previous?.y === next?.y &&
+    previous?.requestId === next?.requestId);
+
+const sameInspectorProps = (
+  previous: ResourceInspectorProps,
+  next: ResourceInspectorProps,
+) =>
+  previous.mainEditorPdfUrl === next.mainEditorPdfUrl &&
+  previous.mainEditorPdfLoading === next.mainEditorPdfLoading &&
+  sameSyncTexCoords(previous.syncTexCoords, next.syncTexCoords) &&
+  previous.onInsertFragment === next.onInsertFragment &&
+  previous.canInsert === next.canInsert &&
+  previous.onSyncTexInverse === next.onSyncTexInverse &&
+  previous.activeEditorTab?.id === next.activeEditorTab?.id &&
+  previous.activeEditorTab?.isDtexFile === next.activeEditorTab?.isDtexFile &&
+  previous.activeEditorTab?.dtexMetadata ===
+    next.activeEditorTab?.dtexMetadata;
+
+const ResourceInspectorComponent = ({
   mainEditorPdfUrl,
+  mainEditorPdfLoading,
   syncTexCoords,
-  pdfRefreshTrigger,
   onInsertFragment,
   canInsert,
   onSyncTexInverse,
   activeEditorTab,
 }: ResourceInspectorProps) => {
   const { t } = useTranslation();
-  const { allLoadedResources, activeResourceId } = useDatabaseStore();
-  const { updateTabMetadata, markMetadataDirty } = useTabsStore();
-
-  // Prioritize resource matching activeEditorTab, fallback to activeResourceId
-  const resource = allLoadedResources.find(
-    (r) =>
-      (activeEditorTab && r.path === activeEditorTab.id) ||
-      r.id === activeResourceId,
+  const allLoadedResources = useDatabaseStore(
+    (state) => state.allLoadedResources,
   );
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [pdfLoading, setPdfLoading] = useState(false);
-  const [pdfError, setPdfError] = useState<string | null>(null);
+  const activeResourceId = useDatabaseStore(
+    (state) => state.activeResourceId,
+  );
+  const insertMode = useDatabaseStore((state) => state.insertMode);
+  const isWizardOpen = useDatabaseStore((state) => state.isWizardOpen);
+  const setWizardOpen = useDatabaseStore((state) => state.setWizardOpen);
+  const createResource = useDatabaseStore((state) => state.createResource);
+  const updateResourceKind = useDatabaseStore(
+    (state) => state.updateResourceKind,
+  );
+  const updateTabMetadata = useTabsStore((state) => state.updateTabMetadata);
+  const markMetadataDirty = useTabsStore(
+    (state) => state.markMetadataDirty,
+  );
+
+  // Do two separate lookups so an earlier activeResourceId match cannot win
+  // over the resource that belongs to the active editor tab.
+  const { resource, isActiveEditorResource } = useMemo(() => {
+    const activeEditorPath = activeEditorTab?.id
+      ? normalizePath(activeEditorTab.id)
+      : null;
+    const editorResource = activeEditorTab?.id
+      ? allLoadedResources.find(
+          (candidate) =>
+            normalizePath(candidate.path) === activeEditorPath ||
+            candidate.id === activeEditorTab.id,
+        )
+      : undefined;
+    const fallbackResource = activeResourceId
+      ? allLoadedResources.find(
+          (candidate) => candidate.id === activeResourceId,
+        )
+      : undefined;
+
+    return {
+      resource: editorResource ?? fallbackResource,
+      isActiveEditorResource: Boolean(editorResource),
+    };
+  }, [allLoadedResources, activeEditorTab?.id, activeResourceId]);
+  const mainEditorOwnsPdf = Boolean(
+    isActiveEditorResource &&
+      activeEditorTab?.id &&
+      PDF_SOURCE_EXTENSION.test(activeEditorTab.id),
+  );
+  const expectedLocalPdfPath = useMemo(() => {
+    if (!resource || mainEditorOwnsPdf) return null;
+    if (PDF_SOURCE_EXTENSION.test(resource.path)) {
+      return resource.path.replace(PDF_SOURCE_EXTENSION, ".pdf");
+    }
+    return resource.path.toLowerCase().endsWith(".pdf")
+      ? resource.path
+      : null;
+  }, [mainEditorOwnsPdf, resource?.path]);
+  const localPdfTypeUnsupported = Boolean(
+    resource && !mainEditorOwnsPdf && !expectedLocalPdfPath,
+  );
+
+  const [activeInspectorTab, setActiveInspectorTab] =
+    useState<string | null>("preview");
+  const metadataIdentity =
+    resource?.id ||
+    (activeEditorTab?.isDtexFile ? activeEditorTab.id : undefined);
+  const [mountedMetadataIdentity, setMountedMetadataIdentity] = useState<
+    string | undefined
+  >();
+  const [loadedLocalPdf, setLoadedLocalPdf] = useState<{
+    path: string;
+    url: string;
+  } | null>(null);
+  const [localPdfLoadStatus, setLocalPdfLoadStatus] = useState<{
+    path: string;
+    status: "loading" | "settled";
+  } | null>(null);
+  const [localPdfError, setLocalPdfError] = useState<{
+    path: string;
+    message: string;
+  } | null>(null);
+  const pdfUrl =
+    expectedLocalPdfPath && loadedLocalPdf?.path === expectedLocalPdfPath
+      ? loadedLocalPdf.url
+      : null;
+  const pdfLoading =
+    expectedLocalPdfPath !== null &&
+    (!localPdfLoadStatus ||
+      localPdfLoadStatus.path !== expectedLocalPdfPath ||
+      localPdfLoadStatus.status === "loading");
+  const pdfError = localPdfTypeUnsupported
+    ? "No PDF preview available for this file type."
+    : localPdfError?.path === expectedLocalPdfPath
+      ? localPdfError.message
+      : null;
 
   // Code Preview state
   const [codeContent, setCodeContent] = useState<string>("");
   const [codeLoading, setCodeLoading] = useState(false);
-  const insertMode = useDatabaseStore((state) => state.insertMode);
+
+  const hasMetadataTab = Boolean(
+    resource ||
+      (activeEditorTab?.isDtexFile && activeEditorTab.dtexMetadata),
+  );
+  const hasBibliographyTab = Boolean(
+    resource && resource.kind !== "bibliography",
+  );
+  const hasCodeTab = Boolean(
+    resource && insertMode && resource.path.toLowerCase().endsWith(".tex"),
+  );
+
+  useEffect(() => {
+    const activeTabIsAvailable =
+      activeInspectorTab === "preview" ||
+      (activeInspectorTab === "metadata" && hasMetadataTab) ||
+      (activeInspectorTab === "bibliography" && hasBibliographyTab) ||
+      (activeInspectorTab === "code" && hasCodeTab);
+
+    if (!activeTabIsAvailable) setActiveInspectorTab("preview");
+  }, [
+    activeInspectorTab,
+    hasMetadataTab,
+    hasBibliographyTab,
+    hasCodeTab,
+  ]);
+
+  useEffect(() => {
+    if (activeInspectorTab === "metadata") {
+      setMountedMetadataIdentity(metadataIdentity);
+    }
+  }, [activeInspectorTab, metadataIdentity]);
+
+  const shouldMountMetadata =
+    activeInspectorTab === "metadata" ||
+    (Boolean(metadataIdentity) &&
+      mountedMetadataIdentity === metadataIdentity);
 
   // Initialize typed metadata lookup data
   const loadAllLookupData = useTypedMetadataStore(
@@ -94,69 +269,86 @@ export const ResourceInspector = ({
   );
 
   useEffect(() => {
-    loadAllLookupData();
-  }, []);
+    if (activeInspectorTab !== "metadata") return;
+    void loadAllLookupData(resource?.collection).catch((error) => {
+      console.error("Failed to load metadata lookup data:", error);
+    });
+  }, [activeInspectorTab, loadAllLookupData, resource?.collection]);
+
+  useEffect(() => {
+    if (!loadedLocalPdf) return;
+    return () => URL.revokeObjectURL(loadedLocalPdf.url);
+  }, [loadedLocalPdf]);
 
   // Load PDF when resource changes
   useEffect(() => {
-    let activeBlobUrl: string | null = null;
+    let cancelled = false;
 
     const loadPdf = async () => {
-      if (!resource) {
-        setPdfUrl(null);
-        setPdfError(null);
+      // The main editor hook owns the PDF for the active editor. Reading it
+      // again here doubles filesystem/IPC work and creates a second Blob.
+      if (!expectedLocalPdfPath) {
+        setLoadedLocalPdf(null);
+        setLocalPdfError(null);
+        setLocalPdfLoadStatus(null);
         return;
       }
 
-      // Check if this is a tex file and look for corresponding PDF
-      const isTexFile = resource.path.toLowerCase().endsWith(".tex");
-      const pdfPath = isTexFile
-        ? resource.path.replace(/\.tex$/i, ".pdf")
-        : resource.path.toLowerCase().endsWith(".pdf")
-          ? resource.path
-          : null;
-
-      if (!pdfPath) {
-        setPdfUrl(null);
-        setPdfError("No PDF preview available for this file type.");
-        return;
-      }
-
-      setPdfLoading(true);
-      setPdfError(null);
+      const pdfPath = expectedLocalPdfPath;
+      setLocalPdfLoadStatus({ path: pdfPath, status: "loading" });
+      setLocalPdfError(null);
+      setLoadedLocalPdf((current) =>
+        current?.path === pdfPath ? current : null,
+      );
 
       try {
-        const pdfExists = await exists(pdfPath);
-
-        if (pdfExists) {
-          const fileContents = await readFile(pdfPath);
-          const blob = new Blob([fileContents], { type: "application/pdf" });
-          activeBlobUrl = URL.createObjectURL(blob);
-          setPdfUrl(activeBlobUrl);
-        } else {
-          setPdfUrl(null);
-          setPdfError("No PDF available. Compile the document first.");
+        // A direct read avoids a separate exists IPC round-trip.
+        const fileContents = await readFile(pdfPath);
+        if (cancelled) return;
+        if (fileContents.byteLength === 0) {
+          throw new Error("The PDF file is empty.");
         }
+
+        const blob = new Blob([fileContents], { type: "application/pdf" });
+        const nextBlobUrl = URL.createObjectURL(blob);
+        setLoadedLocalPdf({ path: pdfPath, url: nextBlobUrl });
       } catch (e) {
+        if (cancelled) return;
         console.warn("PDF load failed:", e);
-        setPdfUrl(null);
-        setPdfError(`Failed to load PDF: ${String(e)}`);
+        setLoadedLocalPdf(null);
+        const message = String(e);
+        setLocalPdfError({
+          path: pdfPath,
+          message: /not found|os error 2|no such file/i.test(message)
+            ? "No PDF available. Compile the document first."
+            : `Failed to load PDF: ${message}`,
+        });
       } finally {
-        setPdfLoading(false);
+        if (!cancelled) {
+          setLocalPdfLoadStatus({ path: pdfPath, status: "settled" });
+        }
       }
     };
 
-    loadPdf();
+    void loadPdf();
 
     return () => {
-      if (activeBlobUrl) URL.revokeObjectURL(activeBlobUrl);
+      cancelled = true;
     };
-  }, [resource?.path, pdfRefreshTrigger]);
+  }, [expectedLocalPdfPath]);
 
-  // Load Code when resource changes
+  // Load code only when its tab is actually visible. Inactive Mantine panels
+  // are unmounted below, so this also avoids a hidden Monaco instance.
   useEffect(() => {
+    let cancelled = false;
+
     const loadCode = async () => {
-      if (!resource) {
+      if (activeInspectorTab !== "code" || !hasCodeTab || !resource) {
+        setCodeLoading(false);
+        return;
+      }
+
+      if (!resource.path) {
         setCodeContent("");
         return;
       }
@@ -173,22 +365,40 @@ export const ResourceInspector = ({
       }
 
       setCodeLoading(true);
+      setCodeContent("");
       try {
         const { readTextFile } = await import("@tauri-apps/plugin-fs");
         const content = await readTextFile(resource.path);
-        setCodeContent(content);
+        if (!cancelled) setCodeContent(content);
       } catch (e) {
+        if (cancelled) return;
         console.warn("Code load failed:", e);
         setCodeContent(`% Failed to load: ${String(e)}`);
       } finally {
-        setCodeLoading(false);
+        if (!cancelled) setCodeLoading(false);
       }
     };
 
-    loadCode();
-  }, [resource?.path]);
+    void loadCode();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeInspectorTab, hasCodeTab, resource?.path]);
 
-  const { isWizardOpen, setWizardOpen, createResource } = useDatabaseStore();
+  const handleMetadataChange = useCallback(
+    (newMetadata: any) => {
+      if (activeEditorTab?.isDtexFile && activeEditorTab.id) {
+        updateTabMetadata(activeEditorTab.id, newMetadata);
+        markMetadataDirty(activeEditorTab.id, true);
+      }
+    },
+    [
+      activeEditorTab?.id,
+      activeEditorTab?.isDtexFile,
+      updateTabMetadata,
+      markMetadataDirty,
+    ],
+  );
 
   const handleWizardFinish = async (code: string) => {
     setWizardOpen(false);
@@ -237,7 +447,9 @@ export const ResourceInspector = ({
           }
         />
         <ScrollArea style={{ flex: 1 }}>
-          <PreambleWizard onInsert={handleWizardFinish} />
+          <Suspense fallback={<LoadingState message={t("common.loading")} />}>
+            <PreambleWizard onInsert={handleWizardFinish} />
+          </Suspense>
         </ScrollArea>
       </Stack>
     );
@@ -246,12 +458,15 @@ export const ResourceInspector = ({
   // const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const previewUrl: string | null = null; // Placeholder for future preview functionality
 
-  const effectivePdfUrl = previewUrl || pdfUrl || mainEditorPdfUrl;
+  const effectivePdfUrl = mainEditorOwnsPdf
+    ? mainEditorPdfUrl
+    : previewUrl || pdfUrl || (!resource ? mainEditorPdfUrl : null);
+  const effectivePdfLoading = mainEditorOwnsPdf || !resource
+    ? Boolean(mainEditorPdfLoading)
+    : pdfLoading;
   const filename = resource
     ? resource.title || resource.path.split(/[/\\]/).pop() || "Untitled"
     : "PDF Preview";
-
-  const { updateResourceKind } = useDatabaseStore();
 
   return (
     <>
@@ -259,7 +474,9 @@ export const ResourceInspector = ({
         <PanelHeader icon={faInfoCircle} title={filename} />
 
         <Tabs
-          defaultValue="preview"
+          value={activeInspectorTab}
+          onChange={setActiveInspectorTab}
+          keepMounted={false}
           style={{
             flex: 1,
             display: "flex",
@@ -308,7 +525,11 @@ export const ResourceInspector = ({
           </Tabs.List>
 
           {/* Preview Tab - PDF */}
-          <Tabs.Panel value="preview" style={{ flex: 1, position: "relative" }}>
+          <Tabs.Panel
+            value="preview"
+            keepMounted
+            style={{ flex: 1, position: "relative" }}
+          >
             <Box
               style={{
                 position: "absolute",
@@ -318,15 +539,14 @@ export const ResourceInspector = ({
                 right: 0,
               }}
             >
-              {pdfLoading ? (
-                <LoadingState message={t("common.loading")} />
-              ) : effectivePdfUrl ? (
+              {effectivePdfUrl ? (
                 <PdfViewerContainer
-                  key={effectivePdfUrl}
                   pdfUrl={effectivePdfUrl}
                   syncTexCoords={syncTexCoords}
                   onSyncTexInverse={onSyncTexInverse}
                 />
+              ) : effectivePdfLoading ? (
+                <LoadingState message={t("common.loading")} />
               ) : (
                 <EmptyState
                   message={pdfError || t("database.inspector.noPdf")}
@@ -336,10 +556,10 @@ export const ResourceInspector = ({
           </Tabs.Panel>
 
           {/* Metadata Tab - show for either database resource OR .dtex file */}
-          {(resource ||
-            (activeEditorTab?.isDtexFile && activeEditorTab?.dtexMetadata)) && (
+          {hasMetadataTab && shouldMountMetadata && (
             <Tabs.Panel
               value="metadata"
+              keepMounted
               style={{ flex: 1, position: "relative" }}
             >
               <ScrollArea
@@ -363,6 +583,7 @@ export const ResourceInspector = ({
                   {/* Title and File Type row */}
                   <Group grow>
                     <TextInput
+                      readOnly
                       label={t("database.inspector.fields.title")}
                       key={resource?.id || activeEditorTab?.id}
                       defaultValue={
@@ -392,7 +613,7 @@ export const ResourceInspector = ({
                     />
                   </Group>
 
-                  {/* Preamble Selector - Only for File Fragments, Tables, and Figures */}
+                  {/* Preamble Selector - Only for File Fragments, Tables, and Figures (not for Full Documents which have their own preamble) */}
                   {(resource?.kind === "file" ||
                     resource?.kind === "table" ||
                     resource?.kind === "figure" ||
@@ -456,31 +677,32 @@ export const ResourceInspector = ({
                   )}
 
                   {/* Dynamic Typed Metadata Editor - works for both database and .dtex */}
-                  <DynamicMetadataEditor
-                    resourceId={resource?.id || activeEditorTab?.id || ""}
-                    resourceType={
-                      (resource?.kind ||
+                  <Suspense
+                    fallback={<LoadingState message={t("common.loading")} />}
+                  >
+                    <DynamicMetadataEditor
+                      key={`${resource?.id || activeEditorTab?.id || ""}:${
+                        resource?.kind ||
                         activeEditorTab?.dtexMetadata?.fileType ||
-                        "file") as any
-                    }
-                    initialMetadata={
-                      activeEditorTab?.isDtexFile
-                        ? activeEditorTab.dtexMetadata
-                        : undefined
-                    }
-                    onMetadataChange={async (newMetadata) => {
-                      // For .dtex files, also save to file
-                      // For .dtex files, update store to trigger auto-save hook
-                      if (activeEditorTab?.isDtexFile && activeEditorTab.id) {
-                        updateTabMetadata(activeEditorTab.id, newMetadata);
-                        markMetadataDirty(activeEditorTab.id, true);
+                        "file"
+                      }`}
+                      resourceId={resource?.id || activeEditorTab?.id || ""}
+                      resourceType={
+                        (resource?.kind ||
+                          activeEditorTab?.dtexMetadata?.fileType ||
+                          "file") as any
                       }
-                    }}
-                    skipDatabaseSave={activeEditorTab?.isDtexFile && !resource}
-                    onSave={() => {
-                      // Metadata saved
-                    }}
-                  />
+                      initialMetadata={
+                        activeEditorTab?.isDtexFile
+                          ? activeEditorTab.dtexMetadata
+                          : undefined
+                      }
+                      onMetadataChange={handleMetadataChange}
+                      skipDatabaseSave={
+                        activeEditorTab?.isDtexFile && !resource
+                      }
+                    />
+                  </Suspense>
                 </Stack>
               </ScrollArea>
             </Tabs.Panel>
@@ -498,7 +720,7 @@ export const ResourceInspector = ({
           )}
 
           {/* Code Tab - Read-only Monaco Editor */}
-          {resource && (insertMode || resource.path.endsWith(".tex")) && (
+          {hasCodeTab && resource && (
             <Tabs.Panel value="code" style={{ flex: 1, position: "relative" }}>
               <Box
                 style={{
@@ -543,19 +765,21 @@ export const ResourceInspector = ({
                 {codeLoading ? (
                   <LoadingState message="Loading code..." />
                 ) : codeContent ? (
-                  <Editor
-                    value={codeContent}
-                    language="my-latex"
-                    theme="data-tex-dark"
-                    options={{
-                      readOnly: true,
-                      minimap: { enabled: true, scale: 2 },
-                      lineNumbers: "on",
-                      scrollBeyondLastLine: false,
-                      wordWrap: "on",
-                      fontSize: 12,
-                    }}
-                  />
+                  <Suspense fallback={<LoadingState message="Loading editor..." />}>
+                    <CodeEditor
+                      value={codeContent}
+                      language="my-latex"
+                      theme="data-tex-dark"
+                      options={{
+                        readOnly: true,
+                        minimap: { enabled: true, scale: 2 },
+                        lineNumbers: "on",
+                        scrollBeyondLastLine: false,
+                        wordWrap: "on",
+                        fontSize: 12,
+                      }}
+                    />
+                  </Suspense>
                 ) : (
                   <EmptyState message="No code content available." />
                 )}
@@ -567,3 +791,10 @@ export const ResourceInspector = ({
     </>
   );
 };
+
+export const ResourceInspector = memo(
+  ResourceInspectorComponent,
+  sameInspectorProps,
+);
+
+ResourceInspector.displayName = "ResourceInspector";

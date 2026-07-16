@@ -1,4 +1,4 @@
-import { languages, editor } from 'monaco-editor'
+import type { languages, editor } from 'monaco-editor'
 
 export const latexConfiguration: languages.LanguageConfiguration = {
   comments: {

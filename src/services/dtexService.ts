@@ -10,7 +10,6 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { debounce } from "lodash";
 import {
   DtexFile,
   DtexMetadata,
@@ -23,6 +22,36 @@ import {
  * Main service class for .dtex file operations
  */
 export class DtexService {
+  private static saveQueues = new Map<string, Promise<void>>();
+
+  private static async withFileLock(
+    filePath: string,
+    operation: () => Promise<void>,
+  ): Promise<void> {
+    const previous = this.saveQueues.get(filePath) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(operation);
+    this.saveQueues.set(filePath, current);
+
+    try {
+      await current;
+    } finally {
+      if (this.saveQueues.get(filePath) === current) {
+        this.saveQueues.delete(filePath);
+      }
+    }
+  }
+
+  private static async serializeUnlocked(
+    filePath: string,
+    dtexFile: DtexFile,
+  ): Promise<void> {
+    const updated: DtexFile = {
+      ...dtexFile,
+      modified: new Date().toISOString(),
+    };
+    await invoke("save_dtex_cmd", { filePath, file: updated });
+  }
+
   /**
    * Parse a .dtex file from disk
    * @param filePath Absolute path to the .dtex file
@@ -45,14 +74,9 @@ export class DtexService {
    */
   static async serialize(filePath: string, dtexFile: DtexFile): Promise<void> {
     try {
-      // Update modified timestamp locally or rely on backend?
-      // Rust backend currently prints whatever it gets, so we should update it here
-      const updated: DtexFile = {
-        ...dtexFile,
-        modified: new Date().toISOString(),
-      };
-
-      await invoke("save_dtex_cmd", { filePath, file: updated });
+      await this.withFileLock(filePath, () =>
+        this.serializeUnlocked(filePath, dtexFile),
+      );
     } catch (error) {
       throw new Error(`Failed to save .dtex file: ${String(error)}`);
     }
@@ -161,15 +185,11 @@ export class DtexService {
     metadata: DtexMetadata,
   ): Promise<void> {
     try {
-      // Read existing file
-      const dtexFile = await this.parse(filePath);
-
-      // Update metadata
-      dtexFile.metadata = metadata;
-      dtexFile.modified = new Date().toISOString();
-
-      // Save back
-      await this.serialize(filePath, dtexFile);
+      await this.withFileLock(filePath, async () => {
+        const dtexFile = await this.parse(filePath);
+        dtexFile.metadata = metadata;
+        await this.serializeUnlocked(filePath, dtexFile);
+      });
     } catch (error) {
       console.error("Failed to save metadata:", error);
       throw error;
@@ -187,38 +207,15 @@ export class DtexService {
     latexContent: string,
   ): Promise<void> {
     try {
-      // Read existing file
-      const dtexFile = await this.parse(filePath);
-
-      // Update content
-      dtexFile.content.latex = latexContent;
-      dtexFile.modified = new Date().toISOString();
-
-      // Save back
-      await this.serialize(filePath, dtexFile);
+      await this.withFileLock(filePath, async () => {
+        const dtexFile = await this.parse(filePath);
+        dtexFile.content.latex = latexContent;
+        await this.serializeUnlocked(filePath, dtexFile);
+      });
     } catch (error) {
       console.error("Failed to save content:", error);
       throw error;
     }
-  }
-
-  /**
-   * Debounced version of saveMetadata for auto-save functionality
-   * Waits 2 seconds after the last call before actually saving
-   */
-  static debouncedSaveMetadata = debounce(
-    async (filePath: string, metadata: DtexMetadata) => {
-      await DtexService.saveMetadata(filePath, metadata);
-    },
-    2000, // 2 second debounce
-    { leading: false, trailing: true },
-  );
-
-  /**
-   * Cancel any pending debounced saves
-   */
-  static cancelPendingSaves(): void {
-    this.debouncedSaveMetadata.cancel();
   }
 
   /**

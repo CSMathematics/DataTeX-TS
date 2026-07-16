@@ -3,7 +3,7 @@
 
 use std::fs::{self, File};
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Get the directory where texlab binary should be stored
 pub fn get_texlab_dir() -> Result<PathBuf, String> {
@@ -116,7 +116,7 @@ pub async fn download_texlab() -> Result<PathBuf, String> {
 }
 
 /// Extract a .tar.gz archive
-fn extract_tar_gz(data: &[u8], dest_dir: &PathBuf) -> Result<(), String> {
+fn extract_tar_gz(data: &[u8], dest_dir: &Path) -> Result<(), String> {
     use flate2::read::GzDecoder;
     use tar::Archive;
 
@@ -149,7 +149,7 @@ fn extract_tar_gz(data: &[u8], dest_dir: &PathBuf) -> Result<(), String> {
 }
 
 /// Extract a .zip archive (Windows)
-fn extract_zip(data: &[u8], dest_dir: &PathBuf) -> Result<(), String> {
+fn extract_zip(data: &[u8], dest_dir: &Path) -> Result<(), String> {
     use std::io::Cursor;
     use zip::ZipArchive;
 
@@ -161,7 +161,7 @@ fn extract_zip(data: &[u8], dest_dir: &PathBuf) -> Result<(), String> {
             .by_index(i)
             .map_err(|e| format!("Failed to read zip entry: {}", e))?;
 
-        if let Some(filename) = file.name().split('/').last() {
+        if let Some(filename) = file.name().split('/').next_back() {
             if filename == "texlab.exe" || filename == "texlab" {
                 let dest_path = dest_dir.join(filename);
                 let mut out_file = File::create(&dest_path)

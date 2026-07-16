@@ -31,10 +31,7 @@ import {
   IconHistory,
   IconPlus,
 } from "@tabler/icons-react";
-import {
-  currentProvider,
-  generateConversationTitle,
-} from "../../services/aiService";
+import { currentProvider } from "../../services/aiService";
 import { Message, useAIStore } from "../../stores/aiStore";
 import { ConversationList } from "./ConversationList";
 
@@ -46,7 +43,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onInsertCode }) => {
   const {
     conversations,
     activeConversationId,
-    addMessage,
+    addMessageToConversation,
     deleteMessage,
     clearMessages,
     provider,
@@ -130,24 +127,38 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onInsertCode }) => {
 
   // Listen for Agent Thoughts & Observations
   useEffect(() => {
-    let unlistenThought: () => void;
-    let unlistenObservation: () => void;
+    let cancelled = false;
+    const unlisteners: Array<() => void> = [];
 
-    import("@tauri-apps/api/event").then(async ({ listen }) => {
-      unlistenThought = await listen("agent-thought", (event: any) => {
+    void import("@tauri-apps/api/event").then(async ({ listen }) => {
+      const register = async (
+        eventName: string,
+        handler: (event: any) => void,
+      ) => {
+        const unlisten = await listen(eventName, handler);
+        if (cancelled) {
+          unlisten();
+        } else {
+          unlisteners.push(unlisten);
+        }
+      };
+
+      await register("agent-thought", (event: any) => {
         setThoughts((prev) => [...prev, `🤔 ${event.payload}`]);
       });
-      unlistenObservation = await listen("agent-observation", (event: any) => {
-        // Truncate observation to avoid UI lag
-        let obs = event.payload;
-        if (obs.length > 200) obs = obs.substring(0, 200) + "...";
-        setThoughts((prev) => [...prev, `👁️ ${obs}`]);
+      await register("agent-observation", (event: any) => {
+        const observation = String(event.payload);
+        const abbreviated =
+          observation.length > 200
+            ? `${observation.substring(0, 200)}...`
+            : observation;
+        setThoughts((prev) => [...prev, `👁️ ${abbreviated}`]);
       });
     });
 
     return () => {
-      if (unlistenThought) unlistenThought();
-      if (unlistenObservation) unlistenObservation();
+      cancelled = true;
+      unlisteners.forEach((unlisten) => unlisten());
     };
   }, []);
 
@@ -163,15 +174,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onInsertCode }) => {
   useEffect(scrollToBottom, [activeMessages, loading, thoughts]);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || loading) return;
 
-    // Ensure we have an active conversation
-    if (!activeConversationId) {
-      createConversation();
-    }
+    const conversationId = activeConversationId ?? createConversation();
 
     const userMsg: Message = { role: "user", content: input };
-    addMessage(userMsg);
+    addMessageToConversation(conversationId, userMsg);
     setInput("");
     setThoughts([]); // Clear previous thoughts
     setLoading(true);
@@ -179,24 +187,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ onInsertCode }) => {
     try {
       // Pass current active history + new message to provider
       const response = await currentProvider.chat([...activeMessages, userMsg]);
-      addMessage({ role: "assistant", content: response });
+      addMessageToConversation(conversationId, {
+        role: "assistant",
+        content: response,
+      });
 
       // Auto-generate title for new conversations
-      if (activeMessages.length === 0 && activeConversationId) {
-        // Create the full context for the title generator
-        const fullContext = [
-          ...activeMessages,
-          userMsg,
-          { role: "assistant" as const, content: response },
-        ];
-        generateConversationTitle(fullContext).then((title) => {
-          if (title && title !== "New Chat") {
-            updateConversationTitle(activeConversationId, title);
-          }
-        });
+      if (activeMessages.length === 0) {
+        const title = userMsg.content.trim().split(/\s+/).slice(0, 5).join(" ");
+        if (title) updateConversationTitle(conversationId, title);
       }
     } catch (e: any) {
-      addMessage({
+      addMessageToConversation(conversationId, {
         role: "assistant",
         content: `Error: ${e.message || "Failed to get response from AI."}`,
       });

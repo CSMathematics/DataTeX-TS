@@ -38,14 +38,14 @@ CREATE INDEX IF NOT EXISTS idx_resource_dtx_base_name ON resource_dtx(base_name)
 CREATE INDEX IF NOT EXISTS idx_resource_ins_target_dtx ON resource_ins(target_dtx_id);
 
 -- Trigger for updated_at
-CREATE TRIGGER update_resource_dtx_timestamp
+CREATE TRIGGER IF NOT EXISTS update_resource_dtx_timestamp
 AFTER UPDATE ON resource_dtx
 BEGIN
     UPDATE resource_dtx SET updated_at = CURRENT_TIMESTAMP 
     WHERE resource_id = NEW.resource_id;
 END;
 
-CREATE TRIGGER update_resource_ins_timestamp
+CREATE TRIGGER IF NOT EXISTS update_resource_ins_timestamp
 AFTER UPDATE ON resource_ins
 BEGIN
     UPDATE resource_ins SET updated_at = CURRENT_TIMESTAMP 

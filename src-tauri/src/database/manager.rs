@@ -42,94 +42,96 @@ impl DatabaseManager {
             include_str!("../../migrations/010_resource_classes.sql"), // 9
             include_str!("../../migrations/012_resource_bibliographies.sql"), // 11
             include_str!("../../migrations/013_resource_dtx_ins.sql"), // 12
+            include_str!("../../migrations/014_json_metadata_backfill.sql"), // 13
         ];
 
-        // Check current version
-        let version_row: (i32,) = sqlx::query_as("PRAGMA user_version")
+        // `user_version` is the number of successfully applied entries in `schemas`.
+        // A legacy database may legitimately contain tables while still reporting 0;
+        // all migrations are idempotent, so replaying them is safer than guessing a
+        // version and silently skipping schema changes.
+        let version_row: (i64,) = sqlx::query_as("PRAGMA user_version")
             .fetch_one(pool)
-            .await
-            .unwrap_or((0,));
-        let mut current_version = version_row.0 as usize;
-
-        // Legacy detection: If version is 0 but tables exist, try to guess version to avoid destructive re-runs
-        if current_version == 0 {
-            // Check for preamble_types explicitly to avoid closure lifetime issues
-            let has_preamble_types: (i32,) = sqlx::query_as(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='preamble_types'",
-            )
-            .fetch_one(pool)
-            .await
-            .unwrap_or((0,));
-
-            if has_preamble_types.0 > 0 {
-                println!("Detected legacy DB with preamble_types. Setting version to 20.");
-                current_version = 20;
-                sqlx::query(&format!("PRAGMA user_version = {}", current_version))
-                    .execute(pool)
-                    .await?;
+            .await?;
+        let stored_version = version_row.0.max(0) as usize;
+        // Older releases used exactly 20 as a sentinel for an unversioned
+        // legacy DB. Other versions beyond this binary's schema are rejected:
+        // silently downgrading a genuinely newer database could corrupt it.
+        let current_version = match stored_version {
+            20 => 0,
+            version if version > schemas.len() => {
+                return Err(sqlx::Error::InvalidArgument(format!(
+                    "Database schema version {} is newer than supported version {}",
+                    version,
+                    schemas.len()
+                )))
             }
-        }
+            version => version,
+        };
 
         for (i, init_script) in schemas.iter().enumerate() {
             if i < current_version {
                 continue;
             }
 
-            println!("Aplicating migration {}...", i);
-
-            let mut statements = Vec::new();
-            let mut current_stmt = String::new();
-            let mut in_block = 0;
-
-            for line in init_script.lines() {
-                let trimmed = line.trim();
-                // Simple comment skipping (naive)
-                if trimmed.starts_with("--") {
-                    // Check if it's strictly a comment line, or inline?
-                    // The original code skipped empty or starts_with --.
-                    // We'll keep original logic but careful with strings.
-                }
-
-                if trimmed.is_empty() || trimmed.starts_with("--") {
-                    continue;
-                }
-
-                current_stmt.push_str(line);
-                current_stmt.push('\n');
-
-                let upper = trimmed.to_uppercase();
-                if upper.contains("BEGIN") {
-                    in_block += 1;
-                }
-                if upper.ends_with("END;") {
-                    in_block -= 1;
-                }
-
-                if in_block <= 0 && trimmed.ends_with(';') {
-                    statements.push(current_stmt.clone());
-                    current_stmt.clear();
-                    in_block = 0;
-                }
-            }
-
-            for stmt in statements {
-                let stmt = stmt.trim();
-                if !stmt.is_empty() {
-                    if let Err(e) = sqlx::query(stmt).execute(pool).await {
-                        eprintln!("SQL Warning in migration {}: {}", i, e);
-                        // Depending on policy, we might want to stop here.
-                        // But for now, detailed logging is good.
-                    }
-                }
-            }
-
-            // Update version after success
-            let new_version = i + 1;
-            sqlx::query(&format!("PRAGMA user_version = {}", new_version))
-                .execute(pool)
-                .await?;
+            println!("Applying migration {}...", i + 1);
+            Self::apply_migration(pool, i + 1, init_script).await?;
         }
         Ok(())
+    }
+
+    /// Apply a complete migration and its version marker atomically.
+    ///
+    /// If any statement fails, dropping the transaction rolls back both
+    /// schema/data changes and `user_version`.
+    async fn apply_migration(
+        pool: &Pool<Sqlite>,
+        new_version: usize,
+        script: &'static str,
+    ) -> Result<(), sqlx::Error> {
+        let statements = Self::migration_statements(script);
+        let mut transaction = pool.begin().await?;
+        for statement in statements {
+            sqlx::query(&statement).execute(&mut *transaction).await?;
+        }
+        sqlx::query(&format!("PRAGMA user_version = {new_version}"))
+            .execute(&mut *transaction)
+            .await?;
+        transaction.commit().await
+    }
+
+    /// Split a migration into top-level statements while keeping trigger bodies
+    /// together. The migration files use standalone `BEGIN`/`END;` lines for all
+    /// triggers, so semicolons inside those blocks must not terminate a statement.
+    fn migration_statements(script: &str) -> Vec<String> {
+        let mut statements = Vec::new();
+        let mut current = String::new();
+        let mut trigger_depth = 0_u32;
+
+        for line in script.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with("--") {
+                continue;
+            }
+
+            current.push_str(line);
+            current.push('\n');
+
+            match trimmed.to_ascii_uppercase().as_str() {
+                "BEGIN" => trigger_depth += 1,
+                "END;" => trigger_depth = trigger_depth.saturating_sub(1),
+                _ => {}
+            }
+
+            if trigger_depth == 0 && trimmed.ends_with(';') {
+                statements.push(std::mem::take(&mut current));
+            }
+        }
+
+        if !current.trim().is_empty() {
+            statements.push(current);
+        }
+
+        statements
     }
 
     // --- New Methods ---
@@ -196,17 +198,27 @@ impl DatabaseManager {
         // Serialize metadata to JSON string
         let meta_str = serde_json::to_string(&resource.metadata).unwrap_or("{}".to_string());
 
-        sqlx::query("INSERT OR REPLACE INTO resources (id, path, type, collection, title, content_hash, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)")
-            .bind(&resource.id)
-            .bind(&resource.path)
-            .bind(&resource.kind)
-            .bind(&resource.collection)
-            .bind(&resource.title)
-            .bind(&resource.content_hash)
-            .bind(&meta_str)
-            .execute(&self.pool)
-            .await
-            .map_err(|e| e.to_string())?;
+        sqlx::query(
+            "INSERT INTO resources (id, path, type, collection, title, content_hash, metadata)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+                 path = excluded.path,
+                 type = excluded.type,
+                 collection = excluded.collection,
+                 title = excluded.title,
+                 content_hash = excluded.content_hash,
+                 metadata = excluded.metadata",
+        )
+        .bind(&resource.id)
+        .bind(&resource.path)
+        .bind(&resource.kind)
+        .bind(&resource.collection)
+        .bind(&resource.title)
+        .bind(&resource.content_hash)
+        .bind(&meta_str)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -433,5 +445,481 @@ impl DatabaseManager {
             results.push((source, target, relation));
         }
         Ok(results)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    async fn in_memory_pool() -> Pool<Sqlite> {
+        SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("in-memory SQLite pool")
+    }
+
+    async fn user_version(pool: &Pool<Sqlite>) -> i64 {
+        sqlx::query_as::<_, (i64,)>("PRAGMA user_version")
+            .fetch_one(pool)
+            .await
+            .expect("read user_version")
+            .0
+    }
+
+    #[tokio::test]
+    async fn fresh_database_applies_all_migrations() {
+        let pool = in_memory_pool().await;
+
+        DatabaseManager::init_schema(&pool)
+            .await
+            .expect("fresh schema should initialize");
+
+        assert_eq!(user_version(&pool).await, 13);
+        for table in [
+            "resources",
+            "resource_files",
+            "resource_documents",
+            "resource_bibliographies",
+            "resource_dtx",
+            "resource_ins",
+        ] {
+            let count: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+            )
+            .bind(table)
+            .fetch_one(&pool)
+            .await
+            .expect("inspect schema");
+            assert_eq!(count.0, 1, "missing table {table}");
+        }
+    }
+
+    #[tokio::test]
+    async fn failed_migration_rolls_back_schema_and_version() {
+        let pool = in_memory_pool().await;
+        let invalid_script = "
+            CREATE TABLE should_be_rolled_back (id INTEGER PRIMARY KEY);
+            INSERT INTO table_that_does_not_exist (id) VALUES (1);
+        ";
+
+        assert!(DatabaseManager::apply_migration(&pool, 1, invalid_script)
+            .await
+            .is_err());
+        assert_eq!(user_version(&pool).await, 0);
+
+        let table_count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'should_be_rolled_back'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("inspect rolled-back schema");
+        assert_eq!(table_count.0, 0);
+    }
+
+    #[tokio::test]
+    async fn legacy_zero_version_is_replayed_without_losing_data() {
+        let pool = in_memory_pool().await;
+        DatabaseManager::init_schema(&pool)
+            .await
+            .expect("initial schema");
+        sqlx::query(
+            "INSERT INTO collections (name, type) VALUES ('legacy', 'files');
+             INSERT INTO resources (id, path, type, collection, title)
+             VALUES ('legacy-resource', '/legacy.tex', 'file', 'legacy', 'Keep me');",
+        )
+        .execute(&pool)
+        .await
+        .expect("seed legacy data");
+        sqlx::query("PRAGMA user_version = 0")
+            .execute(&pool)
+            .await
+            .expect("simulate unversioned legacy database");
+
+        DatabaseManager::init_schema(&pool)
+            .await
+            .expect("idempotent replay should succeed");
+
+        assert_eq!(user_version(&pool).await, 13);
+        let title: (String,) =
+            sqlx::query_as("SELECT title FROM resources WHERE id = 'legacy-resource'")
+                .fetch_one(&pool)
+                .await
+                .expect("legacy resource should survive");
+        assert_eq!(title.0, "Keep me");
+    }
+
+    #[tokio::test]
+    async fn legacy_version_twenty_sentinel_is_replayed() {
+        let pool = in_memory_pool().await;
+        DatabaseManager::init_schema(&pool)
+            .await
+            .expect("initial schema");
+        sqlx::query("PRAGMA user_version = 20")
+            .execute(&pool)
+            .await
+            .expect("simulate legacy sentinel");
+
+        DatabaseManager::init_schema(&pool)
+            .await
+            .expect("legacy sentinel should replay safely");
+
+        assert_eq!(user_version(&pool).await, 13);
+    }
+
+    #[tokio::test]
+    async fn unknown_future_version_is_not_downgraded() {
+        let pool = in_memory_pool().await;
+        DatabaseManager::init_schema(&pool)
+            .await
+            .expect("initial schema");
+        sqlx::query("PRAGMA user_version = 14")
+            .execute(&pool)
+            .await
+            .expect("simulate newer application schema");
+
+        let error = DatabaseManager::init_schema(&pool)
+            .await
+            .expect_err("newer schema must be rejected");
+
+        assert!(error.to_string().contains("newer than supported"));
+        assert_eq!(user_version(&pool).await, 14);
+    }
+
+    #[tokio::test]
+    async fn resource_upsert_preserves_typed_child_rows() {
+        let pool = in_memory_pool().await;
+        DatabaseManager::init_schema(&pool)
+            .await
+            .expect("initial schema");
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(&pool)
+            .await
+            .expect("enable foreign keys");
+        sqlx::query("INSERT INTO collections (name, type) VALUES ('library', 'files')")
+            .execute(&pool)
+            .await
+            .expect("collection");
+
+        let manager = DatabaseManager {
+            pool: pool.clone(),
+            path: String::new(),
+        };
+        let original = Resource {
+            id: "resource-1".into(),
+            path: "/resource.tex".into(),
+            kind: "file".into(),
+            collection: "library".into(),
+            title: Some("Original".into()),
+            content_hash: Some("one".into()),
+            metadata: Some(json!({"revision": 1})),
+            created_at: None,
+            updated_at: None,
+        };
+        manager
+            .add_resource(&original)
+            .await
+            .expect("insert resource");
+        sqlx::query(
+            "INSERT INTO resource_files (resource_id, file_description)
+             VALUES ('resource-1', 'typed metadata')",
+        )
+        .execute(&pool)
+        .await
+        .expect("typed child");
+
+        let updated = Resource {
+            title: Some("Updated".into()),
+            content_hash: Some("two".into()),
+            metadata: Some(json!({"revision": 2})),
+            ..original
+        };
+        manager
+            .add_resource(&updated)
+            .await
+            .expect("update resource");
+
+        let child_count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM resource_files WHERE resource_id = 'resource-1'")
+                .fetch_one(&pool)
+                .await
+                .expect("typed child count");
+        assert_eq!(child_count.0, 1);
+    }
+
+    #[tokio::test]
+    async fn json_backfill_is_safe_idempotent_and_preserves_existing_typed_rows() {
+        let pool = in_memory_pool().await;
+        DatabaseManager::init_schema(&pool)
+            .await
+            .expect("initial schema");
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(&pool)
+            .await
+            .expect("enable foreign keys");
+
+        sqlx::query(
+            "INSERT INTO collections (name, type) VALUES ('legacy', 'files');
+             INSERT INTO chapters (id, name, field_id, collection)
+             VALUES ('chapter-1', 'Chapter', 'algebra', 'legacy');
+             INSERT INTO sections (id, name, chapter_id, collection)
+             VALUES ('section-1', 'Section', 'chapter-1', 'legacy');
+             INSERT INTO subsections (id, name, section_id, collection)
+             VALUES ('subsection-1', 'Subsection', 'section-1', 'legacy');
+             INSERT INTO texlive_packages (id, description)
+             VALUES ('amsmath', 'Math package');",
+        )
+        .execute(&pool)
+        .await
+        .expect("seed lookup data");
+
+        let resources = [
+            (
+                "existing-file",
+                "file",
+                Some("Existing"),
+                r#"{"fileDescription":"must not replace typed data"}"#,
+            ),
+            (
+                "legacy-file",
+                "file",
+                Some("Legacy file"),
+                r#"{
+                    "fileType":"missing-file-type",
+                    "field":"algebra",
+                    "difficulty":99,
+                    "solutionId":"missing-resource",
+                    "preambleId":"missing-resource",
+                    "fileDescription":"backfilled",
+                    "chapters":["chapter-1","missing-chapter"],
+                    "sections":["section-1","missing-section"],
+                    "subsections":["subsection-1","missing-subsection"],
+                    "exerciseTypes":["proof","missing-exercise-type"],
+                    "requiredPackages":["amsmath","missing-package"]
+                }"#,
+            ),
+            (
+                "legacy-document",
+                "document",
+                Some("Legacy document"),
+                r#"{
+                    "documentType":"article",
+                    "field":"algebra",
+                    "basicFolder":"obsolete",
+                    "chapters":["chapter-1"]
+                }"#,
+            ),
+            (
+                "legacy-table",
+                "table",
+                None,
+                r#"{"tableType":"general","rows":2,"columns":3}"#,
+            ),
+            ("legacy-figure", "figure", None, r#"{"figureType":"image"}"#),
+            (
+                "legacy-command",
+                "command",
+                None,
+                r#"{
+                    "commandName":"legacyCommand",
+                    "fileType":"newcommand",
+                    "content":"\\newcommand{}"
+                }"#,
+            ),
+            ("legacy-package", "package", None, r#"{}"#),
+            (
+                "legacy-preamble",
+                "preamble",
+                None,
+                r#"{"preambleType":"article"}"#,
+            ),
+            (
+                "legacy-class",
+                "class",
+                None,
+                r#"{"className":"legacyClass","fileType":"other"}"#,
+            ),
+            ("invalid-json", "figure", None, r#"{"broken": "#),
+        ];
+
+        for (id, resource_type, title, metadata) in resources {
+            sqlx::query(
+                "INSERT INTO resources (id, path, type, collection, title, metadata)
+                 VALUES (?, ?, ?, 'legacy', ?, ?)",
+            )
+            .bind(id)
+            .bind(format!("/{id}.tex"))
+            .bind(resource_type)
+            .bind(title)
+            .bind(metadata)
+            .execute(&pool)
+            .await
+            .expect("seed legacy resource");
+        }
+
+        sqlx::query(
+            "INSERT INTO resource_files (resource_id, file_description)
+             VALUES ('existing-file', 'keep typed data')",
+        )
+        .execute(&pool)
+        .await
+        .expect("seed existing typed row");
+
+        // Version 12 represents a database that has every schema table but has
+        // never run the skipped JSON backfill.
+        sqlx::query("PRAGMA user_version = 12")
+            .execute(&pool)
+            .await
+            .expect("simulate pre-backfill database");
+        DatabaseManager::init_schema(&pool)
+            .await
+            .expect("safe JSON backfill");
+
+        assert_eq!(user_version(&pool).await, 13);
+        let existing_description: (Option<String>,) = sqlx::query_as(
+            "SELECT file_description FROM resource_files WHERE resource_id = 'existing-file'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("existing typed row");
+        assert_eq!(existing_description.0.as_deref(), Some("keep typed data"));
+
+        let file: (Option<String>, Option<String>, Option<i64>, Option<String>) = sqlx::query_as(
+            "SELECT file_type_id, field_id, difficulty, file_description
+                 FROM resource_files WHERE resource_id = 'legacy-file'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("backfilled file");
+        assert_eq!(file.0, None, "unknown file type must not violate its FK");
+        assert_eq!(file.1.as_deref(), Some("algebra"));
+        assert_eq!(file.2, None, "invalid difficulty must not violate CHECK");
+        assert_eq!(file.3.as_deref(), Some("backfilled"));
+
+        for (table, expected_id) in [
+            ("resource_file_chapters", "chapter-1"),
+            ("resource_file_sections", "section-1"),
+            ("resource_file_subsections", "subsection-1"),
+            ("resource_file_exercise_types", "proof"),
+            ("resource_file_packages", "amsmath"),
+        ] {
+            let id_column = match table {
+                "resource_file_chapters" => "chapter_id",
+                "resource_file_sections" => "section_id",
+                "resource_file_subsections" => "subsection_id",
+                "resource_file_exercise_types" => "exercise_type_id",
+                _ => "package_id",
+            };
+            let query = format!(
+                "SELECT COUNT(*) FROM {table}
+                 WHERE resource_id = 'legacy-file' AND {id_column} = ?",
+            );
+            let count: (i64,) = sqlx::query_as(&query)
+                .bind(expected_id)
+                .fetch_one(&pool)
+                .await
+                .expect("backfilled junction row");
+            assert_eq!(count.0, 1, "missing safe junction row in {table}");
+
+            let total: (i64,) = sqlx::query_as(&format!(
+                "SELECT COUNT(*) FROM {table} WHERE resource_id = 'legacy-file'"
+            ))
+            .fetch_one(&pool)
+            .await
+            .expect("junction count");
+            assert_eq!(total.0, 1, "invalid foreign key leaked into {table}");
+        }
+
+        let document: (Option<String>, Option<String>) = sqlx::query_as(
+            "SELECT document_type_id, field_id
+             FROM resource_documents WHERE resource_id = 'legacy-document'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("backfilled document");
+        assert_eq!(document.0.as_deref(), Some("article"));
+        assert_eq!(document.1.as_deref(), Some("algebra"));
+
+        let command: (String, Option<String>) = sqlx::query_as(
+            "SELECT name, command_type_id
+             FROM resource_commands WHERE resource_id = 'legacy-command'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("backfilled command");
+        assert_eq!(command.0, "legacyCommand");
+        assert_eq!(command.1.as_deref(), Some("newcommand"));
+
+        for (table, id) in [
+            ("resource_tables", "legacy-table"),
+            ("resource_figures", "legacy-figure"),
+            ("resource_packages", "legacy-package"),
+            ("resource_preambles", "legacy-preamble"),
+            ("resource_classes", "legacy-class"),
+        ] {
+            let count: (i64,) = sqlx::query_as(&format!(
+                "SELECT COUNT(*) FROM {table} WHERE resource_id = ?"
+            ))
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .expect("typed row count");
+            assert_eq!(count.0, 1, "missing backfill row in {table}");
+        }
+
+        let package_name: (String,) = sqlx::query_as(
+            "SELECT name FROM resource_packages WHERE resource_id = 'legacy-package'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("package fallback name");
+        assert_eq!(package_name.0, "legacy-package", "NOT NULL fallback name");
+
+        let preamble_type: (Option<String>,) = sqlx::query_as(
+            "SELECT preamble_type_id
+             FROM resource_preambles WHERE resource_id = 'legacy-preamble'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("legacy preamble type");
+        assert_eq!(preamble_type.0.as_deref(), Some("article"));
+
+        let class: (String, Option<String>) = sqlx::query_as(
+            "SELECT name, file_type_id
+             FROM resource_classes WHERE resource_id = 'legacy-class'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("legacy class metadata");
+        assert_eq!(class.0, "legacyClass");
+        assert_eq!(class.1.as_deref(), Some("other"));
+
+        let invalid_count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM resource_figures WHERE resource_id = 'invalid-json'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("invalid JSON row count");
+        assert_eq!(invalid_count.0, 0, "malformed JSON must be ignored");
+
+        // Force the final migration to run a second time: it must neither
+        // duplicate junction rows nor overwrite any typed values.
+        sqlx::query("PRAGMA user_version = 12")
+            .execute(&pool)
+            .await
+            .expect("repeat backfill");
+        DatabaseManager::init_schema(&pool)
+            .await
+            .expect("idempotent repeat");
+        let existing_after_repeat: (Option<String>,) = sqlx::query_as(
+            "SELECT file_description FROM resource_files WHERE resource_id = 'existing-file'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("existing row after repeat");
+        assert_eq!(existing_after_repeat.0.as_deref(), Some("keep typed data"));
+        assert_eq!(user_version(&pool).await, 13);
     }
 }

@@ -113,6 +113,10 @@ export interface GraphLink {
   type: string;
 }
 
+// Only the newest request in each loading lane may commit its response.
+let selectedCollectionRequest = 0;
+let loadedResourcesRequest = 0;
+
 export const useDatabaseStore = create<DatabaseState>((set, get) => ({
   collections: [],
   resources: [],
@@ -133,15 +137,23 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
   },
 
   selectCollection: async (name: string) => {
+    const requestId = ++selectedCollectionRequest;
     set({ activeCollection: name, isLoading: true, error: null });
     try {
       const resources = await invoke<Resource[]>(
         "get_resources_by_collection_cmd",
         { collection: name },
       );
-      set({ resources, isLoading: false });
+      if (
+        requestId === selectedCollectionRequest &&
+        get().activeCollection === name
+      ) {
+        set({ resources, isLoading: false });
+      }
     } catch (err: any) {
-      set({ error: err.toString(), isLoading: false });
+      if (requestId === selectedCollectionRequest) {
+        set({ error: err.toString(), isLoading: false });
+      }
     }
   },
 
@@ -158,6 +170,7 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
     }
 
     set({ loadedCollections: newLoadedCollections, isLoading: true });
+    const requestId = ++loadedResourcesRequest;
 
     // Fetch resources for all loaded collections
     try {
@@ -168,17 +181,24 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
         },
       );
 
-      set({ allLoadedResources: allResources, isLoading: false });
+      if (requestId === loadedResourcesRequest) {
+        set({ allLoadedResources: allResources, isLoading: false });
+      }
     } catch (err: any) {
-      set({ error: err.toString(), isLoading: false });
+      if (requestId === loadedResourcesRequest) {
+        set({ error: err.toString(), isLoading: false });
+      }
     }
   },
 
   setLoadedCollections: async (collections: string[]) => {
+    const requestId = ++loadedResourcesRequest;
     set({ loadedCollections: collections, isLoading: true });
 
     if (collections.length === 0) {
-      set({ allLoadedResources: [], isLoading: false });
+      if (requestId === loadedResourcesRequest) {
+        set({ allLoadedResources: [], isLoading: false });
+      }
       return;
     }
 
@@ -190,16 +210,21 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
         },
       );
 
-      set({ allLoadedResources: allResources, isLoading: false });
+      if (requestId === loadedResourcesRequest) {
+        set({ allLoadedResources: allResources, isLoading: false });
+      }
     } catch (err: any) {
-      set({ error: err.toString(), isLoading: false });
+      if (requestId === loadedResourcesRequest) {
+        set({ error: err.toString(), isLoading: false });
+      }
     }
   },
 
   fetchResourcesForLoadedCollections: async () => {
     const { loadedCollections } = get();
+    const requestId = ++loadedResourcesRequest;
     if (loadedCollections.length === 0) {
-      set({ allLoadedResources: [] });
+      set({ allLoadedResources: [], isLoading: false });
       return;
     }
 
@@ -213,9 +238,13 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
         },
       );
 
-      set({ allLoadedResources: allResources, isLoading: false });
+      if (requestId === loadedResourcesRequest) {
+        set({ allLoadedResources: allResources, isLoading: false });
+      }
     } catch (err: any) {
-      set({ error: err.toString(), isLoading: false });
+      if (requestId === loadedResourcesRequest) {
+        set({ error: err.toString(), isLoading: false });
+      }
     }
   },
 
@@ -225,8 +254,13 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
       await invoke("import_folder_cmd", { path, collectionName: name });
       // Refresh collections
       await get().fetchCollections();
-      // Auto-load the newly imported collection
-      await get().toggleCollectionLoaded(name);
+      // Auto-load without toggling an already loaded collection off.
+      const loadedCollections = get().loadedCollections;
+      if (loadedCollections.includes(name)) {
+        await get().fetchResourcesForLoadedCollections();
+      } else {
+        await get().setLoadedCollections([...loadedCollections, name]);
+      }
     } catch (err: any) {
       set({ error: err.toString(), isLoading: false });
     }

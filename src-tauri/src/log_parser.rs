@@ -33,8 +33,8 @@ pub fn parse_log(log_content: &str) -> Vec<LogEntry> {
 
             // Look ahead for line number
             let limit = std::cmp::min(i + 10, lines.len());
-            for j in (i + 1)..limit {
-                let next_line = lines[j].trim();
+            for next_line in lines.iter().take(limit).skip(i + 1) {
+                let next_line = next_line.trim();
                 if let Some(line_caps) = line_regex.captures(next_line) {
                     if let Some(m) = line_caps.get(1) {
                         if let Ok(n) = m.as_str().parse::<i32>() {
@@ -81,8 +81,8 @@ pub fn parse_log(log_content: &str) -> Vec<LogEntry> {
 
             // Look ahead for "on input line X"
             let limit = std::cmp::min(i + 5, lines.len());
-            for j in i..limit {
-                let next_line = lines[j].trim();
+            for (j, next_line) in lines.iter().enumerate().take(limit).skip(i) {
+                let next_line = next_line.trim();
                 if j != i {
                     message_part.push(' ');
                     message_part.push_str(next_line);

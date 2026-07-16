@@ -52,7 +52,7 @@ pub fn build_file_tree(
     for r in filtered_resources {
         by_collection
             .entry(r.collection.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(r);
     }
 
@@ -229,8 +229,8 @@ pub fn build_file_tree(
         // Convert TempNode to TreeNode recursively and sort
         fn convert(map: HashMap<String, TempNode>) -> Vec<TreeNode> {
             let mut nodes: Vec<TreeNode> = map
-                .into_iter()
-                .map(|(_, v)| {
+                .into_values()
+                .map(|v| {
                     let mut children = convert(v.children);
                     // Sort children: folders first, then alphabetical
                     children.sort_by(|a, b| {

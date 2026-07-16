@@ -123,16 +123,21 @@
 
 ---
 
-### 011 - Data Migration Script
-**Purpose**: Migrate existing JSON metadata → typed tables
+### 011 - Historical Data Migration Script (skipped)
+**Status**: Kept only for migration-history compatibility. Do not execute it;
+it references columns that no longer exist in the current typed schemas.
+
+### 014 - Safe JSON Metadata Backfill
+**Purpose**: Safely migrate existing JSON metadata → current typed tables.
 
 ✅ **Handles**:
 - All 8 resource types
-- Array fields (chapters, sections, packages)
+- File/document hierarchy arrays and required file packages
 - Boolean conversions
-- NULL handling με COALESCE
-- Duplicate prevention με INSERT OR IGNORE
-- Verification queries
+- Malformed JSON guards
+- Foreign-key and CHECK validation
+- NOT NULL name fallbacks
+- Existing typed-row preservation and idempotent inserts
 
 ---
 
@@ -150,8 +155,8 @@ sqlite3 database.db < migrations/008_resource_packages.sql
 sqlite3 database.db < migrations/009_resource_preambles.sql
 sqlite3 database.db < migrations/010_resource_classes.sql
 
-# After verifying schema, run data migration:
-sqlite3 database.db < migrations/011_migrate_json_to_typed.sql
+# The Rust migration manager applies 014_json_metadata_backfill.sql last.
+# Do not run 011_migrate_json_to_typed.sql manually.
 ```
 
 ---

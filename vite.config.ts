@@ -44,8 +44,6 @@ export default defineConfig(async () => ({
             "@mantine/hooks",
             "@mantine/notifications",
           ],
-          // Monaco editor (large bundle)
-          "vendor-monaco": ["monaco-editor", "@monaco-editor/react"],
           // PDF libraries
           "vendor-pdf": ["react-pdf", "pdfjs-dist"],
           // Graph visualization

@@ -1,10 +1,8 @@
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
-use std::fs;
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
-use std::process::Command;
 use std::sync::Arc;
 use tauri::Emitter;
 use tokio::sync::Mutex;
@@ -28,215 +26,6 @@ pub trait Tool: Send + Sync {
 }
 
 // --- Tool Implementations ---
-
-pub struct ListFilesTool;
-impl Tool for ListFilesTool {
-    fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "list_files".to_string(),
-            description: "List files in a directory. Use this to explore the project structure."
-                .to_string(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Absolute path to directory to list"
-                    }
-                },
-                "required": ["path"]
-            }),
-        }
-    }
-
-    fn execute(
-        &self,
-        args: serde_json::Value,
-    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + '_>> {
-        Box::pin(async move {
-            let path_str = args["path"].as_str().ok_or("Missing path argument")?;
-            let path = Path::new(path_str);
-
-            if !path.exists() {
-                return Err(format!("Path does not exist: {}", path_str));
-            }
-
-            let entries = fs::read_dir(path).map_err(|e| e.to_string())?;
-            let mut files = Vec::new();
-
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let file_name = entry.file_name().to_string_lossy().to_string();
-                    let file_type = if entry.path().is_dir() { "DIR" } else { "FILE" };
-                    files.push(format!("[{}] {}", file_type, file_name));
-                }
-            }
-
-            // Limit output size
-            if files.len() > 100 {
-                files.truncate(100);
-                files.push("... (truncated)".to_string());
-            }
-
-            Ok(files.join("\n"))
-        })
-    }
-}
-
-pub struct ReadFileTool;
-impl Tool for ReadFileTool {
-    fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "read_file".to_string(),
-            description: "Read the contents of a file.".to_string(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Absolute path to file to read"
-                    }
-                },
-                "required": ["path"]
-            }),
-        }
-    }
-
-    fn execute(
-        &self,
-        args: serde_json::Value,
-    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + '_>> {
-        Box::pin(async move {
-            let path_str = args["path"].as_str().ok_or("Missing path argument")?;
-
-            // Basic security check (very simple for now)
-            if path_str.contains("..") {
-                return Err("Access denied: Traversal paths not allowed".to_string());
-            }
-
-            match fs::read_to_string(path_str) {
-                Ok(content) => {
-                    // Truncate if too huge
-                    if content.len() > 10000 {
-                        let truncated = &content[0..10000];
-                        Ok(format!("{}... [TRUNCATED caused by length]", truncated))
-                    } else {
-                        Ok(content)
-                    }
-                }
-                Err(e) => Err(format!("Failed to read file: {}", e)),
-            }
-        })
-    }
-}
-
-pub struct WriteFileTool;
-impl Tool for WriteFileTool {
-    fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "write_file".to_string(),
-            description: "Write content to a file. Overwrites existing files. Use carefully."
-                .to_string(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Absolute path to file"
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "Content to write"
-                    }
-                },
-                "required": ["path", "content"]
-            }),
-        }
-    }
-
-    fn execute(
-        &self,
-        args: serde_json::Value,
-    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + '_>> {
-        Box::pin(async move {
-            let path_str = args["path"].as_str().ok_or("Missing path argument")?;
-            let content = args["content"].as_str().ok_or("Missing content argument")?;
-
-            // Basic security checks
-            if path_str.contains("..") {
-                return Err("Access denied: Traversal paths not allowed".to_string());
-            }
-
-            // Ensure parent directory exists
-            let path = Path::new(path_str);
-            if let Some(parent) = path.parent() {
-                if !parent.exists() {
-                    fs::create_dir_all(parent)
-                        .map_err(|e| format!("Failed to create parent dir: {}", e))?;
-                }
-            }
-
-            fs::write(path_str, content).map_err(|e| format!("Failed to write file: {}", e))?;
-            Ok(format!("Successfully wrote to {}", path_str))
-        })
-    }
-}
-
-pub struct RunTerminalTool;
-impl Tool for RunTerminalTool {
-    fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "run_terminal".to_string(),
-            description: "Run a shell command. Use cautiously.".to_string(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "command": {
-                        "type": "string",
-                        "description": "Command to execute"
-                    },
-                    "cwd": {
-                        "type": "string",
-                        "description": "Working directory"
-                    }
-                },
-                "required": ["command"]
-            }),
-        }
-    }
-
-    fn execute(
-        &self,
-        args: serde_json::Value,
-    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + '_>> {
-        Box::pin(async move {
-            let cmd_str = args["command"].as_str().ok_or("Missing command argument")?;
-            let cwd_str = args["cwd"].as_str().unwrap_or(".");
-
-            let output = if cfg!(target_os = "windows") {
-                Command::new("cmd")
-                    .args(["/C", cmd_str])
-                    .current_dir(cwd_str)
-                    .output()
-            } else {
-                Command::new("sh")
-                    .arg("-c")
-                    .arg(cmd_str)
-                    .current_dir(cwd_str)
-                    .output()
-            };
-
-            match output {
-                Ok(out) => {
-                    let stdout = String::from_utf8_lossy(&out.stdout);
-                    let stderr = String::from_utf8_lossy(&out.stderr);
-                    Ok(format!("STDOUT:\n{}\nSTDERR:\n{}", stdout, stderr))
-                }
-                Err(e) => Err(format!("Failed to execute command: {}", e)),
-            }
-        })
-    }
-}
 
 pub struct DatabaseSearchTool {
     pub db_manager: Arc<Mutex<Option<DatabaseManager>>>,
@@ -277,45 +66,49 @@ impl Tool for DatabaseSearchTool {
                 })
                 .unwrap_or_default();
 
-            let guard = db_manager.lock().await;
-            if let Some(db) = guard.as_ref() {
+            let resources = {
+                let guard = db_manager.lock().await;
+                let db = guard.as_ref().ok_or("Database not initialized")?;
                 let collections = db.get_collections().await.unwrap_or_default();
                 let col_names: Vec<String> = collections.into_iter().map(|c| c.name).collect();
-                let resources = db
-                    .get_resources_by_collections(&col_names)
+                db.get_resources_by_collections(&col_names)
                     .await
-                    .unwrap_or_default();
+                    .unwrap_or_default()
+            };
 
-                let search_query = crate::search::SearchQuery {
-                    text: query_text,
-                    case_sensitive: false,
-                    use_regex: use_regex,
-                    file_types: extensions,
-                    max_results: 20,
-                };
+            let search_query = crate::search::SearchQuery {
+                text: query_text,
+                case_sensitive: false,
+                use_regex,
+                file_types: extensions,
+                max_results: 20,
+            };
 
-                match crate::search::search_in_files(&search_query, resources) {
-                    Ok(res) => {
-                        let mut out = String::new();
+            let result = tokio::task::spawn_blocking(move || {
+                crate::search::search_in_files(&search_query, resources)
+            })
+            .await
+            .map_err(|error| format!("Search task failed: {}", error))?;
+
+            match result {
+                Ok(res) => {
+                    let mut out = String::new();
+                    out.push_str(&format!(
+                        "Found {} matches in {} files:\n",
+                        res.matches.len(),
+                        res.total_files_searched
+                    ));
+                    for m in res.matches {
                         out.push_str(&format!(
-                            "Found {} matches in {} files:\n",
-                            res.matches.len(),
-                            res.total_files_searched
+                            "{}:{} - {}\n",
+                            m.file_name,
+                            m.line_number,
+                            m.line_content.trim()
                         ));
-                        for m in res.matches {
-                            out.push_str(&format!(
-                                "{}:{} - {}\n",
-                                m.file_name,
-                                m.line_number,
-                                m.line_content.trim()
-                            ));
-                        }
-                        Ok(out)
                     }
-                    Err(e) => Err(e),
+                    Ok(out)
                 }
-            } else {
-                Err("Database not initialized".to_string())
+                Err(e) => Err(e),
             }
         })
     }
@@ -337,13 +130,9 @@ impl ToolRegistry {
             tools: std::collections::HashMap::new(),
         };
 
-        registry.register(Box::new(ListFilesTool));
-        registry.register(Box::new(ReadFileTool));
-        registry.register(Box::new(WriteFileTool));
         registry.register(Box::new(ProposeEditTool {
             app_handle: app_handle.clone(),
         }));
-        registry.register(Box::new(RunTerminalTool));
         registry.register(Box::new(FindResourceTool {
             db_manager: db_manager.clone(),
         }));
@@ -363,8 +152,8 @@ impl ToolRegistry {
         self.tools.insert(tool.definition().name, tool);
     }
 
-    pub fn get(&self, name: &str) -> Option<&Box<dyn Tool>> {
-        self.tools.get(name)
+    pub fn get(&self, name: &str) -> Option<&dyn Tool> {
+        self.tools.get(name).map(Box::as_ref)
     }
 
     pub fn get_definitions(&self) -> Vec<ToolDefinition> {

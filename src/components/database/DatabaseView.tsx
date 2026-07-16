@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useRef,
   useEffect,
+  useDeferredValue,
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -41,8 +42,8 @@ import {
   faFileImport,
 } from "@fortawesome/free-solid-svg-icons";
 import { useDatabaseStore } from "../../stores/databaseStore";
+import { useTypedMetadataStore } from "../../stores/typedMetadataStore";
 import { invoke } from "@tauri-apps/api/core";
-import { VisualGraphView } from "./VisualGraphView";
 // import { PreambleWizard } from '../wizards/PreambleWizard'; // Moved to ResourceInspector
 import {
   KIND_OPTIONS,
@@ -51,6 +52,12 @@ import {
   saveColumnPreferences,
   ColumnDef,
 } from "../../config/columnConfig";
+
+const VisualGraphView = React.lazy(() =>
+  import("./VisualGraphView").then((module) => ({
+    default: module.VisualGraphView,
+  })),
+);
 
 interface DatabaseViewProps {
   onOpenFile?: (path: string) => void;
@@ -89,10 +96,77 @@ export const DatabaseView = React.memo(
     const insertTargetDocumentId = useDatabaseStore(
       (state) => state.insertTargetDocumentId,
     );
+
+    // Lookup data for ID-to-name conversion in hierarchy columns
+    const fields = useTypedMetadataStore((state) => state.fields);
+    const chapters = useTypedMetadataStore((state) => state.chapters);
+    const sections = useTypedMetadataStore((state) => state.sections);
+    const subsections = useTypedMetadataStore((state) => state.subsections);
+    const fileTypes = useTypedMetadataStore((state) => state.fileTypes);
+    const exerciseTypes = useTypedMetadataStore((state) => state.exerciseTypes);
+    const documentTypes = useTypedMetadataStore((state) => state.documentTypes);
+    const tableTypes = useTypedMetadataStore((state) => state.tableTypes);
+    const figureTypes = useTypedMetadataStore((state) => state.figureTypes);
+
+    // Lookup maps for quick ID-to-name conversion
+    const lookupMaps = useMemo(
+      () => ({
+        fieldId: new Map(fields.map((f) => [f.id, f.name])),
+        chapters: new Map(chapters.map((c) => [c.id, c.name])),
+        sections: new Map(sections.map((s) => [s.id, s.name])),
+        subsections: new Map(subsections.map((s) => [s.id, s.name])),
+        fileTypeId: new Map(fileTypes.map((t) => [t.id, t.name])),
+        exerciseTypes: new Map(exerciseTypes.map((t) => [t.id, t.name])),
+        documentTypeId: new Map(documentTypes.map((t) => [t.id, t.name])),
+        tableTypeId: new Map(tableTypes.map((t) => [t.id, t.name])),
+        figureTypeId: new Map(figureTypes.map((t) => [t.id, t.name])),
+      }),
+      [
+        fields,
+        chapters,
+        sections,
+        subsections,
+        fileTypes,
+        exerciseTypes,
+        documentTypes,
+        tableTypes,
+        figureTypes,
+      ],
+    );
+
+    // Helper function to convert ID(s) to name(s) for display and filtering
+    const getDisplayValue = useCallback(
+      (colKey: string, rawValue: any): string => {
+        if (!rawValue) return "";
+
+        const lookupMap = lookupMaps[colKey as keyof typeof lookupMaps];
+        if (!lookupMap) {
+          // No lookup map for this column, return as-is
+          if (Array.isArray(rawValue)) {
+            return rawValue.join(", ");
+          }
+          return String(rawValue);
+        }
+
+        // Handle array values (chapters, sections, subsections, exerciseTypes)
+        if (Array.isArray(rawValue)) {
+          return rawValue.map((id) => lookupMap.get(id) || id).join(", ");
+        }
+
+        // Handle single value (fieldId, fileTypeId, etc.)
+        return lookupMap.get(rawValue) || rawValue;
+      },
+      [lookupMaps],
+    );
+
     const [globalSearch, setGlobalSearch] = useState("");
     const [columnFilters, setColumnFilters] = useState<Record<string, string>>(
       {},
     );
+    const deferredGlobalSearch = useDeferredValue(
+      globalSearch.trim().toLowerCase(),
+    );
+    const deferredColumnFilters = useDeferredValue(columnFilters);
     const [sort, setSort] = useState<SortState>({
       column: null,
       direction: null,
@@ -114,13 +188,28 @@ export const DatabaseView = React.memo(
       const saved = loadColumnPreferences().visibleColumns;
       return saved.length > 0
         ? saved
-        : ["title", "collection", "kind", "difficulty", "field"];
+        : ["title", "collection", "kind", "fieldId", "chapters", "difficulty"];
     });
 
     // Save preferences when they change
     useEffect(() => {
       saveColumnPreferences(visibleColumns, kindFilter);
     }, [visibleColumns, kindFilter]);
+
+    // Ensure lookup data is loaded when collections are available
+    useEffect(() => {
+      const loadData = async () => {
+        if (loadedCollections.length > 0) {
+          // Load lookup data for the first loaded collection (current limitation: hierarchies are per-collection)
+          // In the future, we might want to merge lookup data from multiple collections
+          await useTypedMetadataStore
+            .getState()
+            .loadAllLookupData(loadedCollections[0]);
+        }
+      };
+
+      loadData();
+    }, [loadedCollections]);
 
     useEffect(() => {
       // Scroll to active resource when switching to table view or changing selection
@@ -199,53 +288,65 @@ export const DatabaseView = React.memo(
       });
     };
 
+    // Build the expensive metadata text only when resources change, rather
+    // than JSON-stringifying every row after each keypress.
+    const globalSearchText = useMemo(
+      () =>
+        new Map(
+          filteredByKind.map((resource) => [
+            resource,
+            [
+              resource.title || "",
+              resource.id,
+              resource.collection,
+              resource.path,
+              JSON.stringify(resource.metadata ?? {}),
+            ]
+              .join("\0")
+              .toLowerCase(),
+          ]),
+        ),
+      [filteredByKind],
+    );
+
     const filteredData = useMemo(() => {
       let result = filteredByKind;
 
+      // Helper to get raw value from row
+      const getRawValue = (row: (typeof result)[0], col: string): any => {
+        if (col === "title")
+          return row.title || row.path.split(/[/\\]/).pop() || row.id;
+        if (col === "collection") return row.collection;
+        if (col === "kind") return row.kind;
+        return row.metadata?.[col];
+      };
+
       // 1. Global Search
-      if (globalSearch) {
-        const searchLower = globalSearch.toLowerCase();
-        result = result.filter(
-          (r) =>
-            r.title?.toLowerCase().includes(searchLower) ||
-            r.id.toLowerCase().includes(searchLower) ||
-            r.collection.toLowerCase().includes(searchLower) ||
-            JSON.stringify(r.metadata).toLowerCase().includes(searchLower),
+      if (deferredGlobalSearch) {
+        result = result.filter((resource) =>
+          globalSearchText.get(resource)?.includes(deferredGlobalSearch),
         );
       }
 
-      // 2. Column Filters
-      Object.entries(columnFilters).forEach(([col, filterValue]) => {
+      // 2. Column Filters - use getDisplayValue for ID-to-name conversion
+      Object.entries(deferredColumnFilters).forEach(([col, filterValue]) => {
         if (!filterValue) return;
         const filterLower = filterValue.toLowerCase();
         result = result.filter((row) => {
-          let val = "";
-          if (col === "title")
-            val = row.title || row.path.split(/[/\\]/).pop() || row.id;
-          else if (col === "collection") val = row.collection;
-          else if (col === "kind") val = row.kind;
-          else val = row.metadata?.[col] || "";
-
-          return String(val).toLowerCase().includes(filterLower);
+          const rawVal = getRawValue(row, col);
+          const displayVal = getDisplayValue(col, rawVal);
+          return displayVal.toLowerCase().includes(filterLower);
         });
       });
 
-      // 3. Sorting
+      // 3. Sorting - use getDisplayValue for proper name-based sorting
       if (sort.column && sort.direction) {
         result = [...result].sort((a, b) => {
-          let valA = "";
-          let valB = "";
+          const rawA = getRawValue(a, sort.column!);
+          const rawB = getRawValue(b, sort.column!);
 
-          const getValue = (row: typeof a, col: string) => {
-            if (col === "title")
-              return row.title || row.path.split(/[/\\]/).pop() || row.id;
-            if (col === "collection") return row.collection;
-            if (col === "kind") return row.kind;
-            return row.metadata?.[col] || "";
-          };
-
-          valA = String(getValue(a, sort.column!)).toLowerCase();
-          valB = String(getValue(b, sort.column!)).toLowerCase();
+          const valA = getDisplayValue(sort.column!, rawA).toLowerCase();
+          const valB = getDisplayValue(sort.column!, rawB).toLowerCase();
 
           if (valA < valB) return sort.direction === "asc" ? -1 : 1;
           if (valA > valB) return sort.direction === "asc" ? 1 : -1;
@@ -254,7 +355,14 @@ export const DatabaseView = React.memo(
       }
 
       return result;
-    }, [allLoadedResources, globalSearch, columnFilters, sort]);
+    }, [
+      filteredByKind,
+      deferredGlobalSearch,
+      deferredColumnFilters,
+      sort,
+      globalSearchText,
+      getDisplayValue,
+    ]);
 
     const handleRowClick = useCallback(
       (id: string, path: string, event: React.MouseEvent) => {
@@ -711,7 +819,17 @@ export const DatabaseView = React.memo(
           }}
         >
           {viewMode === "graph" ? (
-            <VisualGraphView onOpenFile={onOpenFile} />
+            <React.Suspense
+              fallback={
+                <Box p="md">
+                  <Text size="sm" c="dimmed">
+                    Loading graph…
+                  </Text>
+                </Box>
+              }
+            >
+              <VisualGraphView onOpenFile={onOpenFile} />
+            </React.Suspense>
           ) : (
             <>
               {/* Table Area */}
@@ -803,18 +921,22 @@ export const DatabaseView = React.memo(
                           style={{ cursor: "pointer" }}
                         >
                           {columns.map((col) => {
-                            let val = "";
+                            // Get raw value
+                            let rawVal: any;
                             if (col.key === "title")
-                              val = row.title || filename;
+                              rawVal = row.title || filename;
                             else if (col.key === "collection")
-                              val = row.collection;
-                            else if (col.key === "kind") val = row.kind;
-                            else val = row.metadata?.[col.key] || "";
+                              rawVal = row.collection;
+                            else if (col.key === "kind") rawVal = row.kind;
+                            else rawVal = row.metadata?.[col.key];
+
+                            // Convert to display value using lookup maps
+                            const displayVal = getDisplayValue(col.key, rawVal);
 
                             return (
                               <Table.Td key={`${row.id}-${col.key}`}>
                                 <Text size="xs" truncate>
-                                  {String(val)}
+                                  {displayVal}
                                 </Text>
                               </Table.Td>
                             );

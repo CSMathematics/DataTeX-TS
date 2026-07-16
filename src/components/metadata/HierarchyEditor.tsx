@@ -358,25 +358,6 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
 
           {mode === "edit" && (
             <Group gap={4}>
-              <Tooltip label="Expand All">
-                <ActionIcon
-                  size="sm"
-                  variant="subtle"
-                  onClick={() => setExpandAll(true)}
-                >
-                  <IconArrowsMaximize size={14} />
-                </ActionIcon>
-              </Tooltip>
-              <Tooltip label="Collapse All">
-                <ActionIcon
-                  size="sm"
-                  variant="subtle"
-                  onClick={() => setExpandAll(false)}
-                >
-                  <IconArrowsMinimize size={14} />
-                </ActionIcon>
-              </Tooltip>
-
               <Popover
                 opened={newFieldPopoverOpened}
                 onChange={setNewFieldPopoverOpened}
@@ -414,6 +395,24 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
                   </Group>
                 </Popover.Dropdown>
               </Popover>
+              <Tooltip label="Expand All">
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  onClick={() => setExpandAll(true)}
+                >
+                  <IconArrowsMaximize size={14} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label="Collapse All">
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  onClick={() => setExpandAll(false)}
+                >
+                  <IconArrowsMinimize size={14} />
+                </ActionIcon>
+              </Tooltip>
             </Group>
           )}
         </Group>

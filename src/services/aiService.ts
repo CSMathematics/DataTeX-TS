@@ -183,25 +183,3 @@ export const currentProvider = {
     });
   },
 };
-
-// Helper to generate a title
-export const generateConversationTitle = async (
-  messages: Message[],
-): Promise<string> => {
-  const summaryPrompt: Message = {
-    role: "user",
-    content:
-      "Summarize the above conversation into a concise title (max 5 words). Do not include quotes or extra text. Just the title.",
-  };
-
-  try {
-    // We reuse the existing chat proxy.
-    // Note: This might trigger global 'agent-thought' events which the UI will display.
-    // This is acceptable for now.
-    const response = await aiProxy.chat([...messages, summaryPrompt], () => {});
-    return response.replace(/["']/g, "").trim();
-  } catch (e) {
-    console.warn("Failed to generate title:", e);
-    return "New Chat";
-  }
-};

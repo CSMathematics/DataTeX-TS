@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState } from "react";
 import {
   Button,
   TextInput,
@@ -28,13 +28,14 @@ import {
   faCompressAlt,
   faExpandAlt,
   faEraser,
-  faGripLines,
   faCog,
   faPlus,
   faTrash,
   faBorderAll,
   faGripVertical,
 } from "@fortawesome/free-solid-svg-icons";
+import { useResizable } from "../../hooks/useResizable";
+import { ResizerHandle } from "../ui/ResizerHandle";
 
 export interface UnifiedTableWizardProps {
   onInsert: (code: string) => void;
@@ -140,9 +141,18 @@ export const UnifiedTableWizard: React.FC<UnifiedTableWizardProps> = ({
   const [activeColorMode, setActiveColorMode] = useState<"bg" | "fg">("bg");
 
   // --- Resize Logic ---
-  const [splitRatio, setSplitRatio] = useState(60);
-  const [isResizing, setIsResizing] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const {
+    size: splitRatio,
+    startResizing,
+    containerRef,
+    targetRef,
+  } = useResizable({
+    direction: "vertical",
+    initialSize: 60,
+    minSize: 20,
+    maxSize: 80,
+    usePercentage: true,
+  });
 
   // --- Handlers: Grid Management ---
   const addRow = () => {
@@ -407,35 +417,6 @@ export const UnifiedTableWizard: React.FC<UnifiedTableWizardProps> = ({
     return generateStandardCode(false);
   };
 
-  // --- Resize Handler ---
-  const startResizing = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
-
-  useEffect(() => {
-    const move = (e: MouseEvent) => {
-      if (isResizing && containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const offsetY = e.clientY - rect.top;
-        const percentage = (offsetY / rect.height) * 100;
-        setSplitRatio(Math.max(20, Math.min(percentage, 80)));
-      }
-    };
-    const up = () => setIsResizing(false);
-    if (isResizing) {
-      window.addEventListener("mousemove", move);
-      window.addEventListener("mouseup", up);
-      document.body.style.cursor = "row-resize";
-    } else {
-      document.body.style.cursor = "default";
-    }
-    return () => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
-    };
-  }, [isResizing]);
-
   const { minR, maxR, minC, maxC } = getSelectedRange();
   const activeGridCell = grid[activeCell.r][activeCell.c];
 
@@ -621,6 +602,7 @@ export const UnifiedTableWizard: React.FC<UnifiedTableWizardProps> = ({
 
       {/* Grid Editor */}
       <Box
+        ref={targetRef}
         style={{
           height: `${splitRatio}%`,
           overflow: "auto",
@@ -709,23 +691,10 @@ export const UnifiedTableWizard: React.FC<UnifiedTableWizardProps> = ({
       </Box>
 
       {/* Resizer */}
-      <Box
-        onMouseDown={startResizing}
-        style={{
-          height: 6,
-          cursor: "row-resize",
-          backgroundColor: isResizing
-            ? "var(--mantine-color-blue-6)"
-            : "var(--mantine-color-default-border)",
-          display: "flex",
-          justifyContent: "center",
-        }}
-      >
-        <FontAwesomeIcon
-          icon={faGripLines}
-          style={{ width: 12, opacity: 0.5 }}
-        />
-      </Box>
+      <ResizerHandle
+        onPointerDown={startResizing}
+        orientation="horizontal"
+      />
 
       {/* Settings Panel */}
       <Box

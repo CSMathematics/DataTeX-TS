@@ -45,6 +45,7 @@ use std::sync::Arc;
 struct AppState {
     db_manager: Arc<Mutex<Option<DatabaseManager>>>,
     lsp_manager: Arc<Mutex<Option<TexlabManager>>>,
+    compilation_manager: compiler::CompilationManager,
 }
 
 // 2. Open Project Command
@@ -80,140 +81,156 @@ fn get_db_path() -> Result<String, String> {
 
 // ... Existing commands ...
 #[tauri::command]
-fn compile_tex(
+async fn compile_tex(
     file_path: String,
     engine: String,
     args: Vec<String>,
     output_dir: String,
+    compilation_id: Option<String>,
+    state: State<'_, AppState>,
 ) -> Result<String, String> {
-    compiler::compile(&file_path, &engine, args, &output_dir)
+    let compilation_id = compilation_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    let permit = state.compilation_manager.begin(compilation_id)?;
+    tokio::task::spawn_blocking(move || {
+        compiler::compile(&file_path, &engine, args, &output_dir, permit)
+    })
+    .await
+    .map_err(|error| format!("Compilation task failed: {}", error))?
 }
 
 #[tauri::command]
-fn run_synctex_command(args: Vec<String>, cwd: String) -> Result<String, String> {
-    compiler::run_synctex(args, &cwd)
+async fn stop_compile(compilation_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let manager = state.compilation_manager.clone();
+    tokio::task::spawn_blocking(move || manager.stop(&compilation_id))
+        .await
+        .map_err(|error| format!("Stop compilation task failed: {}", error))?
 }
 
 #[tauri::command]
-fn run_texcount_command(args: Vec<String>, cwd: String) -> Result<String, String> {
-    compiler::run_texcount(args, &cwd)
+async fn run_synctex_command(args: Vec<String>, cwd: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || compiler::run_synctex(args, &cwd))
+        .await
+        .map_err(|error| format!("SyncTeX task failed: {}", error))?
+}
+
+#[tauri::command]
+async fn run_texcount_command(args: Vec<String>, cwd: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || compiler::run_texcount(args, &cwd))
+        .await
+        .map_err(|error| format!("TeXcount task failed: {}", error))?
 }
 
 #[tauri::command]
 async fn compile_resource_cmd(
     id: String,
     preamble_override: Option<String>,
+    compilation_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    let db_guard = state.db_manager.lock().await;
-    let db = db_guard.as_ref().ok_or("Database not initialized")?;
-
-    let resource_opt = db.get_resource_by_id(&id).await?;
-    let resource = resource_opt.ok_or("Resource not found")?;
-
-    // Parse metadata
-    let metadata_json = resource.metadata.as_ref().ok_or("No metadata found")?;
-    let preamble_id_opt = metadata_json.get("preamble").and_then(|v| v.as_str());
-    let build_command = metadata_json
-        .get("buildCommand")
-        .and_then(|v| v.as_str())
-        .unwrap_or("pdflatex");
-
-    // Use override if provided, otherwise check metadata
-    if preamble_override.is_some() || preamble_id_opt.is_some() {
-        // Need to wrap content
-        let preamble_content = if let Some(content) = preamble_override {
-            content
-        } else if let Some(preamble_id) = preamble_id_opt {
-            if preamble_id.starts_with("builtin:") {
-                // Fallback for legacy calls or missing overrides
-                match preamble_id {
-                    "builtin:beamer" => "\\documentclass{beamer}\n\\usepackage[utf8]{inputenc}\n\\usepackage{graphicx}\n\\usepackage{hyperref}\n".to_string(),
-                    _ => "\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amsmath}\n".to_string(),
-                }
-            } else {
-                // Fetch preamble resource
-                let preamble_res = db
-                    .get_resource_by_id(preamble_id)
+    let compilation_id = compilation_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    let permit = state.compilation_manager.begin(compilation_id)?;
+    let (resource, preamble_id, build_command, preamble_path) = {
+        let db_guard = state.db_manager.lock().await;
+        let db = db_guard.as_ref().ok_or("Database not initialized")?;
+        let resource = db
+            .get_resource_by_id(&id)
+            .await?
+            .ok_or("Resource not found")?;
+        let metadata = resource.metadata.as_ref().ok_or("No metadata found")?;
+        let preamble_id = metadata
+            .get("preamble")
+            .and_then(|value| value.as_str())
+            .map(str::to_owned);
+        let build_command = metadata
+            .get("buildCommand")
+            .and_then(|value| value.as_str())
+            .unwrap_or("pdflatex")
+            .to_owned();
+        let preamble_path = match (&preamble_override, &preamble_id) {
+            (None, Some(preamble_id)) if !preamble_id.starts_with("builtin:") => Some(
+                db.get_resource_by_id(preamble_id)
                     .await?
-                    .ok_or("Preamble resource not found")?;
-
-                // If preamble resource is physically on disk, read it
-                fs::read_to_string(&preamble_res.path)
-                    .map_err(|e| format!("Failed to read preamble file: {}", e))?
-            }
-        } else {
-            return Err("Logic error: No preamble source".to_string());
+                    .ok_or("Preamble resource not found")?
+                    .path,
+            ),
+            _ => None,
         };
+        (resource, preamble_id, build_command, preamble_path)
+    };
 
-        // Read the actual resource content
-        // Assuming resource.path is valid
-        let body_content = fs::read_to_string(&resource.path)
-            .map_err(|e| format!("Failed to read resource file: {}", e))?;
-
-        // Construct full document
-        let full_doc = format!(
-            "{}\n\\begin{{document}}\n{}\n\\end{{document}}",
-            preamble_content, body_content
-        );
-        println!(
-            "--- DEBUG: Generating Wrapped PDF ---\n{}\n-----------------------------------",
-            full_doc
-        );
-
-        // Save temp file in same dir to preserve relative paths.
-        let original_path = std::path::Path::new(&resource.path);
-        let parent_dir = original_path.parent().unwrap_or(std::path::Path::new("."));
-        let file_stem = original_path.file_stem().unwrap().to_str().unwrap();
-        let temp_filename = format!("{}_preview.tex", file_stem);
-        let temp_path = parent_dir.join(&temp_filename);
-
-        fs::write(&temp_path, full_doc).map_err(|e| format!("Failed to write temp file: {}", e))?;
-
-        // Compile
-        let output_dir = parent_dir.to_string_lossy().to_string();
-
-        // Use -jobname to output PDF with original filename for viewer compatibility.
-        let jobname_arg = format!("-jobname={}", file_stem);
-
-        let result = compiler::compile(
-            &temp_path.to_string_lossy(),
-            build_command,
-            vec![jobname_arg],
-            &output_dir,
-        );
-
-        // Keep temp file for debugging/logging.
-
-        // Output path logic (compiler usually replaces extension)
-        match result {
-            Ok(_) => {
-                // Since we used -jobname=file_stem, the output is file_stem.pdf
-                let pdf_name = format!("{}.pdf", file_stem);
-                let pdf_path = parent_dir.join(pdf_name);
-                Ok(pdf_path.to_string_lossy().to_string())
-            }
-            Err(e) => Err(e),
-        }
-    } else {
-        // Normal compilation
-        let parent_dir = std::path::Path::new(&resource.path)
+    tokio::task::spawn_blocking(move || {
+        permit.ensure_not_cancelled()?;
+        let original_path = std::path::PathBuf::from(&resource.path);
+        let parent_dir = original_path
             .parent()
             .unwrap_or(std::path::Path::new("."));
+        let file_stem = original_path
+            .file_stem()
+            .ok_or("Resource path has no file name")?
+            .to_string_lossy()
+            .to_string();
         let output_dir = parent_dir.to_string_lossy().to_string();
 
-        match compiler::compile(&resource.path, build_command, vec![], &output_dir) {
-            Ok(_) => {
-                // Assume PDF is [filename].pdf
-                let original_path = std::path::Path::new(&resource.path);
-                let file_stem = original_path.file_stem().unwrap().to_str().unwrap();
-                let pdf_name = format!("{}.pdf", file_stem);
-                let pdf_path = original_path.with_file_name(pdf_name);
-                Ok(pdf_path.to_string_lossy().to_string())
-            }
-            Err(e) => Err(e),
+        if preamble_override.is_some() || preamble_id.is_some() {
+            let preamble_content = if let Some(content) = preamble_override {
+                content
+            } else if let Some(preamble_id) = preamble_id {
+                if preamble_id == "builtin:beamer" {
+                    "\\documentclass{beamer}\n\\usepackage[utf8]{inputenc}\n\\usepackage{graphicx}\n\\usepackage{hyperref}\n".to_string()
+                } else if preamble_id.starts_with("builtin:") {
+                    "\\documentclass{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amsmath}\n".to_string()
+                } else {
+                    let path = preamble_path.ok_or("Preamble resource has no path")?;
+                    fs::read_to_string(path)
+                        .map_err(|error| format!("Failed to read preamble file: {}", error))?
+                }
+            } else {
+                return Err("No preamble source".to_string());
+            };
+
+            let body_content = fs::read_to_string(&original_path)
+                .map_err(|error| format!("Failed to read resource file: {}", error))?;
+            let full_document = format!(
+                "{}\n\\begin{{document}}\n{}\n\\end{{document}}",
+                preamble_content, body_content
+            );
+            let temp_path = parent_dir.join(format!("{}_preview.tex", file_stem));
+            fs::write(&temp_path, full_document)
+                .map_err(|error| format!("Failed to write preview file: {}", error))?;
+
+            let result = compiler::compile(
+                &temp_path.to_string_lossy(),
+                &build_command,
+                vec![
+                    "-interaction=nonstopmode".to_string(),
+                    "-synctex=1".to_string(),
+                    format!("-jobname={}", file_stem),
+                ],
+                &output_dir,
+                permit,
+            );
+            let _ = fs::remove_file(&temp_path);
+            result?;
+        } else {
+            compiler::compile(
+                &resource.path,
+                &build_command,
+                vec![
+                    "-interaction=nonstopmode".to_string(),
+                    "-synctex=1".to_string(),
+                ],
+                &output_dir,
+                permit,
+            )?;
         }
-    }
+
+        Ok(original_path
+            .with_extension("pdf")
+            .to_string_lossy()
+            .to_string())
+    })
+    .await
+    .map_err(|error| format!("Compilation task failed: {}", error))?
 }
 
 #[tauri::command]
@@ -374,6 +391,13 @@ async fn get_resource_cmd(
     manager.get_resource_by_id(&id).await
 }
 
+struct ScannedFolderResource {
+    id: String,
+    path: String,
+    kind: &'static str,
+    title: String,
+}
+
 #[tauri::command]
 async fn import_folder_cmd(
     path: String,
@@ -384,72 +408,240 @@ async fn import_folder_cmd(
         "import_folder_cmd called with path: {}, name: {}",
         path, collection_name
     );
-    let db_guard = state.db_manager.lock().await;
-    let db = db_guard.as_ref().ok_or("Database not initialized")?;
 
-    // 2. Create Collection if not exists
-    let collection = Collection {
-        name: collection_name.clone(),
-        description: Some(format!("Imported from {}", path)),
-        icon: Some("folder".to_string()),
-        kind: "files".to_string(),
-        path: Some(path.clone()),
-        created_at: None,
+    // Clone the pool while holding the global manager lock, then release it
+    // before either filesystem traversal or database I/O.
+    let pool = {
+        let db_guard = state.db_manager.lock().await;
+        db_guard
+            .as_ref()
+            .ok_or("Database not initialized")?
+            .pool
+            .clone()
     };
-    db.create_collection(&collection).await?;
 
-    // 2. Walk directory
-    let mut count = 0;
-    for entry in WalkDir::new(&path).into_iter().filter_map(|e| e.ok()) {
-        if entry.file_type().is_file() {
-            let file_path = entry.path().to_string_lossy().to_string();
-            let file_name = entry.file_name().to_string_lossy().to_string();
-
-            // Simple type detection extension
-            let kind = if file_name.ends_with(".tex") {
-                "file"
-            } else if file_name.ends_with(".bib") {
-                "bibliography"
-            } else if file_name.ends_with(".sty") {
-                "package"
-            } else if file_name.ends_with(".cls") {
-                "class"
-            } else if file_name.ends_with(".dtx") {
-                "dtx"
-            } else if file_name.ends_with(".ins") {
-                "ins"
-            } else if file_name.ends_with(".png")
-                || file_name.ends_with(".jpg")
-                || file_name.ends_with(".pdf")
-            {
-                "figure"
-            } else {
-                "file"
-            };
-
-            let resource = Resource {
-                id: Uuid::new_v4().to_string(),
-                path: file_path,
-                kind: kind.to_string(),
-                collection: collection_name.clone(),
-                title: Some(file_name),
-                content_hash: None, // TODO: calculate hash
-                metadata: Some(serde_json::json!({})),
-                created_at: None,
-                updated_at: None,
-            };
-
-            if let Err(e) = db.add_resource(&resource).await {
-                eprintln!("Failed to add resource: {}", e);
-                // Continue despite errors? or fail?
-                // For now, log and continue.
-            } else {
-                count += 1;
+    let scan_path = path.clone();
+    let resources =
+        tokio::task::spawn_blocking(move || -> Result<Vec<ScannedFolderResource>, String> {
+            let root_metadata = fs::metadata(&scan_path).map_err(|error| {
+                format!("Failed to access import folder '{}': {}", scan_path, error)
+            })?;
+            if !root_metadata.is_dir() {
+                return Err(format!("Import path is not a directory: {}", scan_path));
             }
-        }
+
+            let mut resources = Vec::new();
+            for entry in WalkDir::new(&scan_path) {
+                let entry = entry.map_err(|error| {
+                    format!(
+                        "Failed while scanning import folder '{}': {}",
+                        scan_path, error
+                    )
+                })?;
+                if !entry.file_type().is_file() {
+                    continue;
+                }
+
+                let file_path = entry
+                    .path()
+                    .to_str()
+                    .ok_or_else(|| {
+                        format!("Import path is not valid UTF-8: {}", entry.path().display())
+                    })?
+                    .to_string();
+                let file_name = entry
+                    .file_name()
+                    .to_str()
+                    .ok_or_else(|| {
+                        format!(
+                            "Imported file name is not valid UTF-8: {}",
+                            entry.path().display()
+                        )
+                    })?
+                    .to_string();
+                let extension = entry
+                    .path()
+                    .extension()
+                    .and_then(|extension| extension.to_str())
+                    .unwrap_or_default()
+                    .to_ascii_lowercase();
+                let kind = match extension.as_str() {
+                    "bib" => "bibliography",
+                    "sty" => "package",
+                    "cls" => "class",
+                    "dtx" => "dtx",
+                    "ins" => "ins",
+                    "png" | "jpg" | "jpeg" | "pdf" => "figure",
+                    _ => "file",
+                };
+
+                resources.push(ScannedFolderResource {
+                    id: Uuid::new_v4().to_string(),
+                    path: file_path,
+                    kind,
+                    title: file_name,
+                });
+            }
+            Ok(resources)
+        })
+        .await
+        .map_err(|error| format!("Folder scan task failed: {}", error))??;
+
+    persist_folder_import(&pool, &path, &collection_name, &resources).await
+}
+
+async fn persist_folder_import(
+    pool: &sqlx::SqlitePool,
+    path: &str,
+    collection_name: &str,
+    resources: &[ScannedFolderResource],
+) -> Result<usize, String> {
+    let resource_count = resources.len();
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Failed to begin folder import: {}", error))?;
+
+    sqlx::query(
+        "INSERT INTO collections (name, description, icon, type, path)
+         VALUES (?, ?, 'folder', 'files', ?)
+         ON CONFLICT(name) DO UPDATE SET
+           description = excluded.description,
+           icon = excluded.icon,
+           type = excluded.type,
+           path = excluded.path",
+    )
+    .bind(collection_name)
+    .bind(format!("Imported from {}", path))
+    .bind(path)
+    .execute(&mut *transaction)
+    .await
+    .map_err(|error| format!("Failed to create or update imported collection: {}", error))?;
+
+    // Stay below SQLite's default bind-parameter limit while still reducing a
+    // large import to a small number of database round trips.
+    for chunk in resources.chunks(100) {
+        let mut query = sqlx::QueryBuilder::<sqlx::Sqlite>::new(
+            "INSERT INTO resources (id, path, type, collection, title, content_hash, metadata) ",
+        );
+        query.push_values(chunk, |mut values, resource| {
+            values
+                .push_bind(&resource.id)
+                .push_bind(&resource.path)
+                .push_bind(resource.kind)
+                .push_bind(collection_name)
+                .push_bind(&resource.title)
+                .push_bind(Option::<String>::None)
+                .push_bind("{}");
+        });
+        query.push(
+            " ON CONFLICT(path) DO UPDATE SET
+                type = excluded.type,
+                collection = excluded.collection,
+                title = excluded.title",
+        );
+        query
+            .build()
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("Failed to import resource batch: {}", error))?;
     }
 
-    Ok(count)
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Failed to commit folder import: {}", error))?;
+    Ok(resource_count)
+}
+
+#[cfg(test)]
+mod folder_import_tests {
+    use super::*;
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    #[tokio::test]
+    async fn reimport_preserves_resource_id_and_user_metadata() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("in-memory database");
+        sqlx::query(
+            "CREATE TABLE collections (
+                name TEXT PRIMARY KEY NOT NULL,
+                description TEXT,
+                icon TEXT,
+                type TEXT NOT NULL,
+                path TEXT
+            )",
+        )
+        .execute(&pool)
+        .await
+        .expect("collections schema");
+        sqlx::query(
+            "CREATE TABLE resources (
+                id TEXT PRIMARY KEY NOT NULL,
+                path TEXT NOT NULL UNIQUE,
+                type TEXT NOT NULL,
+                collection TEXT NOT NULL,
+                title TEXT,
+                content_hash TEXT,
+                metadata JSON DEFAULT '{}'
+            )",
+        )
+        .execute(&pool)
+        .await
+        .expect("resources schema");
+
+        let first = vec![ScannedFolderResource {
+            id: "original-id".to_string(),
+            path: "/library/item.tex".to_string(),
+            kind: "file",
+            title: "item.tex".to_string(),
+        }];
+        assert_eq!(
+            persist_folder_import(&pool, "/library", "library", &first)
+                .await
+                .expect("first import"),
+            1
+        );
+        sqlx::query(
+            "UPDATE resources
+             SET metadata = '{\"custom\":true}', content_hash = 'user-hash'
+             WHERE path = '/library/item.tex'",
+        )
+        .execute(&pool)
+        .await
+        .expect("user metadata update");
+
+        let reimport = vec![ScannedFolderResource {
+            id: "replacement-id".to_string(),
+            path: "/library/item.tex".to_string(),
+            kind: "file",
+            title: "renamed-title.tex".to_string(),
+        }];
+        persist_folder_import(&pool, "/library", "library", &reimport)
+            .await
+            .expect("repeat import");
+
+        let row: (String, String, String, String) = sqlx::query_as(
+            "SELECT id, title, content_hash, metadata
+             FROM resources WHERE path = '/library/item.tex'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("reimported resource");
+        assert_eq!(row.0, "original-id");
+        assert_eq!(row.1, "renamed-title.tex");
+        assert_eq!(row.2, "user-hash");
+        assert_eq!(row.3, "{\"custom\":true}");
+
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM resources")
+            .fetch_one(&pool)
+            .await
+            .expect("resource count");
+        assert_eq!(count.0, 1);
+    }
 }
 
 #[tauri::command]
@@ -615,7 +807,7 @@ async fn import_file_cmd(
     // 4. Perform Copy
     // Check if source and dest are the same (already in folder)
     if src_path != dest_path {
-        fs::copy(&src_path, &dest_path).map_err(|e| format!("Failed to copy file: {}", e))?;
+        fs::copy(src_path, &dest_path).map_err(|e| format!("Failed to copy file: {}", e))?;
     }
 
     // 5. Register NEW path in Database
@@ -752,6 +944,7 @@ async fn search_database_files(
     } else {
         db.get_resources_by_collections(&collections).await?
     };
+    drop(db_guard);
 
     // Build search query
     let search_query = search::SearchQuery {
@@ -762,8 +955,10 @@ async fn search_database_files(
         max_results,
     };
 
-    // Perform search
-    search::search_in_files(&search_query, resources)
+    // File scanning is blocking and CPU-heavy; keep it off the async runtime.
+    tokio::task::spawn_blocking(move || search::search_in_files(&search_query, resources))
+        .await
+        .map_err(|error| format!("Search task failed: {}", error))?
 }
 
 #[tauri::command]
@@ -789,6 +984,7 @@ async fn replace_database_files(
     } else {
         db.get_resources_by_collections(&collections).await?
     };
+    drop(db_guard);
 
     let replace_query = search::ReplaceQuery {
         search: search::SearchQuery {
@@ -801,7 +997,9 @@ async fn replace_database_files(
         replace_with,
     };
 
-    search::replace_in_files(&replace_query, resources)
+    tokio::task::spawn_blocking(move || search::replace_in_files(&replace_query, resources))
+        .await
+        .map_err(|error| format!("Replace task failed: {}", error))?
 }
 
 // ===== LSP Commands =====
@@ -919,25 +1117,25 @@ async fn get_file_tree_cmd(
     collections: Vec<String>,
     state: State<'_, AppState>,
 ) -> Result<Vec<tree_builder::TreeNode>, String> {
-    let db_guard = state.db_manager.lock().await;
-    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    let (resources, roots) = {
+        let db_guard = state.db_manager.lock().await;
+        let db = db_guard.as_ref().ok_or("Database not initialized")?;
 
-    // Build collection roots map for tree builder
-    let all_cols = db.get_collections().await?;
-    let mut roots = std::collections::HashMap::new();
-    for c in all_cols {
-        if let Some(p) = c.path {
-            roots.insert(c.name, p);
+        let all_collections = db.get_collections().await?;
+        let mut roots = std::collections::HashMap::new();
+        for collection in all_collections {
+            if let Some(path) = collection.path {
+                roots.insert(collection.name, path);
+            }
         }
-    }
 
-    let mut all_resources = Vec::new();
-    for col in collections {
-        let resources = db.get_resources_by_collection(&col).await?;
-        all_resources.extend(resources);
-    }
+        let resources = db.get_resources_by_collections(&collections).await?;
+        (resources, roots)
+    };
 
-    Ok(tree_builder::build_file_tree(all_resources, &roots))
+    tokio::task::spawn_blocking(move || tree_builder::build_file_tree(resources, &roots))
+        .await
+        .map_err(|error| format!("File tree task failed: {}", error))
 }
 
 #[tauri::command]
@@ -1974,8 +2172,15 @@ async fn save_typed_metadata_cmd(
     resource_type: String,
     metadata: serde_json::Value,
 ) -> Result<(), String> {
-    let db_guard = state.db_manager.lock().await;
-    let manager = db_guard.as_ref().ok_or("Database not initialized")?;
+    let pool = {
+        let db_guard = state.db_manager.lock().await;
+        db_guard
+            .as_ref()
+            .ok_or("Database not initialized")?
+            .pool
+            .clone()
+    };
+    let mut transaction = pool.begin().await.map_err(|e| e.to_string())?;
 
     match resource_type.as_str() {
         "file" => {
@@ -2003,10 +2208,18 @@ async fn save_typed_metadata_cmd(
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
 
-            // Insert or replace main record
+            // Upsert without deleting the parent row. REPLACE can cascade-delete
+            // junction rows before recreating the record.
             sqlx::query(
-                "INSERT OR REPLACE INTO resource_files (resource_id, file_type_id, field_id, difficulty, solved_prooved, build_command, file_description)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO resource_files (resource_id, file_type_id, field_id, difficulty, solved_prooved, build_command, file_description)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(resource_id) DO UPDATE SET
+                   file_type_id = excluded.file_type_id,
+                   field_id = excluded.field_id,
+                   difficulty = excluded.difficulty,
+                   solved_prooved = excluded.solved_prooved,
+                   build_command = excluded.build_command,
+                   file_description = excluded.file_description"
             )
             .bind(&resource_id)
             .bind(&file_type_id)
@@ -2015,7 +2228,7 @@ async fn save_typed_metadata_cmd(
             .bind(solved_prooved)
             .bind(&build_command)
             .bind(&file_description)
-            .execute(&manager.pool)
+            .execute(&mut *transaction)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -2024,7 +2237,7 @@ async fn save_typed_metadata_cmd(
                 // Clear existing
                 sqlx::query("DELETE FROM resource_file_chapters WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2033,7 +2246,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_file_chapters (resource_id, chapter_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(chapter_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2044,7 +2257,7 @@ async fn save_typed_metadata_cmd(
             if let Some(sections) = metadata.get("sections").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_file_sections WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2053,7 +2266,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_file_sections (resource_id, section_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(section_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2064,7 +2277,7 @@ async fn save_typed_metadata_cmd(
             if let Some(subsections) = metadata.get("subsections").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_file_subsections WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2073,7 +2286,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_file_subsections (resource_id, subsection_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(subsection_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2084,7 +2297,7 @@ async fn save_typed_metadata_cmd(
             if let Some(exercise_types) = metadata.get("exerciseTypes").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_file_exercise_types WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2093,7 +2306,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_file_exercise_types (resource_id, exercise_type_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(et_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2104,7 +2317,7 @@ async fn save_typed_metadata_cmd(
             if let Some(tags) = metadata.get("customTags").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_file_tags WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2113,14 +2326,14 @@ async fn save_typed_metadata_cmd(
                         // Ensure tag exists
                         sqlx::query("INSERT OR IGNORE INTO custom_tags (tag) VALUES (?)")
                             .bind(tag_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
 
                         sqlx::query("INSERT OR IGNORE INTO resource_file_tags (resource_id, tag) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(tag_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2166,12 +2379,22 @@ async fn save_typed_metadata_cmd(
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
 
-            // Insert or replace main document record (folder fields are optional now)
+            // Upsert without deleting the parent row or cascading into junctions.
             sqlx::query(
-                "INSERT OR REPLACE INTO resource_documents 
+                "INSERT INTO resource_documents
                  (resource_id, title, document_type_id, field_id, date, 
                   preamble_id, build_command, bibliography, description, solution_document_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(resource_id) DO UPDATE SET
+                   title = excluded.title,
+                   document_type_id = excluded.document_type_id,
+                   field_id = excluded.field_id,
+                   date = excluded.date,
+                   preamble_id = excluded.preamble_id,
+                   build_command = excluded.build_command,
+                   bibliography = excluded.bibliography,
+                   description = excluded.description,
+                   solution_document_id = excluded.solution_document_id",
             )
             .bind(&resource_id)
             .bind(&title)
@@ -2183,7 +2406,7 @@ async fn save_typed_metadata_cmd(
             .bind(&bibliography)
             .bind(&description)
             .bind(&solution_document_id)
-            .execute(&manager.pool)
+            .execute(&mut *transaction)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -2191,7 +2414,7 @@ async fn save_typed_metadata_cmd(
             if let Some(chapters) = metadata.get("chapters").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_document_chapters WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2200,7 +2423,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_document_chapters (resource_id, chapter_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(chapter_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2211,7 +2434,7 @@ async fn save_typed_metadata_cmd(
             if let Some(sections) = metadata.get("sections").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_document_sections WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2220,7 +2443,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_document_sections (resource_id, section_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(section_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2231,7 +2454,7 @@ async fn save_typed_metadata_cmd(
             if let Some(subsections) = metadata.get("subsections").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_document_subsections WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2240,7 +2463,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_document_subsections (resource_id, subsection_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(subsection_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2251,7 +2474,7 @@ async fn save_typed_metadata_cmd(
             if let Some(tags) = metadata.get("customTags").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_document_tags WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2259,14 +2482,14 @@ async fn save_typed_metadata_cmd(
                     if let Some(tag_str) = tag.as_str() {
                         sqlx::query("INSERT OR IGNORE INTO custom_tags (tag) VALUES (?)")
                             .bind(tag_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
 
                         sqlx::query("INSERT OR IGNORE INTO resource_document_tags (resource_id, tag) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(tag_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2286,7 +2509,7 @@ async fn save_typed_metadata_cmd(
             let exists: bool =
                 sqlx::query("SELECT 1 FROM resource_bibliographies WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .fetch_optional(&manager.pool)
+                    .fetch_optional(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?
                     .is_some();
@@ -2339,14 +2562,14 @@ async fn save_typed_metadata_cmd(
                 .bind(get_str("note"))
                 .bind(get_str("crossref"))
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
 
             // 2. Handle Persons
             sqlx::query("DELETE FROM resource_bibliography_persons WHERE resource_id = ?")
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -2365,7 +2588,7 @@ async fn save_typed_metadata_cmd(
                                     .bind(role)
                                     .bind(name)
                                     .bind(pos as i32)
-                                    .execute(&manager.pool)
+                                    .execute(&mut *transaction)
                                     .await
                                     .map_err(|e| e.to_string())?;
                             }
@@ -2377,7 +2600,7 @@ async fn save_typed_metadata_cmd(
             // 3. Handle Extras
             sqlx::query("DELETE FROM resource_bibliography_extras WHERE resource_id = ?")
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -2388,7 +2611,7 @@ async fn save_typed_metadata_cmd(
                             .bind(&resource_id)
                             .bind(k)
                             .bind(val_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2405,7 +2628,7 @@ async fn save_typed_metadata_cmd(
 
             let exists: bool = sqlx::query("SELECT 1 FROM resource_figures WHERE resource_id = ?")
                 .bind(&resource_id)
-                .fetch_optional(&manager.pool)
+                .fetch_optional(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?
                 .is_some();
@@ -2437,7 +2660,7 @@ async fn save_typed_metadata_cmd(
                 .bind(get_str("placement"))
                 .bind(get_str("alignment"))
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -2445,7 +2668,7 @@ async fn save_typed_metadata_cmd(
             if let Some(packages) = metadata.get("requiredPackages").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_figure_packages WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2454,14 +2677,14 @@ async fn save_typed_metadata_cmd(
                         // Ensure package exists in dictionary to avoid FK error
                         sqlx::query("INSERT OR IGNORE INTO texlive_packages (id) VALUES (?)")
                             .bind(pkg_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
 
                         sqlx::query("INSERT OR IGNORE INTO resource_figure_packages (resource_id, package_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(pkg_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2473,7 +2696,7 @@ async fn save_typed_metadata_cmd(
             if let Some(chapters) = metadata.get("chapters").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_figure_chapters WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2482,7 +2705,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_figure_chapters (resource_id, chapter_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(ch_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2493,7 +2716,7 @@ async fn save_typed_metadata_cmd(
             if let Some(sections) = metadata.get("sections").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_figure_sections WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2502,7 +2725,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_figure_sections (resource_id, section_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(s_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2513,7 +2736,7 @@ async fn save_typed_metadata_cmd(
             if let Some(subsections) = metadata.get("subsections").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_figure_subsections WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2522,7 +2745,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_figure_subsections (resource_id, subsection_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(ss_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2533,7 +2756,7 @@ async fn save_typed_metadata_cmd(
             if let Some(tags) = metadata.get("customTags").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_figure_tags WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2541,14 +2764,14 @@ async fn save_typed_metadata_cmd(
                     if let Some(tag_str) = tag.as_str() {
                         sqlx::query("INSERT OR IGNORE INTO custom_tags (tag) VALUES (?)")
                             .bind(tag_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
 
                         sqlx::query("INSERT OR IGNORE INTO resource_figure_tags (resource_id, tag) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(tag_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2586,7 +2809,7 @@ async fn save_typed_metadata_cmd(
 
             let exists: bool = sqlx::query("SELECT 1 FROM resource_commands WHERE resource_id = ?")
                 .bind(&resource_id)
-                .fetch_optional(&manager.pool)
+                .fetch_optional(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?
                 .is_some();
@@ -2602,7 +2825,7 @@ async fn save_typed_metadata_cmd(
                     .bind(&description)
                     .bind(built_in)
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
             } else {
@@ -2616,7 +2839,7 @@ async fn save_typed_metadata_cmd(
                      .bind(&example)
                      .bind(&description)
                      .bind(built_in)
-                     .execute(&manager.pool)
+                     .execute(&mut *transaction)
                      .await
                      .map_err(|e| e.to_string())?;
             }
@@ -2625,17 +2848,17 @@ async fn save_typed_metadata_cmd(
             if let Some(tags) = metadata.get("customTags").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_command_tags WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
                 for tag in tags {
                     if let Some(tag_str) = tag.as_str() {
                         sqlx::query("INSERT OR IGNORE INTO custom_tags (tag) VALUES (?)")
                             .bind(tag_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
-                        sqlx::query("INSERT OR IGNORE INTO resource_command_tags (resource_id, tag) VALUES (?, ?)").bind(&resource_id).bind(tag_str).execute(&manager.pool).await.map_err(|e| e.to_string())?;
+                        sqlx::query("INSERT OR IGNORE INTO resource_command_tags (resource_id, tag) VALUES (?, ?)").bind(&resource_id).bind(tag_str).execute(&mut *transaction).await.map_err(|e| e.to_string())?;
                     }
                 }
             }
@@ -2643,12 +2866,12 @@ async fn save_typed_metadata_cmd(
             if let Some(packages) = metadata.get("requiredPackages").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_command_packages WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
                 for pkg in packages {
                     if let Some(pkg_id) = pkg.as_str() {
-                        sqlx::query("INSERT OR IGNORE INTO resource_command_packages (resource_id, package_id) VALUES (?, ?)").bind(&resource_id).bind(pkg_id).execute(&manager.pool).await.map_err(|e| e.to_string())?;
+                        sqlx::query("INSERT OR IGNORE INTO resource_command_packages (resource_id, package_id) VALUES (?, ?)").bind(&resource_id).bind(pkg_id).execute(&mut *transaction).await.map_err(|e| e.to_string())?;
                     }
                 }
             }
@@ -2666,7 +2889,7 @@ async fn save_typed_metadata_cmd(
 
             let exists: bool = sqlx::query("SELECT 1 FROM resource_tables WHERE resource_id = ?")
                 .bind(&resource_id)
-                .fetch_optional(&manager.pool)
+                .fetch_optional(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?
                 .is_some();
@@ -2700,7 +2923,7 @@ async fn save_typed_metadata_cmd(
                 .bind(get_int("rows"))
                 .bind(get_int("columns"))
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
 
@@ -2708,7 +2931,7 @@ async fn save_typed_metadata_cmd(
             if let Some(packages) = metadata.get("requiredPackages").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_table_packages WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2717,14 +2940,14 @@ async fn save_typed_metadata_cmd(
                         // Ensure package exists in dictionary to avoid FK error
                         sqlx::query("INSERT OR IGNORE INTO texlive_packages (id) VALUES (?)")
                             .bind(pkg_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
 
                         sqlx::query("INSERT OR IGNORE INTO resource_table_packages (resource_id, package_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(pkg_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2736,7 +2959,7 @@ async fn save_typed_metadata_cmd(
             if let Some(chapters) = metadata.get("chapters").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_table_chapters WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2745,7 +2968,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_table_chapters (resource_id, chapter_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(ch_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2756,7 +2979,7 @@ async fn save_typed_metadata_cmd(
             if let Some(sections) = metadata.get("sections").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_table_sections WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2765,7 +2988,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_table_sections (resource_id, section_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(s_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2776,7 +2999,7 @@ async fn save_typed_metadata_cmd(
             if let Some(subsections) = metadata.get("subsections").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_table_subsections WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2785,7 +3008,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_table_subsections (resource_id, subsection_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(ss_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2796,7 +3019,7 @@ async fn save_typed_metadata_cmd(
             if let Some(tags) = metadata.get("customTags").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_table_tags WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -2804,14 +3027,14 @@ async fn save_typed_metadata_cmd(
                     if let Some(tag_str) = tag.as_str() {
                         sqlx::query("INSERT OR IGNORE INTO custom_tags (tag) VALUES (?)")
                             .bind(tag_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
 
                         sqlx::query("INSERT OR IGNORE INTO resource_table_tags (resource_id, tag) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(tag_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2830,7 +3053,7 @@ async fn save_typed_metadata_cmd(
 
             let exists: bool = sqlx::query("SELECT 1 FROM resource_packages WHERE resource_id = ?")
                 .bind(&resource_id)
-                .fetch_optional(&manager.pool)
+                .fetch_optional(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?
                 .is_some();
@@ -2852,7 +3075,7 @@ async fn save_typed_metadata_cmd(
                 .bind(get_str("documentation"))
                 .bind(get_str("example"))
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
             } else {
@@ -2872,7 +3095,7 @@ async fn save_typed_metadata_cmd(
                 .bind(get_str("documentation"))
                 .bind(get_str("example"))
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
             }
@@ -2883,20 +3106,20 @@ async fn save_typed_metadata_cmd(
             if let Some(tags) = metadata.get("customTags").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_package_tags WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
                 for tag in tags {
                     if let Some(tag_str) = tag.as_str() {
                         sqlx::query("INSERT OR IGNORE INTO custom_tags (tag) VALUES (?)")
                             .bind(tag_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                         sqlx::query("INSERT OR IGNORE INTO resource_package_tags (resource_id, tag) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(tag_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2907,7 +3130,7 @@ async fn save_typed_metadata_cmd(
             if let Some(cmds) = metadata.get("providedCommands").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_package_provided_commands WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
                 for cmd in cmds {
@@ -2915,7 +3138,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_package_provided_commands (resource_id, command_name) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(cmd_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2926,7 +3149,7 @@ async fn save_typed_metadata_cmd(
             if let Some(topics) = metadata.get("topics").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_package_topics WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
                 for topic in topics {
@@ -2934,7 +3157,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_package_topics (resource_id, topic_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(topic_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2945,7 +3168,7 @@ async fn save_typed_metadata_cmd(
             if let Some(deps) = metadata.get("requiredPackages").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_package_dependencies WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
                 for dep in deps {
@@ -2953,7 +3176,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_package_dependencies (resource_id, package_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(dep_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -2971,7 +3194,7 @@ async fn save_typed_metadata_cmd(
 
             let exists: bool = sqlx::query("SELECT 1 FROM resource_classes WHERE resource_id = ?")
                 .bind(&resource_id)
-                .fetch_optional(&manager.pool)
+                .fetch_optional(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?
                 .is_some();
@@ -2995,7 +3218,7 @@ async fn save_typed_metadata_cmd(
                 .bind(get_str("options"))
                 .bind(get_str("languages"))
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
             } else {
@@ -3017,7 +3240,7 @@ async fn save_typed_metadata_cmd(
                 .bind(get_str("options"))
                 .bind(get_str("languages"))
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
             }
@@ -3028,20 +3251,20 @@ async fn save_typed_metadata_cmd(
             if let Some(tags) = metadata.get("customTags").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_class_tags WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
                 for tag in tags {
                     if let Some(tag_str) = tag.as_str() {
                         sqlx::query("INSERT OR IGNORE INTO custom_tags (tag) VALUES (?)")
                             .bind(tag_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                         sqlx::query("INSERT OR IGNORE INTO resource_class_tags (resource_id, tag) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(tag_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -3052,7 +3275,7 @@ async fn save_typed_metadata_cmd(
             if let Some(pkgs) = metadata.get("requiredPackages").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_class_packages WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
                 for pkg in pkgs {
@@ -3060,7 +3283,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_class_packages (resource_id, package_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(pkg_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -3071,7 +3294,7 @@ async fn save_typed_metadata_cmd(
             if let Some(cmds) = metadata.get("providedCommands").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_class_provided_commands WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
                 for cmd in cmds {
@@ -3079,7 +3302,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_class_provided_commands (resource_id, command_name) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(cmd_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -3100,7 +3323,7 @@ async fn save_typed_metadata_cmd(
             let exists: bool =
                 sqlx::query("SELECT 1 FROM resource_preambles WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .fetch_optional(&manager.pool)
+                    .fetch_optional(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?
                     .is_some();
@@ -3138,7 +3361,7 @@ async fn save_typed_metadata_cmd(
                 .bind(get_bool("hasLot"))
                 .bind(get_bool("hasLof"))
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
             } else {
@@ -3174,7 +3397,7 @@ async fn save_typed_metadata_cmd(
                 .bind(get_bool("hasLot"))
                 .bind(get_bool("hasLof"))
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
             }
@@ -3185,7 +3408,7 @@ async fn save_typed_metadata_cmd(
             if let Some(pkgs) = metadata.get("requiredPackages").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_preamble_packages WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
                 for pkg in pkgs {
@@ -3193,7 +3416,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_preamble_packages (resource_id, package_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(pkg_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -3204,7 +3427,7 @@ async fn save_typed_metadata_cmd(
             if let Some(ctypes) = metadata.get("commandTypes").and_then(|v| v.as_array()) {
                 sqlx::query("DELETE FROM resource_preamble_command_types WHERE resource_id = ?")
                     .bind(&resource_id)
-                    .execute(&manager.pool)
+                    .execute(&mut *transaction)
                     .await
                     .map_err(|e| e.to_string())?;
                 for ctype in ctypes {
@@ -3212,7 +3435,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_preamble_command_types (resource_id, command_type_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(ctype_id)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -3225,7 +3448,7 @@ async fn save_typed_metadata_cmd(
                     "DELETE FROM resource_preamble_provided_commands WHERE resource_id = ?",
                 )
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
                 for cmd in cmds {
@@ -3233,7 +3456,7 @@ async fn save_typed_metadata_cmd(
                         sqlx::query("INSERT OR IGNORE INTO resource_preamble_provided_commands (resource_id, command_name) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(cmd_str)
-                            .execute(&manager.pool)
+                            .execute(&mut *transaction)
                             .await
                             .map_err(|e| e.to_string())?;
                     }
@@ -3250,7 +3473,7 @@ async fn save_typed_metadata_cmd(
 
             let exists: bool = sqlx::query("SELECT 1 FROM resource_dtx WHERE resource_id = ?")
                 .bind(&resource_id)
-                .fetch_optional(&manager.pool)
+                .fetch_optional(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?
                 .is_some();
@@ -3270,7 +3493,7 @@ async fn save_typed_metadata_cmd(
                 .bind(metadata.get("providesPackages").map(|v| v.to_string()))
                 .bind(get_str("documentationChecksum"))
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
             } else {
@@ -3289,7 +3512,7 @@ async fn save_typed_metadata_cmd(
                 .bind(metadata.get("providesPackages").map(|v| v.to_string()))
                 .bind(get_str("documentationChecksum"))
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
             }
@@ -3304,7 +3527,7 @@ async fn save_typed_metadata_cmd(
 
             let exists: bool = sqlx::query("SELECT 1 FROM resource_ins WHERE resource_id = ?")
                 .bind(&resource_id)
-                .fetch_optional(&manager.pool)
+                .fetch_optional(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?
                 .is_some();
@@ -3318,7 +3541,7 @@ async fn save_typed_metadata_cmd(
                 .bind(get_str("targetDtxId"))
                 .bind(metadata.get("generatedFiles").map(|v| v.to_string()))
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
             } else {
@@ -3330,7 +3553,7 @@ async fn save_typed_metadata_cmd(
                 .bind(get_str("targetDtxId"))
                 .bind(metadata.get("generatedFiles").map(|v| v.to_string()))
                 .bind(&resource_id)
-                .execute(&manager.pool)
+                .execute(&mut *transaction)
                 .await
                 .map_err(|e| e.to_string())?;
             }
@@ -3339,6 +3562,7 @@ async fn save_typed_metadata_cmd(
         _ => {}
     }
 
+    transaction.commit().await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -4155,6 +4379,7 @@ pub fn run() {
         .manage(AppState {
             db_manager: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
             lsp_manager: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
+            compilation_manager: compiler::CompilationManager::default(),
         })
         .setup(|app| {
             let proj_dirs = ProjectDirs::from("", "", "datatex");
@@ -4171,7 +4396,7 @@ pub fn run() {
             };
 
             // Initialize Vector Store
-            let vectors_path = vectors::get_vectors_path(&app.handle());
+            let vectors_path = vectors::get_vectors_path(app.handle());
             println!("Loading Vector Store from: {:?}", vectors_path);
             let vector_store = vectors::load_store(&vectors_path).unwrap_or_else(|e| {
                 eprintln!("Failed to load vector store: {}", e);
@@ -4207,7 +4432,6 @@ pub fn run() {
         })
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(Mutex::new(watcher::GitWatcher::new()))
         .invoke_handler(tauri::generate_handler![
@@ -4218,6 +4442,7 @@ pub fn run() {
             open_project,
             get_db_path,
             compile_tex,
+            stop_compile,
             run_synctex_command,
             run_texcount_command,
             compile_resource_cmd,
@@ -4353,6 +4578,7 @@ pub fn run() {
             git_create_branch_cmd,
             git_switch_branch_cmd,
             git_delete_branch_cmd,
+            git_rename_branch_cmd,
             git_list_remotes_cmd,
             git_fetch_remote_cmd,
             git_push_remote_cmd,
@@ -4690,11 +4916,6 @@ fn git_rename_branch_cmd(
     new_name: String,
 ) -> Result<(), String> {
     git::rename_branch(&repo_path, &old_name, &new_name)
-}
-
-#[tauri::command]
-fn git_rebase_branch_cmd(repo_path: String, upstream_branch: String) -> Result<(), String> {
-    git::rebase_branch(&repo_path, &upstream_branch)
 }
 
 #[tauri::command]

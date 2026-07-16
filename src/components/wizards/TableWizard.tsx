@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState } from "react";
 import {
   Grid,
   Button,
@@ -31,11 +31,12 @@ import {
   faCompressAlt,
   faExpandAlt,
   faEraser,
-  faGripLines,
   faCog,
   faPlus,
   faTrash,
 } from "@fortawesome/free-solid-svg-icons";
+import { useResizable } from "../../hooks/useResizable";
+import { ResizerHandle } from "../ui/ResizerHandle";
 
 // Using fontawesome for table icons as well, approximating with regular icons or stacking
 // IconTableRow -> faPlus
@@ -103,10 +104,19 @@ export const TableWizard: React.FC<TableWizardProps> = ({ onInsert }) => {
     c: 0,
   });
 
-  // Resize Logic (Percentage based)
-  const [splitRatio, setSplitRatio] = useState(55); // Top takes 55%, Bottom 45%
-  const [isResizing, setIsResizing] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Resize Logic (percentage based, updated directly in one RAF per frame)
+  const {
+    size: splitRatio,
+    startResizing,
+    containerRef,
+    targetRef,
+  } = useResizable({
+    direction: "vertical",
+    initialSize: 55,
+    minSize: 20,
+    maxSize: 80,
+    usePercentage: true,
+  });
 
   // Options
   const [useBooktabs, setUseBooktabs] = useState(true);
@@ -227,38 +237,6 @@ export const TableWizard: React.FC<TableWizardProps> = ({ onInsert }) => {
   const handleMouseUp = () => {
     setIsSelecting(false);
   };
-
-  // --- Resize Handlers ---
-  const startResizing = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
-
-  useEffect(() => {
-    const move = (e: MouseEvent) => {
-      if (isResizing && containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        const offsetY = e.clientY - rect.top;
-        const percentage = (offsetY / rect.height) * 100;
-        setSplitRatio(Math.max(20, Math.min(percentage, 80)));
-      }
-    };
-
-    const up = () => setIsResizing(false);
-
-    if (isResizing) {
-      window.addEventListener("mousemove", move);
-      window.addEventListener("mouseup", up);
-      document.body.style.cursor = "row-resize";
-    } else {
-      document.body.style.cursor = "default";
-    }
-
-    return () => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
-    };
-  }, [isResizing]);
 
   const getSelectedRange = () => {
     const minR = Math.min(selection.startR, selection.endR);
@@ -649,6 +627,7 @@ export const TableWizard: React.FC<TableWizardProps> = ({ onInsert }) => {
 
       {/* GRID EDITOR AREA (Top Section) */}
       <Box
+        ref={targetRef}
         style={{
           height: `${splitRatio}%`,
           overflow: "auto",
@@ -734,26 +713,10 @@ export const TableWizard: React.FC<TableWizardProps> = ({ onInsert }) => {
       </Box>
 
       {/* RESIZE HANDLE */}
-      <Box
-        onMouseDown={startResizing}
-        style={{
-          height: 6,
-          backgroundColor: isResizing
-            ? "var(--mantine-color-blue-6)"
-            : "var(--mantine-color-default-border)",
-          cursor: "row-resize",
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          transition: "background-color 0.2s",
-        }}
-      >
-        <FontAwesomeIcon
-          icon={faGripLines}
-          style={{ width: 12, height: 12, opacity: 0.5, color: "gray" }}
-        />
-      </Box>
+      <ResizerHandle
+        onPointerDown={startResizing}
+        orientation="horizontal"
+      />
 
       {/* OPTIONS & PREVIEW (Bottom Section - Takes remaining space) */}
       <Box

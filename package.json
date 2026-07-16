@@ -7,14 +7,15 @@
     "dev": "./node_modules/.bin/vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1 pnpm exec tauri"
+    "tauri": "__NV_DISABLE_EXPLICIT_SYNC=1 pnpm exec tauri",
+    "tauri:compat": "WEBKIT_DISABLE_DMABUF_RENDERER=1 pnpm exec tauri",
+    "tauri:software": "WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1 pnpm exec tauri"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@fortawesome/fontawesome-free": "^7.1.0",
     "@fortawesome/fontawesome-svg-core": "^7.1.0",
     "@fortawesome/free-solid-svg-icons": "^7.1.0",
     "@fortawesome/react-fontawesome": "^3.1.1",

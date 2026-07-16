@@ -80,7 +80,11 @@ pub async fn start_agent_cmd(
         "[AGENT] Starting agent command. History length: {}",
         chat_history.len()
     );
-    println!("[AGENT] Config: {:?}", config);
+    println!(
+        "[AGENT] Provider: {}, model: {}",
+        config.provider,
+        config.model.as_deref().unwrap_or("default")
+    );
 
     // 1. Initialize State
     let mut agent_guard = state.0.lock().await;
@@ -101,11 +105,10 @@ pub async fn start_agent_cmd(
         content: Some("You are a helpful AI assistant integrated into a LaTeX editor.
 You are connected to a Database of User Resources (files).
 CRITICAL RULES:
-1. The local filesystem (via `ls` or `run_terminal`) is the APPLICATION SOURCE, NOT the user's data. DO NOT use `ls`, `dir` or `find` to look for user files.
-2. You MUST use `find_resource(name, optional_collection)` to locate user files. If the user specifies a base/collection, pass it as the second argument.
-3. You MUST use `search_files(query)` to find files containing specific text.
-4. When modifying EXISTING files, you MUST use `propose_edit`.
-5. Use `write_file` ONLY for creating NEW files (get path from `find_resource` or user input).".to_string()),
+1. You MUST use `find_resource(name, optional_collection)` to locate user files. If the user specifies a base/collection, pass it as the second argument.
+2. You MUST use `search_files(query)` to find files containing specific text.
+3. When suggesting any file modification, you MUST use `propose_edit` so the user can review it before it is applied.
+4. Never claim that a file or command was changed or executed unless a tool result explicitly confirms it.".to_string()),
         tool_calls: None,
         tool_call_id: None,
     });
