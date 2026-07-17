@@ -124,6 +124,69 @@ body[data-resizing="row-resize"]::after {
   contain: strict;
 }
 
+/* Left database splitter mirrors the optimized right/bottom splitters. The
+   pane shell follows the pointer; the heavy database table and Monaco editor
+   keep their starting widths until the drag is committed. */
+.database-left-layout {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.database-left-panel,
+.database-left-editor {
+  position: relative;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.database-left-panel {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: var(--database-panel-width);
+  min-width: 250px;
+  max-width: 800px;
+}
+
+.database-left-editor {
+  flex: 1 1 auto;
+}
+
+.database-left-panel__content,
+.database-left-editor__content {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  overflow-anchor: none;
+  contain: layout paint;
+}
+
+.database-left-layout[data-resizing] .database-left-panel__content {
+  position: absolute;
+  top: 0;
+  right: auto;
+  bottom: 0;
+  left: 0;
+  width: var(--database-left-content-frozen-width);
+  min-width: var(--database-left-content-frozen-width);
+  max-width: var(--database-left-content-frozen-width);
+  contain: strict;
+}
+
+.database-left-layout[data-resizing] .database-left-editor__content {
+  position: absolute;
+  top: 0;
+  right: auto;
+  bottom: 0;
+  left: 0;
+  width: var(--database-left-editor-frozen-width);
+  min-width: var(--database-left-editor-frozen-width);
+  max-width: var(--database-left-editor-frozen-width);
+  contain: strict;
+}
+
 /* The bottom database splitter follows the pointer through a scoped height
    write. Its heavy descendants retain their starting dimensions during the
    drag, preventing Monaco, ScrollArea and graph observers from relaying out

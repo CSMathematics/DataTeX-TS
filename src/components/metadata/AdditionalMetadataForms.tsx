@@ -1,12 +1,11 @@
 // Additional Typed Metadata Forms
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Stack,
   Select,
   TextInput,
   Textarea,
   Checkbox,
-  MultiSelect,
   NumberInput,
   Button,
   Group,
@@ -34,6 +33,8 @@ import { ManageableSelect } from "./ManageableSelect";
 
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useDatabaseStore } from "../../stores/databaseStore";
+
+const EMPTY_METADATA = {};
 
 // Bibliography Entry Types
 const BIB_ENTRY_TYPES = [
@@ -74,9 +75,13 @@ interface BibliographyMetadataFormProps {
 
 export const BibliographyMetadataForm: React.FC<
   BibliographyMetadataFormProps
-> = ({ initialMetadata = {}, onChange }) => {
+> = ({ initialMetadata = EMPTY_METADATA, onChange }) => {
   const [metadata, setMetadata] =
     useState<BibliographyMetadata>(initialMetadata);
+
+  useEffect(() => {
+    setMetadata(initialMetadata);
+  }, [initialMetadata]);
 
   const handleChange = <K extends keyof BibliographyMetadata>(
     field: K,
@@ -387,11 +392,15 @@ interface DocumentMetadataFormProps {
 }
 
 export const DocumentMetadataForm: React.FC<DocumentMetadataFormProps> = ({
-  initialMetadata = {},
+  initialMetadata = EMPTY_METADATA,
   onChange,
   collectionName,
 }) => {
   const [metadata, setMetadata] = useState<DocumentMetadata>(initialMetadata);
+
+  useEffect(() => {
+    setMetadata(initialMetadata);
+  }, [initialMetadata]);
   const documentTypes = useTypedMetadataStore((state) => state.documentTypes);
   const createDocumentType = useTypedMetadataStore(
     (state) => state.createDocumentType,
@@ -405,18 +414,47 @@ export const DocumentMetadataForm: React.FC<DocumentMetadataFormProps> = ({
 
   // Get preambles and documents from loaded resources
   const allLoadedResources = useDatabaseStore((s) => s.allLoadedResources);
-  const preambleOptions = allLoadedResources
+  const currentResources = useDatabaseStore((s) => s.resources);
+  const availableResources = Array.from(
+    new Map(
+      [...allLoadedResources, ...currentResources].map((resource) => [
+        resource.id,
+        resource,
+      ]),
+    ).values(),
+  );
+  const preambleOptions = availableResources
     .filter((r) => r.kind === "preamble")
     .map((r) => ({
-      id: r.id,
-      name: r.title || r.path.split(/[\/\\]/).pop() || r.id,
+      value: r.id,
+      label: r.title || r.path.split(/[\/\\]/).pop() || r.id,
     }));
-  const documentOptions = allLoadedResources
+  const documentOptions = availableResources
     .filter((r) => r.kind === "document")
     .map((r) => ({
-      id: r.id,
-      name: r.title || r.path.split(/[\/\\]/).pop() || r.id,
+      value: r.id,
+      label: r.title || r.path.split(/[\/\\]/).pop() || r.id,
     }));
+  if (
+    metadata.preambleId &&
+    !preambleOptions.some((option) => option.value === metadata.preambleId)
+  ) {
+    preambleOptions.unshift({
+      value: metadata.preambleId,
+      label: metadata.preambleId,
+    });
+  }
+  if (
+    metadata.solutionDocumentId &&
+    !documentOptions.some(
+      (option) => option.value === metadata.solutionDocumentId,
+    )
+  ) {
+    documentOptions.unshift({
+      value: metadata.solutionDocumentId,
+      label: metadata.solutionDocumentId,
+    });
+  }
 
   const handleChange = <K extends keyof DocumentMetadata>(
     field: K,
@@ -489,13 +527,14 @@ export const DocumentMetadataForm: React.FC<DocumentMetadataFormProps> = ({
       />
 
       {/* Preamble Selection */}
-      <CreatableSelect
+      <Select
         label="Preamble"
         placeholder="Select preamble..."
         data={preambleOptions}
         value={metadata.preambleId}
         onChange={(value) => handleChange("preambleId", value || undefined)}
-        onCreate={async (name) => ({ id: name, name })}
+        searchable
+        clearable
       />
 
       {/* Build Command */}
@@ -552,8 +591,7 @@ export const DocumentMetadataForm: React.FC<DocumentMetadataFormProps> = ({
         onCreate={async (name) => ({ id: name, name })}
       />
 
-      {/* Solution Document - placeholder for now */}
-      <CreatableSelect
+      <Select
         label="Solution Document"
         placeholder="Link to solution document..."
         data={documentOptions}
@@ -561,7 +599,8 @@ export const DocumentMetadataForm: React.FC<DocumentMetadataFormProps> = ({
         onChange={(value) =>
           handleChange("solutionDocumentId", value || undefined)
         }
-        onCreate={async (name) => ({ id: name, name })}
+        searchable
+        clearable
       />
     </Stack>
   );
@@ -586,11 +625,15 @@ const TABLE_ENVIRONMENTS = [
 ];
 
 export const TableMetadataForm: React.FC<TableMetadataFormProps> = ({
-  initialMetadata = {},
+  initialMetadata = EMPTY_METADATA,
   onChange,
   collectionName,
 }) => {
   const [metadata, setMetadata] = useState<TableMetadata>(initialMetadata);
+
+  useEffect(() => {
+    setMetadata(initialMetadata);
+  }, [initialMetadata]);
   const tableTypes = useTypedMetadataStore((state) => state.tableTypes);
   const createTableType = useTypedMetadataStore(
     (state) => state.createTableType,
@@ -727,6 +770,8 @@ export const TableMetadataForm: React.FC<TableMetadataFormProps> = ({
         <NumberInput
           label="Rows"
           min={0}
+          allowDecimal={false}
+          step={1}
           value={metadata.rows}
           onChange={(val) =>
             handleChange("rows", typeof val === "number" ? val : undefined)
@@ -735,6 +780,8 @@ export const TableMetadataForm: React.FC<TableMetadataFormProps> = ({
         <NumberInput
           label="Columns"
           min={0}
+          allowDecimal={false}
+          step={1}
           value={metadata.columns}
           onChange={(val) =>
             handleChange("columns", typeof val === "number" ? val : undefined)
@@ -742,17 +789,18 @@ export const TableMetadataForm: React.FC<TableMetadataFormProps> = ({
         />
       </Group>
 
-      <MultiSelect
+      <CreatableMultiSelect
         label="Required Packages"
         placeholder="e.g., booktabs, tabularx"
-        data={metadata.requiredPackages || []}
+        data={(metadata.requiredPackages || []).map((packageName) => ({
+          id: packageName,
+          name: packageName,
+        }))}
         value={metadata.requiredPackages || []}
         onChange={(value) =>
           handleChange("requiredPackages", value.length > 0 ? value : undefined)
         }
-        searchable
-        // Note: Mantine v7 MultiSelect doesn't use creatable prop this way, using Combobox or creatable logic usually handled by checking data
-        // For simplicity, sticking to searchable. If creation is needed, CreatableMultiSelect should be used.
+        onCreate={async (name) => ({ id: name, name })}
       />
 
       <CreatableMultiSelect
@@ -781,11 +829,15 @@ interface FigureMetadataFormProps {
 }
 
 export const FigureMetadataForm: React.FC<FigureMetadataFormProps> = ({
-  initialMetadata = {},
+  initialMetadata = EMPTY_METADATA,
   onChange,
   collectionName,
 }) => {
   const [metadata, setMetadata] = useState<FigureMetadata>(initialMetadata);
+
+  useEffect(() => {
+    setMetadata(initialMetadata);
+  }, [initialMetadata]);
   const figureTypes = useTypedMetadataStore((state) => state.figureTypes);
   const createFigureType = useTypedMetadataStore(
     (state) => state.createFigureType,
@@ -956,15 +1008,18 @@ export const FigureMetadataForm: React.FC<FigureMetadataFormProps> = ({
         />
       </Group>
 
-      <MultiSelect
+      <CreatableMultiSelect
         label="Required Packages"
         placeholder="e.g., tikz, pgfplots"
-        data={metadata.requiredPackages || []}
+        data={(metadata.requiredPackages || []).map((packageName) => ({
+          id: packageName,
+          name: packageName,
+        }))}
         value={metadata.requiredPackages || []}
         onChange={(value) =>
           handleChange("requiredPackages", value.length > 0 ? value : undefined)
         }
-        searchable
+        onCreate={async (name) => ({ id: name, name })}
       />
 
       <CreatableMultiSelect
@@ -992,10 +1047,14 @@ interface CommandMetadataFormProps {
 }
 
 export const CommandMetadataForm: React.FC<CommandMetadataFormProps> = ({
-  initialMetadata = {},
+  initialMetadata = EMPTY_METADATA,
   onChange,
 }) => {
   const [metadata, setMetadata] = useState<CommandMetadata>(initialMetadata);
+
+  useEffect(() => {
+    setMetadata(initialMetadata);
+  }, [initialMetadata]);
 
   // Store hooks
   const commandTypes = useTypedMetadataStore((state) => state.commandTypes);
@@ -1023,6 +1082,7 @@ export const CommandMetadataForm: React.FC<CommandMetadataFormProps> = ({
       <Group grow>
         <TextInput
           label="Command Name"
+          required
           placeholder="e.g., \\mycommand"
           value={metadata.name || ""}
           onChange={(e) =>
@@ -1046,6 +1106,8 @@ export const CommandMetadataForm: React.FC<CommandMetadataFormProps> = ({
           label="Number of Arguments"
           min={0}
           max={9}
+          allowDecimal={false}
+          step={1}
           value={metadata.argumentsNum}
           onChange={(val) =>
             handleChange(
@@ -1097,15 +1159,18 @@ export const CommandMetadataForm: React.FC<CommandMetadataFormProps> = ({
         minRows={2}
       />
 
-      <MultiSelect
+      <CreatableMultiSelect
         label="Required Packages"
         placeholder="e.g., xcolor"
-        data={metadata.requiredPackages || []}
+        data={(metadata.requiredPackages || []).map((packageName) => ({
+          id: packageName,
+          name: packageName,
+        }))}
         value={metadata.requiredPackages || []}
         onChange={(value) =>
           handleChange("requiredPackages", value.length > 0 ? value : undefined)
         }
-        searchable
+        onCreate={async (name) => ({ id: name, name })}
       />
 
       <CreatableMultiSelect
@@ -1139,10 +1204,14 @@ interface PackageMetadataFormProps {
 }
 
 export const PackageMetadataForm: React.FC<PackageMetadataFormProps> = ({
-  initialMetadata = {},
+  initialMetadata = EMPTY_METADATA,
   onChange,
 }) => {
   const [metadata, setMetadata] = useState<PackageMetadata>(initialMetadata);
+
+  useEffect(() => {
+    setMetadata(initialMetadata);
+  }, [initialMetadata]);
   const packageTopics = useTypedMetadataStore((state) => state.packageTopics);
   const createPackageTopic = useTypedMetadataStore(
     (state) => state.createPackageTopic,
@@ -1161,6 +1230,7 @@ export const PackageMetadataForm: React.FC<PackageMetadataFormProps> = ({
     <Stack gap="md">
       <TextInput
         label="Package Name"
+        required
         placeholder="e.g., geometry"
         value={metadata.name || ""}
         onChange={(e) =>
@@ -1274,10 +1344,14 @@ interface PreambleMetadataFormProps {
 }
 
 export const PreambleMetadataForm: React.FC<PreambleMetadataFormProps> = ({
-  initialMetadata = {},
+  initialMetadata = EMPTY_METADATA,
   onChange,
 }) => {
   const [metadata, setMetadata] = useState<PreambleMetadata>(initialMetadata);
+
+  useEffect(() => {
+    setMetadata(initialMetadata);
+  }, [initialMetadata]);
   const preambleTypes = useTypedMetadataStore((state) => state.preambleTypes);
   const createPreambleType = useTypedMetadataStore(
     (state) => state.createPreambleType,
@@ -1310,6 +1384,7 @@ export const PreambleMetadataForm: React.FC<PreambleMetadataFormProps> = ({
       <Group grow>
         <TextInput
           label="Name"
+          required
           placeholder="Preamble name"
           value={metadata.name || ""}
           onChange={(e) =>
@@ -1369,6 +1444,9 @@ export const PreambleMetadataForm: React.FC<PreambleMetadataFormProps> = ({
         <NumberInput
           label="Font Size (pt)"
           placeholder="e.g., 10"
+          min={1}
+          allowDecimal={false}
+          step={1}
           value={metadata.fontSize}
           onChange={(value) =>
             handleChange(
@@ -1541,10 +1619,14 @@ interface ClassMetadataFormProps {
 }
 
 export const ClassMetadataForm: React.FC<ClassMetadataFormProps> = ({
-  initialMetadata = {},
+  initialMetadata = EMPTY_METADATA,
   onChange,
 }) => {
   const [metadata, setMetadata] = useState<ClassMetadata>(initialMetadata);
+
+  useEffect(() => {
+    setMetadata(initialMetadata);
+  }, [initialMetadata]);
   const fileTypes = useTypedMetadataStore((state) => state.fileTypes);
 
   const handleChange = <K extends keyof ClassMetadata>(
@@ -1560,6 +1642,7 @@ export const ClassMetadataForm: React.FC<ClassMetadataFormProps> = ({
     <Stack gap="md">
       <TextInput
         label="Class Name"
+        required
         placeholder="e.g., article"
         value={metadata.name || ""}
         onChange={(e) =>
@@ -1596,6 +1679,9 @@ export const ClassMetadataForm: React.FC<ClassMetadataFormProps> = ({
         <NumberInput
           label="Font Size (pt)"
           placeholder="e.g., 10"
+          min={1}
+          allowDecimal={false}
+          step={1}
           value={metadata.fontSize}
           onChange={(value) =>
             handleChange(
@@ -1696,10 +1782,14 @@ interface DtxMetadataFormProps {
 }
 
 export const DtxMetadataForm: React.FC<DtxMetadataFormProps> = ({
-  initialMetadata = {},
+  initialMetadata = EMPTY_METADATA,
   onChange,
 }) => {
   const [metadata, setMetadata] = useState<DtxMetadata>(initialMetadata);
+
+  useEffect(() => {
+    setMetadata(initialMetadata);
+  }, [initialMetadata]);
 
   const handleChange = <K extends keyof DtxMetadata>(
     field: K,
@@ -1792,10 +1882,40 @@ interface InsMetadataFormProps {
 }
 
 export const InsMetadataForm: React.FC<InsMetadataFormProps> = ({
-  initialMetadata = {},
+  resourceId,
+  initialMetadata = EMPTY_METADATA,
   onChange,
 }) => {
   const [metadata, setMetadata] = useState<InsMetadata>(initialMetadata);
+
+  useEffect(() => {
+    setMetadata(initialMetadata);
+  }, [initialMetadata]);
+  const allLoadedResources = useDatabaseStore(
+    (state) => state.allLoadedResources,
+  );
+  const resources = useDatabaseStore((state) => state.resources);
+  const dtxResources = new Map(
+    [...resources, ...allLoadedResources]
+      .filter(
+        (resource) => resource.kind === "dtx" && resource.id !== resourceId,
+      )
+      .map((resource) => [resource.id, resource]),
+  );
+  const dtxOptions = Array.from(dtxResources.values()).map((resource) => ({
+    value: resource.id,
+    label:
+      resource.title || resource.path.split(/[\/\\]/).pop() || resource.id,
+  }));
+  if (
+    metadata.targetDtxId &&
+    !dtxOptions.some((option) => option.value === metadata.targetDtxId)
+  ) {
+    dtxOptions.unshift({
+      value: metadata.targetDtxId,
+      label: metadata.targetDtxId,
+    });
+  }
 
   const handleChange = <K extends keyof InsMetadata>(
     field: K,
@@ -1808,13 +1928,14 @@ export const InsMetadataForm: React.FC<InsMetadataFormProps> = ({
 
   return (
     <Stack gap="md">
-      <TextInput
-        label="Target DTX ID"
-        placeholder="Related .dtx file ID"
-        value={metadata.targetDtxId || ""}
-        onChange={(e) =>
-          handleChange("targetDtxId", e.currentTarget.value || undefined)
-        }
+      <Select
+        label="Target DTX"
+        placeholder="Select a related .dtx resource"
+        data={dtxOptions}
+        value={metadata.targetDtxId || null}
+        onChange={(value) => handleChange("targetDtxId", value || undefined)}
+        searchable
+        clearable
       />
 
       <Textarea

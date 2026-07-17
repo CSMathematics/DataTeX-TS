@@ -1,107 +1,89 @@
-// Monokai Vivid theme for Monaco Editor - matches dark-monokai UI theme
+import {
+  createLatexThemeRules,
+  type LatexSyntaxPalette,
+} from "./latex-theme-rules";
+
+const monokaiPalette = {
+  foreground: "F8F8F2",
+  control: "FF5C8A",
+  command: "66D9EF",
+  escaped: "FF5C8A",
+  environment: "A6E22E",
+  mathEnvironment: "66D9EF",
+  className: "AE81FF",
+  packageName: "66D9EF",
+  section: "E6DB74",
+  sectionContent: "E6DB74",
+  formatting: "A6E22E",
+  formattedText: "F8F8F2",
+  reference: "FD971F",
+  referenceContent: "FFB454",
+  functionName: "66D9EF",
+  userMacro: "FF5C8A",
+  mathDelimiter: "E6DB74",
+  mathFunction: "66D9EF",
+  mathFallback: "AE81FF",
+  mathEscaped: "FF5C8A",
+  mathArithmetic: "FD971F",
+  mathBinary: "A6E22E",
+  mathLarge: "FD971F",
+  mathRelation: "FF5C8A",
+  mathRelationSymbol: "FF79A4",
+  mathLogic: "AE81FF",
+  mathArrow: "66D9EF",
+  mathGreek: "AE81FF",
+  mathSymbol: "E6DB74",
+  mathAccent: "A6E22E",
+  mathFont: "66D9EF",
+  mathDelimiterCommand: "E6DB74",
+  mathSpacing: "9B9B8B",
+  mathText: "E6DB74",
+  mathNumber: "C4F05A",
+  mathVariable: "F8F8F2",
+  mathSubscript: "FF5C8A",
+  mathAlignment: "66D9EF",
+  mathPrime: "FD971F",
+  mathPunctuation: "B5B5A8",
+  mathCurly: "E6DB74",
+  mathBracket: "66D9EF",
+  mathParenthesis: "A6E22E",
+  comment: "9B9B8B",
+  number: "C4F05A",
+  curly: "E6DB74",
+  bracket: "66D9EF",
+  parenthesis: "A6E22E",
+  operator: "FD971F",
+  comma: "B5B5A8",
+  optionBracket: "66D9EF",
+  requiredBlock: "A6E22E",
+  optionName: "FF5C8A",
+  assignment: "A6E22E",
+  optionValue: "E6DB74",
+  optionNumber: "C4F05A",
+  verbatim: "E6DB74",
+} satisfies LatexSyntaxPalette;
+
 export const monokaiTheme = {
   base: "vs-dark" as const,
   inherit: true,
-  rules: [
-    // === LaTeX Structural Commands ===
-    { token: "keyword.control.latex", foreground: "F92672", fontStyle: "bold" }, // Pink - \\documentclass, \\begin, \\end
-    { token: "keyword.latex", foreground: "F92672" }, // Pink - Generic LaTeX commands
-    { token: "keyword.escape.latex", foreground: "F92672" }, // Pink - Escaped characters
-
-    // === Environments ===
-    { token: "entity.name.type.environment.latex", foreground: "A6E22E" }, // Green - Environment names
-    {
-      token: "entity.name.type.environment.math.latex",
-      foreground: "A6E22E",
-      fontStyle: "italic",
-    },
-    { token: "entity.name.class.latex", foreground: "66D9EF" }, // Blue - Document class names
-    { token: "entity.name.package.latex", foreground: "66D9EF" }, // Blue - Package names
-
-    // === Sections ===
-    {
-      token: "entity.name.section.latex",
-      foreground: "E6DB74",
-      fontStyle: "bold",
-    }, // Yellow - Section commands
-    { token: "entity.name.section.content.latex", foreground: "E6DB74" },
-
-    // === Formatting ===
-    { token: "entity.name.function.formatting.latex", foreground: "A6E22E" }, // Green
-    { token: "text.formatting.latex", foreground: "F8F8F2" }, // White text
-
-    // === References ===
-    {
-      token: "entity.name.reference.latex",
-      foreground: "66D9EF",
-      fontStyle: "italic",
-    }, // Blue
-    { token: "entity.name.reference.content.latex", foreground: "66D9EF" },
-
-    // === Functions ===
-    { token: "entity.name.function.latex", foreground: "A6E22E" }, // Green
-    { token: "entity.name.function.user.latex", foreground: "FD971F" }, // Orange - User-defined
-
-    // === Math Mode ===
-    {
-      token: "keyword.math.delimiter.latex",
-      foreground: "E6DB74",
-      fontStyle: "bold",
-    }, // Yellow - $ delimiters
-    { token: "entity.name.function.math.latex", foreground: "AE81FF" }, // Purple - Math commands
-    { token: "keyword.math.latex", foreground: "AE81FF" }, // Purple
-    { token: "keyword.escape.math.latex", foreground: "F92672" }, // Pink
-    { token: "keyword.operator.math.latex", foreground: "F8F8F2" }, // White operators
-    { token: "keyword.operator.subscript.latex", foreground: "F92672" }, // Pink - _ and ^
-    { token: "constant.numeric.math.latex", foreground: "AE81FF" }, // Purple - Numbers
-    { token: "variable.math.latex", foreground: "F8F8F2" }, // White - Variables
-
-    // Math delimiters
-    { token: "delimiter.curly.math.latex", foreground: "E6DB74" }, // Yellow
-    { token: "delimiter.bracket.math.latex", foreground: "66D9EF" }, // Blue
-    { token: "delimiter.parenthesis.math.latex", foreground: "A6E22E" }, // Green
-
-    // === Comments ===
-    { token: "comment.line.latex", foreground: "75715E", fontStyle: "italic" }, // Gray
-    {
-      token: "comment.content.latex",
-      foreground: "75715E",
-      fontStyle: "italic",
-    },
-
-    // === Numbers and Units ===
-    { token: "constant.numeric.latex", foreground: "AE81FF" }, // Purple
-
-    // === Delimiters (outside math) ===
-    { token: "delimiter.curly.latex", foreground: "E6DB74" }, // Yellow
-    { token: "delimiter.bracket.latex", foreground: "66D9EF" }, // Blue
-    { token: "delimiter.parenthesis.latex", foreground: "A6E22E" }, // Green
-
-    // === Operators ===
-    { token: "keyword.operator.latex", foreground: "F8F8F2" }, // White
-
-    // === Generic ===
-    { token: "meta.bracket.latex", foreground: "66D9EF" },
-    { token: "meta.block.latex", foreground: "A6E22E" },
-
-    // Legacy compatibility
-    { token: "string", foreground: "E6DB74" }, // Yellow
-    { token: "string.math", foreground: "E6DB74" },
-    { token: "variable", foreground: "F8F8F2" },
-    { token: "number", foreground: "AE81FF" },
-    { token: "tag", foreground: "A6E22E" },
-    { token: "attribute.name", foreground: "FD971F" },
-  ],
+  rules: createLatexThemeRules(monokaiPalette),
   colors: {
     "editor.background": "#272822",
     "editor.foreground": "#F8F8F2",
     "editor.lineHighlightBackground": "#3E3D32",
     "editorCursor.foreground": "#F8F8F0",
-    "editorWhitespace.foreground": "#464741",
-    "editorIndentGuide.background": "#464741",
-    "editorLineNumber.foreground": "#90908A",
+    "editorWhitespace.foreground": "#595A52",
+    "editorIndentGuide.background": "#55564F",
+    "editorLineNumber.foreground": "#A0A097",
     "editorBracketMatch.background": "#49483E",
-    "editorBracketMatch.border": "#888888",
+    "editorBracketMatch.border": "#B5B5A8",
     "editor.selectionBackground": "#49483E",
+    "editorBracketHighlight.foreground1": "#E6DB74",
+    "editorBracketHighlight.foreground2": "#66D9EF",
+    "editorBracketHighlight.foreground3": "#A6E22E",
+    "editorBracketHighlight.foreground4": "#AE81FF",
+    "editorBracketHighlight.foreground5": "#FF5C8A",
+    "editorBracketHighlight.foreground6": "#FD971F",
+    "editorBracketHighlight.unexpectedBracket.foreground": "#FF3333",
   },
 };

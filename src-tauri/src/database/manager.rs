@@ -7,6 +7,17 @@ pub struct DatabaseManager {
 }
 
 impl DatabaseManager {
+    fn configured_pool_options() -> SqlitePoolOptions {
+        SqlitePoolOptions::new().after_connect(|connection, _metadata| {
+            Box::pin(async move {
+                sqlx::query("PRAGMA foreign_keys = ON")
+                    .execute(connection)
+                    .await?;
+                Ok(())
+            })
+        })
+    }
+
     pub async fn new(data_dir: &str) -> Result<Self, sqlx::Error> {
         let db_path = format!("{}/project.db", data_dir);
         let db_url = format!("sqlite://{}", db_path);
@@ -15,7 +26,11 @@ impl DatabaseManager {
             Sqlite::create_database(&db_url).await?;
         }
 
-        let pool = SqlitePoolOptions::new().connect(&db_url).await?;
+        // SQLite foreign-key enforcement is connection-local and disabled by
+        // default. Enable it for every pooled connection so typed metadata
+        // junctions cannot retain invalid IDs and ON DELETE cascades work in
+        // production as they do in the tests.
+        let pool = Self::configured_pool_options().connect(&db_url).await?;
 
         // Initialize schema
         Self::init_schema(&pool).await?;
@@ -26,7 +41,7 @@ impl DatabaseManager {
         })
     }
 
-    async fn init_schema(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
+    pub(crate) async fn init_schema(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
         // Load all schema files in numeric order
         // New migrations should be added at the end with incrementing numbers
         let schemas = [
@@ -43,6 +58,7 @@ impl DatabaseManager {
             include_str!("../../migrations/012_resource_bibliographies.sql"), // 11
             include_str!("../../migrations/013_resource_dtx_ins.sql"), // 12
             include_str!("../../migrations/014_json_metadata_backfill.sql"), // 13
+            include_str!("../../migrations/015_preserve_exercise_types.sql"), // 14
         ];
 
         // `user_version` is the number of successfully applied entries in `schemas`.
@@ -343,12 +359,18 @@ impl DatabaseManager {
         }
 
         let query = format!("UPDATE {} SET {} = ? WHERE id = ?", table_name, column);
-        sqlx::query(&query)
+        let result = sqlx::query(&query)
             .bind(value)
-            .bind(id)
+            .bind(&id)
             .execute(&self.pool)
             .await
             .map_err(|e| e.to_string())?;
+
+        if result.rows_affected() != 1 {
+            return Err(format!(
+                "Expected to update one row in {table_name}, but resource {id} was not found"
+            ));
+        }
 
         Ok(())
     }
@@ -470,6 +492,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn configured_pool_enables_foreign_keys_on_every_connection() {
+        let pool = DatabaseManager::configured_pool_options()
+            .min_connections(2)
+            .max_connections(2)
+            .connect("sqlite::memory:")
+            .await
+            .expect("configured in-memory pool");
+
+        let mut first = pool.acquire().await.expect("first connection");
+        let mut second = pool.acquire().await.expect("second connection");
+        let first_enabled: (i64,) = sqlx::query_as("PRAGMA foreign_keys")
+            .fetch_one(&mut *first)
+            .await
+            .expect("first foreign_keys value");
+        let second_enabled: (i64,) = sqlx::query_as("PRAGMA foreign_keys")
+            .fetch_one(&mut *second)
+            .await
+            .expect("second foreign_keys value");
+
+        assert_eq!(first_enabled.0, 1);
+        assert_eq!(second_enabled.0, 1);
+    }
+
+    #[tokio::test]
+    async fn update_cell_reports_a_missing_resource() {
+        let pool = in_memory_pool().await;
+        sqlx::query("CREATE TABLE resources (id TEXT PRIMARY KEY, metadata TEXT)")
+            .execute(&pool)
+            .await
+            .expect("resources schema");
+        let manager = DatabaseManager {
+            pool,
+            path: String::new(),
+        };
+
+        let error = manager
+            .update_cell(
+                "resources".to_string(),
+                "missing".to_string(),
+                "metadata".to_string(),
+                "{}".to_string(),
+            )
+            .await
+            .expect_err("missing IDs must not be reported as a successful save");
+
+        assert!(error.contains("was not found"), "unexpected error: {error}");
+    }
+
+    #[tokio::test]
     async fn fresh_database_applies_all_migrations() {
         let pool = in_memory_pool().await;
 
@@ -477,7 +548,7 @@ mod tests {
             .await
             .expect("fresh schema should initialize");
 
-        assert_eq!(user_version(&pool).await, 13);
+        assert_eq!(user_version(&pool).await, 14);
         for table in [
             "resources",
             "resource_files",
@@ -495,6 +566,25 @@ mod tests {
             .expect("inspect schema");
             assert_eq!(count.0, 1, "missing table {table}");
         }
+
+        let cleanup_trigger_count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'trigger' AND name = 'cleanup_exercise_types'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("inspect legacy exercise-type cleanup trigger");
+        assert_eq!(cleanup_trigger_count.0, 0);
+
+        let built_in_exercise_type_count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM exercise_types
+             WHERE id IN ('multiple-choice', 'true-false', 'short-answer',
+                          'proof', 'calculation', 'other')",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("inspect built-in exercise types");
+        assert_eq!(built_in_exercise_type_count.0, 6);
     }
 
     #[tokio::test]
@@ -542,7 +632,7 @@ mod tests {
             .await
             .expect("idempotent replay should succeed");
 
-        assert_eq!(user_version(&pool).await, 13);
+        assert_eq!(user_version(&pool).await, 14);
         let title: (String,) =
             sqlx::query_as("SELECT title FROM resources WHERE id = 'legacy-resource'")
                 .fetch_one(&pool)
@@ -566,7 +656,7 @@ mod tests {
             .await
             .expect("legacy sentinel should replay safely");
 
-        assert_eq!(user_version(&pool).await, 13);
+        assert_eq!(user_version(&pool).await, 14);
     }
 
     #[tokio::test]
@@ -575,7 +665,7 @@ mod tests {
         DatabaseManager::init_schema(&pool)
             .await
             .expect("initial schema");
-        sqlx::query("PRAGMA user_version = 14")
+        sqlx::query("PRAGMA user_version = 15")
             .execute(&pool)
             .await
             .expect("simulate newer application schema");
@@ -585,7 +675,7 @@ mod tests {
             .expect_err("newer schema must be rejected");
 
         assert!(error.to_string().contains("newer than supported"));
-        assert_eq!(user_version(&pool).await, 14);
+        assert_eq!(user_version(&pool).await, 15);
     }
 
     #[tokio::test]
@@ -777,7 +867,7 @@ mod tests {
             .await
             .expect("safe JSON backfill");
 
-        assert_eq!(user_version(&pool).await, 13);
+        assert_eq!(user_version(&pool).await, 14);
         let existing_description: (Option<String>,) = sqlx::query_as(
             "SELECT file_description FROM resource_files WHERE resource_id = 'existing-file'",
         )
@@ -920,6 +1010,6 @@ mod tests {
         .await
         .expect("existing row after repeat");
         assert_eq!(existing_after_repeat.0.as_deref(), Some("keep typed data"));
-        assert_eq!(user_version(&pool).await, 13);
+        assert_eq!(user_version(&pool).await, 14);
     }
 }

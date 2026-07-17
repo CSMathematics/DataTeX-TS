@@ -9,6 +9,7 @@ import {
   TextInput,
   Text,
 } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCog,
@@ -21,6 +22,7 @@ import {
   faDatabase,
   faUniversalAccess,
   faSearch,
+  faHighlighter,
 } from "@fortawesome/free-solid-svg-icons";
 import { TexEngineSettings } from "./TexEngineSettings";
 import { EditorSettings } from "./EditorSettings";
@@ -32,6 +34,7 @@ import { AccessibilitySettings } from "./AccessibilitySettings";
 import { KeyboardShortcutsSettings } from "./KeyboardShortcutsSettings";
 import { ThemeSettings } from "./ThemeSettings";
 import { GeneralSettings } from "./GeneralSettings";
+import { SyntaxHighlightingSettings } from "./SyntaxHighlightingSettings";
 import {
   AppSettings,
   EditorSettings as IEditorSettings,
@@ -45,12 +48,18 @@ import {
   CustomThemeOverrides,
   CustomTheme,
 } from "../../hooks/useSettings";
+import type {
+  LatexEditorThemeId,
+  LatexSyntaxColorSlotId,
+  LatexSyntaxFontStyle,
+} from "../../themes/latex-theme-customization";
 
 type SettingsCategory =
   | "general"
   | "tex"
   | "compilation"
   | "editor"
+  | "syntaxColors"
   | "editorBehavior"
   | "pdfViewer"
   | "database"
@@ -99,6 +108,31 @@ interface SettingsPanelProps {
   ) => void;
   onAddCustomTheme: (theme: CustomTheme) => void;
   onRemoveCustomTheme: (id: string) => void;
+  onSetLatexSyntaxColor: (
+    themeId: LatexEditorThemeId,
+    slotId: LatexSyntaxColorSlotId,
+    color: string
+  ) => void;
+  onResetLatexSyntaxColor: (
+    themeId: LatexEditorThemeId,
+    slotId: LatexSyntaxColorSlotId
+  ) => void;
+  onSetLatexSyntaxFontStyle: (
+    themeId: LatexEditorThemeId,
+    slotId: LatexSyntaxColorSlotId,
+    fontStyle: LatexSyntaxFontStyle,
+    enabled: boolean
+  ) => void;
+  onResetLatexSyntaxFontStyles: (
+    themeId: LatexEditorThemeId,
+    slotId: LatexSyntaxColorSlotId
+  ) => void;
+  onResetLatexSyntaxColorGroup: (
+    themeId: LatexEditorThemeId,
+    slotIds: readonly LatexSyntaxColorSlotId[]
+  ) => void;
+  onResetLatexSyntaxTheme: (themeId: LatexEditorThemeId) => void;
+  onResetAllLatexSyntaxColors: () => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -116,11 +150,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onUpdateCustomThemeOverride,
   onAddCustomTheme,
   onRemoveCustomTheme,
+  onSetLatexSyntaxColor,
+  onResetLatexSyntaxColor,
+  onSetLatexSyntaxFontStyle,
+  onResetLatexSyntaxFontStyles,
+  onResetLatexSyntaxColorGroup,
+  onResetLatexSyntaxTheme,
+  onResetAllLatexSyntaxColors,
 }) => {
   const { t } = useTranslation();
   const [activeCategory, setActiveCategory] =
     useState<SettingsCategory>(initialCategory);
   const [searchQuery, setSearchQuery] = useState("");
+  const isNarrow = useMediaQuery("(max-width: 760px)");
 
   // Define categories with metadata for search
   const categories = useMemo(
@@ -149,6 +191,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           label: t("settings.categories.editor"),
           icon: faCode,
           keywords: "font size theme minimap line numbers wordwrap",
+        },
+        {
+          id: "syntaxColors",
+          label: t("settings.categories.syntaxColors"),
+          icon: faHighlighter,
+          keywords:
+            "latex syntax highlighting colors commands environments math operators variables brackets palette monaco",
         },
         {
           id: "editorBehavior",
@@ -231,6 +280,20 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             onUpdate={onUpdateEditor}
           />
         );
+      case "syntaxColors":
+        return (
+          <SyntaxHighlightingSettings
+            settings={settings.latexSyntaxHighlighting}
+            activeEditorTheme={settings.editor.theme}
+            onSetLatexSyntaxColor={onSetLatexSyntaxColor}
+            onResetLatexSyntaxColor={onResetLatexSyntaxColor}
+            onSetLatexSyntaxFontStyle={onSetLatexSyntaxFontStyle}
+            onResetLatexSyntaxFontStyles={onResetLatexSyntaxFontStyles}
+            onResetLatexSyntaxColorGroup={onResetLatexSyntaxColorGroup}
+            onResetLatexSyntaxTheme={onResetLatexSyntaxTheme}
+            onResetAllLatexSyntaxColors={onResetAllLatexSyntaxColors}
+          />
+        );
       case "editorBehavior":
         return (
           <EditorBehaviorSettings
@@ -282,17 +345,35 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   return (
-    <Group h="100%" gap={0} align="stretch" style={{ overflow: "hidden" }}>
+    <Box
+      h="100%"
+      style={{
+        display: "flex",
+        flexDirection: isNarrow ? "column" : "row",
+        overflow: "hidden",
+      }}
+    >
       {/* Settings Sidebar */}
       <Box
-        w={250}
+        w={isNarrow ? "100%" : 250}
         style={{
+          flex: "0 0 auto",
+          display: "flex",
+          flexDirection: "column",
+          height: isNarrow ? "auto" : "100%",
+          minHeight: 0,
+          overflow: "hidden",
           backgroundColor: "var(--app-sidebar-bg)",
-          borderRight: "1px solid var(--mantine-color-default-border)",
+          borderRight: isNarrow
+            ? undefined
+            : "1px solid var(--mantine-color-default-border)",
+          borderBottom: isNarrow
+            ? "1px solid var(--mantine-color-default-border)"
+            : undefined,
         }}
       >
-        <Box p="md">
-          <Title order={4} mb="xs">
+        <Box p={isNarrow ? "sm" : "md"}>
+          <Title order={4} mb={isNarrow ? 6 : "xs"}>
             {t("settings.title")}
           </Title>
           <TextInput
@@ -302,38 +383,74 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             }
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.currentTarget.value)}
-            mb="sm"
+            mb={isNarrow ? 0 : "sm"}
             size="sm"
           />
         </Box>
-        <Box>
+        <Box
+          style={{
+            flex: isNarrow ? "0 0 auto" : "1 1 auto",
+            minWidth: 0,
+            minHeight: 0,
+            overflow: "hidden",
+          }}
+        >
           {filteredCategories.length === 0 ? (
             <Text size="sm" c="dimmed" p="md" ta="center">
               {t("settings.noSettingsFound")}
             </Text>
           ) : (
-            filteredCategories.map((cat) => (
-              <NavLink
-                key={cat.id}
-                label={cat.label}
-                leftSection={
-                  <FontAwesomeIcon icon={cat.icon} style={{ width: 16 }} />
-                }
-                active={activeCategory === cat.id}
-                onClick={() => setActiveCategory(cat.id as SettingsCategory)}
-                style={{ transition: "all 0.2s ease" }}
-              />
-            ))
+            <ScrollArea
+              h={isNarrow ? undefined : "100%"}
+              type="auto"
+              scrollbarSize={5}
+              styles={{ viewport: { paddingBottom: isNarrow ? 6 : 0 } }}
+            >
+              <Group
+                gap={isNarrow ? 6 : 0}
+                wrap="nowrap"
+                px={isNarrow ? "sm" : 0}
+                style={{
+                  flexDirection: isNarrow ? "row" : "column",
+                  alignItems: "stretch",
+                }}
+              >
+                {filteredCategories.map((cat) => (
+                  <NavLink
+                    key={cat.id}
+                    label={cat.label}
+                    leftSection={
+                      <FontAwesomeIcon icon={cat.icon} style={{ width: 16 }} />
+                    }
+                    active={activeCategory === cat.id}
+                    onClick={() =>
+                      setActiveCategory(cat.id as SettingsCategory)
+                    }
+                    style={{
+                      flex: "0 0 auto",
+                      width: isNarrow ? "max-content" : "100%",
+                      borderRadius: isNarrow ? "var(--mantine-radius-sm)" : 0,
+                      transition: "background-color 120ms ease",
+                    }}
+                  />
+                ))}
+              </Group>
+            </ScrollArea>
           )}
         </Box>
       </Box>
 
       {/* Content Area */}
       <Box h="100%" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-        <ScrollArea h="100%" p="xl" scrollbarSize={8} type="auto">
+        <ScrollArea
+          h="100%"
+          p={isNarrow ? "md" : "xl"}
+          scrollbarSize={8}
+          type="auto"
+        >
           {renderContent()}
         </ScrollArea>
       </Box>
-    </Group>
+    </Box>
   );
 };

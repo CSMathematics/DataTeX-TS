@@ -29,6 +29,12 @@ interface RightPanelBounds extends HorizontalBounds {
   currentSize: number;
 }
 
+interface DatabaseWidthBounds extends HorizontalBounds {
+  layout: HTMLElement | null;
+  panel: HTMLElement | null;
+  currentSize: number;
+}
+
 interface VerticalBounds {
   startPointer: number;
   startSize: number;
@@ -78,12 +84,15 @@ export function useAppPanelResize({
     panel: null,
     currentSize: initialRightPanelWidth,
   });
-  const databaseBoundsRef = useRef<HorizontalBounds>({
+  const databaseWidthBoundsRef = useRef<DatabaseWidthBounds>({
     startPointer: 0,
     startSize: initialDatabasePanelWidth,
     min: 250,
     max: 800,
     multiplier: 1,
+    layout: null,
+    panel: null,
+    currentSize: initialDatabasePanelWidth,
   });
   const databaseHeightBoundsRef = useRef<DatabaseHeightBounds>({
     startPointer: 0,
@@ -207,15 +216,15 @@ export function useAppPanelResize({
   const databaseDrag = useResizeDrag({
     cursor: "col-resize",
     onStart: (event) => {
-      const parent = event.currentTarget.parentElement;
+      const layout = event.currentTarget.parentElement;
       const panel = event.currentTarget
         .previousElementSibling as HTMLElement | null;
       const editor = event.currentTarget.nextElementSibling as HTMLElement | null;
-      if (!parent || !panel) return false;
+      if (!layout || !panel) return false;
 
       const startSize = panel.getBoundingClientRect().width;
       const editorWidth = editor?.getBoundingClientRect().width ?? 250;
-      databaseBoundsRef.current = {
+      databaseWidthBoundsRef.current = {
         startPointer: event.clientX,
         startSize,
         min: Math.min(250, startSize),
@@ -224,20 +233,54 @@ export function useAppPanelResize({
           Math.min(800, Math.max(250, startSize + editorWidth - 250)),
         ),
         multiplier: 1,
+        layout,
+        panel,
+        currentSize: startSize,
       };
+
+      // Match the optimized right/bottom splitters: move only the lightweight
+      // pane shell during drag, while the table and editor keep their starting
+      // layout sizes and avoid expensive observers/reflows on every frame.
+      const panelContentWidth =
+        panel.firstElementChild?.getBoundingClientRect().width ??
+        panel.clientWidth;
+      layout.style.setProperty(
+        "--database-left-content-frozen-width",
+        `${panelContentWidth}px`,
+      );
+      layout.style.setProperty(
+        "--database-left-editor-frozen-width",
+        `${editorWidth}px`,
+      );
+      layout.setAttribute("data-resizing", "");
       return true;
     },
     onMove: ({ clientX }) => {
-      const bounds = databaseBoundsRef.current;
-      setPanelSize(
-        "--database-panel-width",
-        clamp(
-          bounds.startSize +
-            (clientX - bounds.startPointer) * bounds.multiplier,
-          bounds.min,
-          bounds.max,
-        ),
+      const bounds = databaseWidthBoundsRef.current;
+      const nextSize = clamp(
+        bounds.startSize +
+          (clientX - bounds.startPointer) * bounds.multiplier,
+        bounds.min,
+        bounds.max,
       );
+      bounds.currentSize = nextSize;
+      bounds.panel?.style.setProperty("width", `${nextSize}px`);
+    },
+    onEnd: () => {
+      const bounds = databaseWidthBoundsRef.current;
+      const { layout, panel } = bounds;
+
+      setPanelSize("--database-panel-width", bounds.currentSize);
+      panel?.style.removeProperty("width");
+
+      if (layout) {
+        layout.removeAttribute("data-resizing");
+        layout.style.removeProperty("--database-left-content-frozen-width");
+        layout.style.removeProperty("--database-left-editor-frozen-width");
+      }
+
+      bounds.layout = null;
+      bounds.panel = null;
     },
   });
 

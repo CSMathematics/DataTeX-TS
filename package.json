@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "./node_modules/.bin/vite",
     "build": "tsc && vite build",
+    "test:latex-highlighting": "node scripts/test-latex-highlighting.mjs",
     "preview": "vite preview",
     "tauri": "__NV_DISABLE_EXPLICIT_SYNC=1 pnpm exec tauri",
     "tauri:compat": "WEBKIT_DISABLE_DMABUF_RENDERER=1 pnpm exec tauri",
@@ -23,8 +24,6 @@
     "@mantine/hooks": "^8.3.10",
     "@mantine/notifications": "^8.3.10",
     "@monaco-editor/react": "^4.7.0",
-    "@react-pdf-viewer/core": "3.12.0",
-    "@react-pdf-viewer/default-layout": "3.12.0",
     "@react-pdf/renderer": "^4.3.1",
     "@tabler/icons-react": "^3.36.0",
     "@tauri-apps/api": "^2",

@@ -2165,13 +2165,349 @@ async fn delete_command_type_cmd(state: State<'_, AppState>, id: String) -> Resu
 // Typed Metadata CRUD Commands (sqlx-based)
 // ============================================================================
 
+#[derive(Clone, Copy)]
+struct MetadataForeignKeySpec {
+    key: &'static str,
+    table: &'static str,
+    column: &'static str,
+    is_array: bool,
+}
+
+const FILE_METADATA_FOREIGN_KEYS: &[MetadataForeignKeySpec] = &[
+    MetadataForeignKeySpec {
+        key: "fileTypeId",
+        table: "file_types",
+        column: "id",
+        is_array: false,
+    },
+    MetadataForeignKeySpec {
+        key: "fieldId",
+        table: "fields",
+        column: "id",
+        is_array: false,
+    },
+    MetadataForeignKeySpec {
+        key: "chapters",
+        table: "chapters",
+        column: "id",
+        is_array: true,
+    },
+    MetadataForeignKeySpec {
+        key: "sections",
+        table: "sections",
+        column: "id",
+        is_array: true,
+    },
+    MetadataForeignKeySpec {
+        key: "subsections",
+        table: "subsections",
+        column: "id",
+        is_array: true,
+    },
+    MetadataForeignKeySpec {
+        key: "exerciseTypes",
+        table: "exercise_types",
+        column: "id",
+        is_array: true,
+    },
+];
+
+const DOCUMENT_METADATA_FOREIGN_KEYS: &[MetadataForeignKeySpec] = &[
+    MetadataForeignKeySpec {
+        key: "documentTypeId",
+        table: "document_types",
+        column: "id",
+        is_array: false,
+    },
+    MetadataForeignKeySpec {
+        key: "fieldId",
+        table: "fields",
+        column: "id",
+        is_array: false,
+    },
+    MetadataForeignKeySpec {
+        key: "preambleId",
+        table: "resources",
+        column: "id",
+        is_array: false,
+    },
+    MetadataForeignKeySpec {
+        key: "solutionDocumentId",
+        table: "resources",
+        column: "id",
+        is_array: false,
+    },
+    MetadataForeignKeySpec {
+        key: "chapters",
+        table: "chapters",
+        column: "id",
+        is_array: true,
+    },
+    MetadataForeignKeySpec {
+        key: "sections",
+        table: "sections",
+        column: "id",
+        is_array: true,
+    },
+    MetadataForeignKeySpec {
+        key: "subsections",
+        table: "subsections",
+        column: "id",
+        is_array: true,
+    },
+];
+
+const FIGURE_METADATA_FOREIGN_KEYS: &[MetadataForeignKeySpec] = &[
+    MetadataForeignKeySpec {
+        key: "figureTypeId",
+        table: "figure_types",
+        column: "id",
+        is_array: false,
+    },
+    MetadataForeignKeySpec {
+        key: "fieldId",
+        table: "fields",
+        column: "id",
+        is_array: false,
+    },
+    MetadataForeignKeySpec {
+        key: "chapters",
+        table: "chapters",
+        column: "id",
+        is_array: true,
+    },
+    MetadataForeignKeySpec {
+        key: "sections",
+        table: "sections",
+        column: "id",
+        is_array: true,
+    },
+    MetadataForeignKeySpec {
+        key: "subsections",
+        table: "subsections",
+        column: "id",
+        is_array: true,
+    },
+];
+
+const TABLE_METADATA_FOREIGN_KEYS: &[MetadataForeignKeySpec] = &[
+    MetadataForeignKeySpec {
+        key: "tableTypeId",
+        table: "table_types",
+        column: "id",
+        is_array: false,
+    },
+    MetadataForeignKeySpec {
+        key: "fieldId",
+        table: "fields",
+        column: "id",
+        is_array: false,
+    },
+    MetadataForeignKeySpec {
+        key: "chapters",
+        table: "chapters",
+        column: "id",
+        is_array: true,
+    },
+    MetadataForeignKeySpec {
+        key: "sections",
+        table: "sections",
+        column: "id",
+        is_array: true,
+    },
+    MetadataForeignKeySpec {
+        key: "subsections",
+        table: "subsections",
+        column: "id",
+        is_array: true,
+    },
+];
+
+const COMMAND_METADATA_FOREIGN_KEYS: &[MetadataForeignKeySpec] = &[MetadataForeignKeySpec {
+    key: "commandTypeId",
+    table: "command_types",
+    column: "id",
+    is_array: false,
+}];
+
+const PACKAGE_METADATA_FOREIGN_KEYS: &[MetadataForeignKeySpec] = &[
+    MetadataForeignKeySpec {
+        key: "topicId",
+        table: "package_topics",
+        column: "id",
+        is_array: false,
+    },
+    MetadataForeignKeySpec {
+        key: "topics",
+        table: "package_topics",
+        column: "id",
+        is_array: true,
+    },
+];
+
+const CLASS_METADATA_FOREIGN_KEYS: &[MetadataForeignKeySpec] = &[MetadataForeignKeySpec {
+    key: "fileTypeId",
+    table: "file_types",
+    column: "id",
+    is_array: false,
+}];
+
+const PREAMBLE_METADATA_FOREIGN_KEYS: &[MetadataForeignKeySpec] = &[
+    MetadataForeignKeySpec {
+        key: "preambleTypeId",
+        table: "preamble_types",
+        column: "id",
+        is_array: false,
+    },
+    MetadataForeignKeySpec {
+        key: "commandTypes",
+        table: "macro_command_types",
+        column: "id",
+        is_array: true,
+    },
+];
+
+const INS_METADATA_FOREIGN_KEYS: &[MetadataForeignKeySpec] = &[MetadataForeignKeySpec {
+    key: "targetDtxId",
+    table: "resources",
+    column: "id",
+    is_array: false,
+}];
+
+fn metadata_foreign_key_specs(resource_type: &str) -> &'static [MetadataForeignKeySpec] {
+    match resource_type {
+        "file" => FILE_METADATA_FOREIGN_KEYS,
+        "document" => DOCUMENT_METADATA_FOREIGN_KEYS,
+        "figure" => FIGURE_METADATA_FOREIGN_KEYS,
+        "table" => TABLE_METADATA_FOREIGN_KEYS,
+        "command" => COMMAND_METADATA_FOREIGN_KEYS,
+        "package" => PACKAGE_METADATA_FOREIGN_KEYS,
+        "class" => CLASS_METADATA_FOREIGN_KEYS,
+        "preamble" => PREAMBLE_METADATA_FOREIGN_KEYS,
+        "ins" => INS_METADATA_FOREIGN_KEYS,
+        // Bibliography and DTX only reference their already-validated parent
+        // resource. Tags and TeX Live packages are created before junctions.
+        _ => &[],
+    }
+}
+
+/// Validate every external identifier before changing any typed table.
+///
+/// SQLite reports all of these failures as the same opaque code 787. Doing a
+/// preflight in the save transaction keeps rollback semantics while returning
+/// the exact metadata key and stale identifier to the editor. Empty optional
+/// identifiers are normalized to `null`, and empty array entries are removed.
+async fn validate_metadata_foreign_keys(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    resource_id: &str,
+    resource_type: &str,
+    metadata: &mut serde_json::Value,
+) -> Result<(), String> {
+    let specs = metadata_foreign_key_specs(resource_type);
+    let mut references: Vec<(MetadataForeignKeySpec, String)> = Vec::new();
+
+    {
+        let object = metadata
+            .as_object_mut()
+            .ok_or_else(|| "Metadata payload must be a JSON object".to_string())?;
+
+        for spec in specs {
+            if spec.is_array {
+                let Some(values) = object
+                    .get_mut(spec.key)
+                    .and_then(serde_json::Value::as_array_mut)
+                else {
+                    continue;
+                };
+
+                let mut normalized = Vec::with_capacity(values.len());
+                let mut seen = std::collections::HashSet::with_capacity(values.len());
+                for value in values.iter() {
+                    let raw = value.as_str().ok_or_else(|| {
+                        format!(
+                            "Invalid metadata reference for resource {resource_id}: \
+                             {resource_type}.{} must contain only string IDs",
+                            spec.key
+                        )
+                    })?;
+                    let id = raw.trim();
+                    if id.is_empty() {
+                        continue;
+                    }
+                    if seen.insert(id.to_string()) {
+                        normalized.push(serde_json::Value::String(id.to_string()));
+                        references.push((*spec, id.to_string()));
+                    }
+                }
+                *values = normalized;
+                continue;
+            }
+
+            let Some(value) = object.get(spec.key) else {
+                continue;
+            };
+            if value.is_null() {
+                continue;
+            }
+            let raw = value
+                .as_str()
+                .ok_or_else(|| {
+                    format!(
+                        "Invalid metadata reference for resource {resource_id}: \
+                         {resource_type}.{} must be a string ID or null",
+                        spec.key
+                    )
+                })?
+                .to_string();
+            let id = raw.trim().to_string();
+            if id.is_empty() {
+                object.insert(spec.key.to_string(), serde_json::Value::Null);
+            } else {
+                if id != raw {
+                    object.insert(spec.key.to_string(), serde_json::Value::String(id.clone()));
+                }
+                references.push((*spec, id));
+            }
+        }
+    }
+
+    for (spec, id) in references {
+        // Table and column names only come from the constants above; values
+        // remain bound parameters.
+        let query = format!(
+            "SELECT EXISTS(SELECT 1 FROM {} WHERE {} = ?)",
+            spec.table, spec.column
+        );
+        let exists: bool = sqlx::query_scalar(&query)
+            .bind(&id)
+            .fetch_one(&mut **transaction)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to validate {resource_type}.{} for resource \
+                     {resource_id}: {error}",
+                    spec.key
+                )
+            })?;
+        if !exists {
+            return Err(format!(
+                "Invalid metadata reference for resource {resource_id}: \
+                 {resource_type}.{} contains ID '{id}', but {}.{} does not exist",
+                spec.key, spec.table, spec.column
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 async fn save_typed_metadata_cmd(
     state: State<'_, AppState>,
     resource_id: String,
     resource_type: String,
     metadata: serde_json::Value,
-) -> Result<(), String> {
+) -> Result<serde_json::Value, String> {
     let pool = {
         let db_guard = state.db_manager.lock().await;
         db_guard
@@ -2180,7 +2516,421 @@ async fn save_typed_metadata_cmd(
             .pool
             .clone()
     };
+    save_typed_metadata_in_pool(&pool, resource_id, resource_type, metadata).await
+}
+
+async fn save_typed_metadata_in_pool(
+    pool: &sqlx::Pool<sqlx::Sqlite>,
+    resource_id: String,
+    resource_type: String,
+    metadata: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    // The editor sends a complete metadata snapshot. Normalize every
+    // relationship field up front so a missing/null/non-array value means an
+    // empty selection. This makes clearing the final checkbox/list item delete
+    // the corresponding junction rows instead of silently preserving them.
+    let (relation_keys, snapshot_keys): (&[&str], &[&str]) = match resource_type.as_str() {
+        "file" => (
+            &[
+                "chapters",
+                "sections",
+                "subsections",
+                "exerciseTypes",
+                "customTags",
+            ],
+            &[
+                "fileTypeId",
+                "fieldId",
+                "difficulty",
+                "solvedProoved",
+                "buildCommand",
+                "fileDescription",
+                // Legacy aliases superseded by the typed keys above. Remove
+                // them from the JSON snapshot so stale duplicate values do
+                // not survive a typed save. `preamble` intentionally is not
+                // owned here and is therefore preserved.
+                "field",
+                "solved_prooved",
+                "description",
+                "taxonomy",
+                "chapters",
+                "sections",
+                "subsections",
+                "exerciseTypes",
+                "customTags",
+            ],
+        ),
+        "document" => (
+            &["chapters", "sections", "subsections", "customTags"],
+            &[
+                "title",
+                "documentTypeId",
+                "description",
+                "fieldId",
+                "date",
+                "preambleId",
+                "buildCommand",
+                "bibliography",
+                "solutionDocumentId",
+                "chapters",
+                "sections",
+                "subsections",
+                "customTags",
+            ],
+        ),
+        "bibliography" => (
+            &["authors", "editors", "translators"],
+            &[
+                "entryType",
+                "citationKey",
+                "journal",
+                "volume",
+                "series",
+                "number",
+                "issue",
+                "year",
+                "month",
+                "publisher",
+                "edition",
+                "institution",
+                "school",
+                "organization",
+                "address",
+                "location",
+                "isbn",
+                "issn",
+                "doi",
+                "url",
+                "language",
+                "title",
+                "subtitle",
+                "booktitle",
+                "chapter",
+                "pages",
+                "abstract",
+                "note",
+                "crossref",
+                "authors",
+                "editors",
+                "translators",
+                "extras",
+            ],
+        ),
+        "figure" => (
+            &[
+                "requiredPackages",
+                "chapters",
+                "sections",
+                "subsections",
+                "customTags",
+            ],
+            &[
+                "figureTypeId",
+                "fieldId",
+                "date",
+                "environment",
+                "caption",
+                "description",
+                "width",
+                "height",
+                "options",
+                "tikzStyle",
+                "label",
+                "placement",
+                "alignment",
+                "requiredPackages",
+                "chapters",
+                "sections",
+                "subsections",
+                "customTags",
+            ],
+        ),
+        "table" => (
+            &[
+                "requiredPackages",
+                "chapters",
+                "sections",
+                "subsections",
+                "customTags",
+            ],
+            &[
+                "tableTypeId",
+                "fieldId",
+                "date",
+                "caption",
+                "description",
+                "environment",
+                "placement",
+                "label",
+                "width",
+                "alignment",
+                "rows",
+                "columns",
+                "requiredPackages",
+                "chapters",
+                "sections",
+                "subsections",
+                "customTags",
+            ],
+        ),
+        "command" => (
+            &["requiredPackages", "customTags"],
+            &[
+                "name",
+                "commandTypeId",
+                "argumentsNum",
+                "optionalArgument",
+                "content",
+                "example",
+                "description",
+                "builtIn",
+                "requiredPackages",
+                "customTags",
+            ],
+        ),
+        "package" => (
+            &[
+                "requiredPackages",
+                "topics",
+                "providedCommands",
+                "customTags",
+            ],
+            &[
+                "name",
+                "topicId",
+                "date",
+                "content",
+                "description",
+                "options",
+                "builtIn",
+                "documentation",
+                "example",
+                "requiredPackages",
+                "topics",
+                "providedCommands",
+                "customTags",
+            ],
+        ),
+        "class" => (
+            &["requiredPackages", "providedCommands", "customTags"],
+            &[
+                "name",
+                "fileTypeId",
+                "date",
+                "content",
+                "description",
+                "engines",
+                "paperSize",
+                "fontSize",
+                "geometry",
+                "options",
+                "languages",
+                "requiredPackages",
+                "providedCommands",
+                "customTags",
+            ],
+        ),
+        "preamble" => (
+            &["requiredPackages", "commandTypes", "providedCommands"],
+            &[
+                "name",
+                "preambleTypeId",
+                "content",
+                "description",
+                "builtIn",
+                "engines",
+                "date",
+                "className",
+                "paperSize",
+                "fontSize",
+                "options",
+                "languages",
+                "geometry",
+                "author",
+                "title",
+                "useBibliography",
+                "bibCompileEngine",
+                "makeIndex",
+                "makeGlossaries",
+                "hasToc",
+                "hasLot",
+                "hasLof",
+                "requiredPackages",
+                "commandTypes",
+                "providedCommands",
+            ],
+        ),
+        "dtx" => (
+            &[],
+            &[
+                "baseName",
+                "version",
+                "date",
+                "description",
+                "providesClasses",
+                "providesPackages",
+                "documentationChecksum",
+            ],
+        ),
+        "ins" => (&[], &["targetDtxId", "generatedFiles"]),
+        _ => return Err(format!("Unknown resource type: {}", resource_type)),
+    };
+
+    let mut metadata = metadata;
+    let metadata_object = metadata
+        .as_object_mut()
+        .ok_or_else(|| "Metadata payload must be a JSON object".to_string())?;
+    for key in relation_keys {
+        if !metadata_object
+            .get(*key)
+            .is_some_and(serde_json::Value::is_array)
+        {
+            metadata_object.insert((*key).to_string(), serde_json::Value::Array(Vec::new()));
+        }
+    }
+    if resource_type == "bibliography"
+        && !metadata_object
+            .get("extras")
+            .is_some_and(serde_json::Value::is_object)
+    {
+        metadata_object.insert(
+            "extras".to_string(),
+            serde_json::Value::Object(serde_json::Map::new()),
+        );
+    }
+    if resource_type == "file" {
+        // Legacy JSON aliases may arrive alongside their normalized typed
+        // equivalents (notably from imported/.dtex metadata). Do not persist
+        // two competing sources of truth after a successful typed save.
+        for key in ["field", "solved_prooved", "description", "taxonomy"] {
+            metadata_object.remove(key);
+        }
+    }
+    let required_name_label = match resource_type.as_str() {
+        "command" => Some("Command name"),
+        "package" => Some("Package name"),
+        "class" => Some("Class name"),
+        "preamble" => Some("Preamble name"),
+        _ => None,
+    };
+    if let Some(label) = required_name_label {
+        let has_name = metadata_object
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|name| !name.trim().is_empty());
+        if !has_name {
+            return Err(format!("{label} is required"));
+        }
+    }
+
+    let integer_keys: &[&str] = match resource_type.as_str() {
+        "file" => &["difficulty"],
+        "table" => &["rows", "columns"],
+        "command" => &["argumentsNum"],
+        "class" | "preamble" => &["fontSize"],
+        _ => &[],
+    };
+    for key in integer_keys {
+        let Some(value) = metadata_object.get(*key) else {
+            continue;
+        };
+        if value.is_null() {
+            continue;
+        }
+        let integer = value
+            .as_i64()
+            .ok_or_else(|| format!("{key} must be a whole number"))?;
+        let in_range = match (*key, resource_type.as_str()) {
+            ("difficulty", "file") => (1..=5).contains(&integer),
+            ("argumentsNum", "command") => (0..=9).contains(&integer),
+            ("rows" | "columns", "table") => integer >= 0,
+            ("fontSize", "class" | "preamble") => integer > 0,
+            _ => true,
+        };
+        if !in_range {
+            return Err(format!("Invalid value for {key}: {integer}"));
+        }
+    }
+
+    let boolean_keys: &[&str] = match resource_type.as_str() {
+        "file" => &["solvedProoved"],
+        "command" | "package" => &["builtIn"],
+        "preamble" => &[
+            "builtIn",
+            "useBibliography",
+            "makeIndex",
+            "makeGlossaries",
+            "hasToc",
+            "hasLot",
+            "hasLof",
+        ],
+        _ => &[],
+    };
+    for key in boolean_keys {
+        if !metadata_object
+            .get(*key)
+            .is_some_and(serde_json::Value::is_boolean)
+        {
+            metadata_object.insert((*key).to_string(), serde_json::Value::Bool(false));
+        }
+    }
+
+    if resource_type == "table"
+        && !metadata_object
+            .get("environment")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|environment| !environment.trim().is_empty())
+    {
+        metadata_object.insert("environment".to_string(), serde_json::json!("tabular"));
+    }
+
     let mut transaction = pool.begin().await.map_err(|e| e.to_string())?;
+
+    // Keep JSON-only/legacy fields while replacing every key owned by the
+    // typed editor. Reading the resource in this transaction also guarantees
+    // that typed rows cannot be written for an unknown resource even on a
+    // connection where foreign-key enforcement was not enabled.
+    let resource_row = sqlx::query("SELECT type, metadata FROM resources WHERE id = ?")
+        .bind(&resource_id)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Resource not found: {}", resource_id))?;
+    let stored_resource_type: String = resource_row
+        .try_get("type")
+        .map_err(|error| format!("Failed to read resource type for {resource_id}: {error}"))?;
+    if stored_resource_type != resource_type {
+        return Err(format!(
+            "Resource type mismatch for {resource_id}: database has \
+             '{stored_resource_type}', save requested '{resource_type}'"
+        ));
+    }
+    let existing_metadata = resource_row
+        .try_get::<Option<String>, _>("metadata")
+        .ok()
+        .flatten()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok());
+
+    validate_metadata_foreign_keys(
+        &mut transaction,
+        &resource_id,
+        &resource_type,
+        &mut metadata,
+    )
+    .await?;
+
+    let mut persisted_object = metadata
+        .as_object()
+        .expect("metadata was validated as an object")
+        .clone();
+    if let Some(serde_json::Value::Object(existing_object)) = existing_metadata {
+        for (key, value) in existing_object {
+            if !snapshot_keys.contains(&key.as_str()) && !persisted_object.contains_key(&key) {
+                persisted_object.insert(key, value);
+            }
+        }
+    }
+    let persisted_metadata = serde_json::Value::Object(persisted_object);
 
     match resource_type.as_str() {
         "file" => {
@@ -2635,20 +3385,21 @@ async fn save_typed_metadata_cmd(
 
             let stmt = if exists {
                 "UPDATE resource_figures SET 
-                    figure_type_id=?, field_id=?, environment=?, caption=?, description=?, 
+                    figure_type_id=?, field_id=?, date=?, environment=?, caption=?, description=?,
                     width=?, height=?, options=?, tikz_style=?, label=?, placement=?, alignment=?
                  WHERE resource_id=?"
             } else {
                 "INSERT INTO resource_figures (
-                    figure_type_id, field_id, environment, caption, description,
+                    figure_type_id, field_id, date, environment, caption, description,
                     width, height, options, tikz_style, label, placement, alignment,
                     resource_id
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             };
 
             sqlx::query(stmt)
                 .bind(get_str("figureTypeId"))
                 .bind(get_str("fieldId")) // Added field_id
+                .bind(get_str("date"))
                 .bind(get_str("environment"))
                 .bind(get_str("caption"))
                 .bind(get_str("description"))
@@ -2871,6 +3622,11 @@ async fn save_typed_metadata_cmd(
                     .map_err(|e| e.to_string())?;
                 for pkg in packages {
                     if let Some(pkg_id) = pkg.as_str() {
+                        sqlx::query("INSERT OR IGNORE INTO texlive_packages (id) VALUES (?)")
+                            .bind(pkg_id)
+                            .execute(&mut *transaction)
+                            .await
+                            .map_err(|e| e.to_string())?;
                         sqlx::query("INSERT OR IGNORE INTO resource_command_packages (resource_id, package_id) VALUES (?, ?)").bind(&resource_id).bind(pkg_id).execute(&mut *transaction).await.map_err(|e| e.to_string())?;
                     }
                 }
@@ -3173,6 +3929,11 @@ async fn save_typed_metadata_cmd(
                     .map_err(|e| e.to_string())?;
                 for dep in deps {
                     if let Some(dep_id) = dep.as_str() {
+                        sqlx::query("INSERT OR IGNORE INTO texlive_packages (id) VALUES (?)")
+                            .bind(dep_id)
+                            .execute(&mut *transaction)
+                            .await
+                            .map_err(|e| e.to_string())?;
                         sqlx::query("INSERT OR IGNORE INTO resource_package_dependencies (resource_id, package_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(dep_id)
@@ -3345,7 +4106,7 @@ async fn save_typed_metadata_cmd(
                 .bind(get_bool("builtIn"))
                 .bind(get_str("engines"))
                 .bind(get_str("date"))
-                .bind(get_str("class"))
+                .bind(get_str("className"))
                 .bind(get_str("paperSize"))
                 .bind(get_int("fontSize"))
                 .bind(get_str("options"))
@@ -3381,7 +4142,7 @@ async fn save_typed_metadata_cmd(
                 .bind(get_bool("builtIn"))
                 .bind(get_str("engines"))
                 .bind(get_str("date"))
-                .bind(get_str("class"))
+                .bind(get_str("className"))
                 .bind(get_str("paperSize"))
                 .bind(get_int("fontSize"))
                 .bind(get_str("options"))
@@ -3413,6 +4174,11 @@ async fn save_typed_metadata_cmd(
                     .map_err(|e| e.to_string())?;
                 for pkg in pkgs {
                     if let Some(pkg_id) = pkg.as_str() {
+                        sqlx::query("INSERT OR IGNORE INTO texlive_packages (id) VALUES (?)")
+                            .bind(pkg_id)
+                            .execute(&mut *transaction)
+                            .await
+                            .map_err(|e| e.to_string())?;
                         sqlx::query("INSERT OR IGNORE INTO resource_preamble_packages (resource_id, package_id) VALUES (?, ?)")
                             .bind(&resource_id)
                             .bind(pkg_id)
@@ -3489,8 +4255,8 @@ async fn save_typed_metadata_cmd(
                 .bind(get_str("version"))
                 .bind(get_str("date"))
                 .bind(get_str("description"))
-                .bind(metadata.get("providesClasses").map(|v| v.to_string()))
-                .bind(metadata.get("providesPackages").map(|v| v.to_string()))
+                .bind(get_str("providesClasses"))
+                .bind(get_str("providesPackages"))
                 .bind(get_str("documentationChecksum"))
                 .bind(&resource_id)
                 .execute(&mut *transaction)
@@ -3508,8 +4274,8 @@ async fn save_typed_metadata_cmd(
                 .bind(get_str("version"))
                 .bind(get_str("date"))
                 .bind(get_str("description"))
-                .bind(metadata.get("providesClasses").map(|v| v.to_string()))
-                .bind(metadata.get("providesPackages").map(|v| v.to_string()))
+                .bind(get_str("providesClasses"))
+                .bind(get_str("providesPackages"))
                 .bind(get_str("documentationChecksum"))
                 .bind(&resource_id)
                 .execute(&mut *transaction)
@@ -3539,7 +4305,7 @@ async fn save_typed_metadata_cmd(
                      WHERE resource_id=?",
                 )
                 .bind(get_str("targetDtxId"))
-                .bind(metadata.get("generatedFiles").map(|v| v.to_string()))
+                .bind(get_str("generatedFiles"))
                 .bind(&resource_id)
                 .execute(&mut *transaction)
                 .await
@@ -3551,7 +4317,7 @@ async fn save_typed_metadata_cmd(
                      ) VALUES (?,?,?)",
                 )
                 .bind(get_str("targetDtxId"))
-                .bind(metadata.get("generatedFiles").map(|v| v.to_string()))
+                .bind(get_str("generatedFiles"))
                 .bind(&resource_id)
                 .execute(&mut *transaction)
                 .await
@@ -3559,11 +4325,27 @@ async fn save_typed_metadata_cmd(
             }
         }
 
-        _ => {}
+        _ => return Err(format!("Unknown resource type: {}", resource_type)),
+    }
+
+    let persisted_metadata_json =
+        serde_json::to_string(&persisted_metadata).map_err(|e| e.to_string())?;
+    let update_result = sqlx::query("UPDATE resources SET metadata = ? WHERE id = ?")
+        .bind(persisted_metadata_json)
+        .bind(&resource_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|e| e.to_string())?;
+    if update_result.rows_affected() != 1 {
+        return Err(format!(
+            "Expected to update one resource metadata row for {}, updated {}",
+            resource_id,
+            update_result.rows_affected()
+        ));
     }
 
     transaction.commit().await.map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(persisted_metadata)
 }
 
 #[tauri::command]
@@ -3574,7 +4356,14 @@ async fn load_typed_metadata_cmd(
 ) -> Result<Option<serde_json::Value>, String> {
     let db_guard = state.db_manager.lock().await;
     let manager = db_guard.as_ref().ok_or("Database not initialized")?;
+    load_typed_metadata_with_manager(manager, resource_id, resource_type).await
+}
 
+async fn load_typed_metadata_with_manager(
+    manager: &DatabaseManager,
+    resource_id: String,
+    resource_type: String,
+) -> Result<Option<serde_json::Value>, String> {
     match resource_type.as_str() {
         "file" => {
             // Load main record
@@ -3655,11 +4444,11 @@ async fn load_typed_metadata_cmd(
                     "solvedProoved": solved_prooved,
                     "buildCommand": build_command,
                     "fileDescription": file_description,
-                    "chapters": if chapters.is_empty() { None } else { Some(chapters) },
-                    "sections": if sections.is_empty() { None } else { Some(sections) },
-                    "subsections": if subsections.is_empty() { None } else { Some(subsections) },
-                    "exerciseTypes": if exercise_types.is_empty() { None } else { Some(exercise_types) },
-                    "customTags": if custom_tags.is_empty() { None } else { Some(custom_tags) }
+                    "chapters": chapters,
+                    "sections": sections,
+                    "subsections": subsections,
+                    "exerciseTypes": exercise_types,
+                    "customTags": custom_tags
                 })));
             }
         }
@@ -3736,10 +4525,10 @@ async fn load_typed_metadata_cmd(
                     "buildCommand": row.try_get::<String, _>("build_command").ok(),
                     "bibliography": row.try_get::<String, _>("bibliography").ok(),
                     "solutionDocumentId": row.try_get::<String, _>("solution_document_id").ok(),
-                    "chapters": if chapters.is_empty() { None } else { Some(chapters) },
-                    "sections": if sections.is_empty() { None } else { Some(sections) },
-                    "subsections": if subsections.is_empty() { None } else { Some(subsections) },
-                    "customTags": if custom_tags.is_empty() { None } else { Some(custom_tags) }
+                    "chapters": chapters,
+                    "sections": sections,
+                    "subsections": subsections,
+                    "customTags": custom_tags
                 })));
             }
         }
@@ -3824,10 +4613,10 @@ async fn load_typed_metadata_cmd(
                     "abstract": row.try_get::<String, _>("abstract").ok(),
                     "note": row.try_get::<String, _>("note").ok(),
                     "crossref": row.try_get::<String, _>("crossref").ok(),
-                    "authors": if authors.is_empty() { None } else { Some(authors) },
-                    "editors": if editors.is_empty() { None } else { Some(editors) },
-                    "translators": if translators.is_empty() { None } else { Some(translators) },
-                    "extras": if extras_map.is_empty() { None } else { Some(extras_map) }
+                    "authors": authors,
+                    "editors": editors,
+                    "translators": translators,
+                    "extras": extras_map
                 })));
             } else {
                 // Fallback if no specific record found? Return empty or basic?
@@ -3897,6 +4686,7 @@ async fn load_typed_metadata_cmd(
                 return Ok(Some(serde_json::json!({
                     "figureTypeId": row.try_get::<String, _>("figure_type_id").ok(),
                     "fieldId": row.try_get::<String, _>("field_id").ok(),
+                    "date": row.try_get::<String, _>("date").ok(),
                     "environment": row.try_get::<String, _>("environment").ok(),
                     "caption": row.try_get::<String, _>("caption").ok(),
                     "description": row.try_get::<String, _>("description").ok(),
@@ -3907,11 +4697,11 @@ async fn load_typed_metadata_cmd(
                     "label": row.try_get::<String, _>("label").ok(),
                     "placement": row.try_get::<String, _>("placement").ok(),
                     "alignment": row.try_get::<String, _>("alignment").ok(),
-                    "requiredPackages": if packages.is_empty() { None } else { Some(packages) },
-                    "customTags": if custom_tags.is_empty() { None } else { Some(custom_tags) },
-                    "chapters": if chapters.is_empty() { None } else { Some(chapters) },
-                    "sections": if sections.is_empty() { None } else { Some(sections) },
-                    "subsections": if subsections.is_empty() { None } else { Some(subsections) }
+                    "requiredPackages": packages,
+                    "customTags": custom_tags,
+                    "chapters": chapters,
+                    "sections": sections,
+                    "subsections": subsections
                 })));
             }
         }
@@ -3965,8 +4755,8 @@ async fn load_typed_metadata_cmd(
                     "example": example,
                     "description": description,
                     "builtIn": built_in,
-                    "requiredPackages": if packages.is_empty() { None } else { Some(packages) },
-                    "customTags": if custom_tags.is_empty() { None } else { Some(custom_tags) }
+                    "requiredPackages": packages,
+                    "customTags": custom_tags
                 })));
             }
         }
@@ -4057,14 +4847,13 @@ async fn load_typed_metadata_cmd(
                     "width": width,
                     "alignment": alignment,
                     "rows": rows_count,
-                    "rows": rows_count,
                     "columns": cols_count,
                     "fieldId": field_id,
-                    "requiredPackages": if packages.is_empty() { None } else { Some(packages) },
-                    "customTags": if custom_tags.is_empty() { None } else { Some(custom_tags) },
-                    "chapters": if chapters.is_empty() { None } else { Some(chapters) },
-                    "sections": if sections.is_empty() { None } else { Some(sections) },
-                    "subsections": if subsections.is_empty() { None } else { Some(subsections) }
+                    "requiredPackages": packages,
+                    "customTags": custom_tags,
+                    "chapters": chapters,
+                    "sections": sections,
+                    "subsections": subsections
                 })));
             } else {
                 return Ok(None);
@@ -4139,10 +4928,10 @@ async fn load_typed_metadata_cmd(
                     "builtIn": built_in,
                     "documentation": documentation,
                     "example": example,
-                    "customTags": if custom_tags.is_empty() { None } else { Some(custom_tags) },
-                    "providedCommands": if provided_commands.is_empty() { None } else { Some(provided_commands) },
-                    "topics": if topics.is_empty() { None } else { Some(topics) },
-                    "requiredPackages": if required_packages.is_empty() { None } else { Some(required_packages) }
+                    "customTags": custom_tags,
+                    "providedCommands": provided_commands,
+                    "topics": topics,
+                    "requiredPackages": required_packages
                 })));
             } else {
                 return Ok(None);
@@ -4211,9 +5000,9 @@ async fn load_typed_metadata_cmd(
                     "geometry": geometry,
                     "options": options,
                     "languages": languages,
-                    "customTags": if custom_tags.is_empty() { None } else { Some(custom_tags) },
-                    "requiredPackages": if required_packages.is_empty() { None } else { Some(required_packages) },
-                    "providedCommands": if provided_commands.is_empty() { None } else { Some(provided_commands) }
+                    "customTags": custom_tags,
+                    "requiredPackages": required_packages,
+                    "providedCommands": provided_commands
                 })));
             } else {
                 return Ok(None);
@@ -4228,7 +5017,7 @@ async fn load_typed_metadata_cmd(
 
             if let Some(r) = row {
                 let name: String = r.get("name");
-                let file_type_id: Option<String> = r.try_get("file_type_id").ok();
+                let preamble_type_id: Option<String> = r.try_get("preamble_type_id").ok();
                 let content: Option<String> = r.try_get("content").ok();
                 let description: Option<String> = r.try_get("description").ok();
                 let built_in: Option<bool> = r.try_get("built_in").ok();
@@ -4289,7 +5078,7 @@ async fn load_typed_metadata_cmd(
 
                 return Ok(Some(serde_json::json!({
                     "name": name,
-                    "fileTypeId": file_type_id,
+                    "preambleTypeId": preamble_type_id,
                     "content": content,
                     "description": description,
                     "builtIn": built_in,
@@ -4310,9 +5099,9 @@ async fn load_typed_metadata_cmd(
                     "hasToc": has_toc,
                     "hasLot": has_lot,
                     "hasLof": has_lof,
-                    "requiredPackages": if required_packages.is_empty() { None } else { Some(required_packages) },
-                    "commandTypes": if command_types.is_empty() { None } else { Some(command_types) },
-                    "providedCommands": if provided_commands.is_empty() { None } else { Some(provided_commands) }
+                    "requiredPackages": required_packages,
+                    "commandTypes": command_types,
+                    "providedCommands": provided_commands
                 })));
             } else {
                 return Ok(None);
@@ -4356,10 +5145,760 @@ async fn load_typed_metadata_cmd(
                 })));
             }
         }
-        _ => {}
+        _ => return Err(format!("Unknown resource type: {}", resource_type)),
     }
 
     Ok(None)
+}
+
+#[cfg(test)]
+mod typed_metadata_round_trip_tests {
+    use super::*;
+    use serde_json::{json, Value};
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    async fn test_manager() -> DatabaseManager {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("in-memory metadata database");
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(&pool)
+            .await
+            .expect("enable foreign keys");
+        DatabaseManager::init_schema(&pool)
+            .await
+            .expect("initialize metadata schema");
+        sqlx::query("INSERT INTO collections (name, type) VALUES ('metadata-tests', 'files')")
+            .execute(&pool)
+            .await
+            .expect("test collection");
+
+        DatabaseManager {
+            pool,
+            path: String::new(),
+        }
+    }
+
+    async fn add_resource(
+        manager: &DatabaseManager,
+        id: &str,
+        resource_type: &str,
+        metadata: Value,
+    ) {
+        sqlx::query(
+            "INSERT INTO resources (id, path, type, collection, metadata)
+             VALUES (?, ?, ?, 'metadata-tests', ?)",
+        )
+        .bind(id)
+        .bind(format!("/metadata-tests/{id}.tex"))
+        .bind(resource_type)
+        .bind(metadata.to_string())
+        .execute(&manager.pool)
+        .await
+        .expect("insert test resource");
+    }
+
+    async fn add_hierarchy(manager: &DatabaseManager) {
+        sqlx::query(
+            "INSERT INTO chapters (id, name, field_id, collection)
+             VALUES ('metadata-chapter', 'Metadata chapter', 'algebra', 'metadata-tests')",
+        )
+        .execute(&manager.pool)
+        .await
+        .expect("test chapter");
+        sqlx::query(
+            "INSERT INTO sections (id, name, chapter_id, collection)
+             VALUES ('metadata-section', 'Metadata section', 'metadata-chapter', 'metadata-tests')",
+        )
+        .execute(&manager.pool)
+        .await
+        .expect("test section");
+        sqlx::query(
+            "INSERT INTO subsections (id, name, section_id, collection)
+             VALUES ('metadata-subsection', 'Metadata subsection', 'metadata-section', 'metadata-tests')",
+        )
+        .execute(&manager.pool)
+        .await
+        .expect("test subsection");
+    }
+
+    async fn save(
+        manager: &DatabaseManager,
+        id: &str,
+        resource_type: &str,
+        metadata: Value,
+    ) -> Result<Value, String> {
+        save_typed_metadata_in_pool(
+            &manager.pool,
+            id.to_string(),
+            resource_type.to_string(),
+            metadata,
+        )
+        .await
+    }
+
+    async fn load(manager: &DatabaseManager, id: &str, resource_type: &str) -> Value {
+        load_typed_metadata_with_manager(manager, id.to_string(), resource_type.to_string())
+            .await
+            .expect("load typed metadata")
+            .expect("typed metadata row")
+    }
+
+    fn assert_fields(expected: &Value, actual: &Value, fields: &[&str]) {
+        for field in fields {
+            if let (Some(Value::Array(expected_items)), Some(Value::Array(actual_items))) =
+                (expected.get(*field), actual.get(*field))
+            {
+                let mut expected_items = expected_items.clone();
+                let mut actual_items = actual_items.clone();
+                expected_items.sort_by_key(Value::to_string);
+                actual_items.sort_by_key(Value::to_string);
+                assert_eq!(
+                    actual_items, expected_items,
+                    "round-trip mismatch for {field}"
+                );
+                continue;
+            }
+            assert_eq!(
+                actual.get(*field),
+                expected.get(*field),
+                "round-trip mismatch for {field}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn file_hierarchy_round_trip_clears_the_final_checked_items() {
+        let manager = test_manager().await;
+        add_hierarchy(&manager).await;
+        add_resource(
+            &manager,
+            "file-resource",
+            "file",
+            json!({
+                "preamble": "builtin:fragment",
+                "legacyOnly": "preserve-me",
+                "field": "stale-field",
+                "solved_prooved": false,
+                "description": "stale description",
+                "taxonomy": {"chapter": {"id": "stale"}}
+            }),
+        )
+        .await;
+
+        let populated = json!({
+            "fileTypeId": "exercise",
+            "fieldId": "algebra",
+            "difficulty": 4,
+            "solvedProoved": true,
+            "buildCommand": "xelatex",
+            "fileDescription": "Round trip",
+            "chapters": ["metadata-chapter"],
+            "sections": ["metadata-section"],
+            "subsections": ["metadata-subsection"],
+            "exerciseTypes": ["proof"],
+            "customTags": ["round-trip"],
+            "field": "legacy-in-payload",
+            "taxonomy": {"chapter": {"id": "legacy-in-payload"}}
+        });
+        let persisted = save(&manager, "file-resource", "file", populated.clone())
+            .await
+            .expect("save populated file metadata");
+        let loaded = load(&manager, "file-resource", "file").await;
+        assert_fields(
+            &populated,
+            &loaded,
+            &[
+                "fileTypeId",
+                "fieldId",
+                "difficulty",
+                "solvedProoved",
+                "buildCommand",
+                "fileDescription",
+                "chapters",
+                "sections",
+                "subsections",
+                "exerciseTypes",
+                "customTags",
+            ],
+        );
+        assert_eq!(persisted["preamble"], "builtin:fragment");
+        assert_eq!(persisted["legacyOnly"], "preserve-me");
+        for removed_alias in ["field", "solved_prooved", "description", "taxonomy"] {
+            assert!(persisted.get(removed_alias).is_none());
+        }
+
+        let stored_json: String =
+            sqlx::query_scalar("SELECT metadata FROM resources WHERE id = 'file-resource'")
+                .fetch_one(&manager.pool)
+                .await
+                .expect("stored resource metadata");
+        assert_eq!(
+            serde_json::from_str::<Value>(&stored_json).expect("valid stored JSON"),
+            persisted
+        );
+
+        let invalid = save(
+            &manager,
+            "file-resource",
+            "file",
+            json!({"difficulty": 1, "chapters": ["missing-chapter"]}),
+        )
+        .await;
+        let invalid_error = invalid.expect_err("invalid hierarchy IDs must roll back");
+        assert!(
+            invalid_error.contains("file.chapters")
+                && invalid_error.contains("missing-chapter")
+                && invalid_error.contains("chapters.id"),
+            "invalid reference error lacked actionable context: {invalid_error}"
+        );
+        let after_rollback = load(&manager, "file-resource", "file").await;
+        assert_eq!(after_rollback["difficulty"], 4);
+        assert_eq!(after_rollback["chapters"], json!(["metadata-chapter"]));
+        let json_after_rollback: String =
+            sqlx::query_scalar("SELECT metadata FROM resources WHERE id = 'file-resource'")
+                .fetch_one(&manager.pool)
+                .await
+                .expect("resource JSON after rollback");
+        assert_eq!(
+            serde_json::from_str::<Value>(&json_after_rollback)
+                .expect("valid resource JSON after rollback"),
+            persisted
+        );
+
+        // This mirrors the forms, which omit an empty selection from JSON.
+        // Full-snapshot normalization must still delete every old junction.
+        let cleared = save(
+            &manager,
+            "file-resource",
+            "file",
+            json!({"difficulty": 2, "solvedProoved": false}),
+        )
+        .await
+        .expect("clear file hierarchy");
+        let loaded_cleared = load(&manager, "file-resource", "file").await;
+        for relation in [
+            "chapters",
+            "sections",
+            "subsections",
+            "exerciseTypes",
+            "customTags",
+        ] {
+            assert_eq!(
+                loaded_cleared[relation],
+                json!([]),
+                "{relation} was not cleared"
+            );
+            assert_eq!(
+                cleared[relation],
+                json!([]),
+                "{relation} JSON was not normalized"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn all_hierarchy_forms_replace_and_clear_checkbox_relations() {
+        let manager = test_manager().await;
+        add_hierarchy(&manager).await;
+
+        for (resource_type, id, scalar) in [
+            (
+                "document",
+                "document-resource",
+                json!({"title": "Document"}),
+            ),
+            ("table", "table-resource", json!({"caption": "Table"})),
+            ("figure", "figure-resource", json!({"caption": "Figure"})),
+        ] {
+            add_resource(&manager, id, resource_type, json!({})).await;
+            let mut populated = scalar.as_object().expect("scalar object").clone();
+            populated.insert("fieldId".into(), json!("algebra"));
+            populated.insert("chapters".into(), json!(["metadata-chapter"]));
+            populated.insert("sections".into(), json!(["metadata-section"]));
+            populated.insert("subsections".into(), json!(["metadata-subsection"]));
+            save(&manager, id, resource_type, Value::Object(populated))
+                .await
+                .unwrap_or_else(|error| panic!("save {resource_type}: {error}"));
+            let loaded = load(&manager, id, resource_type).await;
+            assert_eq!(loaded["chapters"], json!(["metadata-chapter"]));
+            assert_eq!(loaded["sections"], json!(["metadata-section"]));
+            assert_eq!(loaded["subsections"], json!(["metadata-subsection"]));
+
+            save(&manager, id, resource_type, scalar)
+                .await
+                .unwrap_or_else(|error| panic!("clear {resource_type}: {error}"));
+            let cleared = load(&manager, id, resource_type).await;
+            assert_eq!(cleared["chapters"], json!([]));
+            assert_eq!(cleared["sections"], json!([]));
+            assert_eq!(cleared["subsections"], json!([]));
+        }
+    }
+
+    #[tokio::test]
+    async fn metadata_reference_preflight_normalizes_ids_and_reports_exact_failures() {
+        let manager = test_manager().await;
+        add_hierarchy(&manager).await;
+        add_resource(&manager, "preflight-file", "file", json!({"keep": true})).await;
+
+        let normalized = save(
+            &manager,
+            "preflight-file",
+            "file",
+            json!({
+                "fieldId": " algebra ",
+                "chapters": ["metadata-chapter", " metadata-chapter ", ""],
+                "solvedProoved": false
+            }),
+        )
+        .await
+        .expect("valid references should be trimmed and de-duplicated");
+        assert_eq!(normalized["fieldId"], "algebra");
+        assert_eq!(normalized["chapters"], json!(["metadata-chapter"]));
+
+        let invalid_scalar = save(
+            &manager,
+            "preflight-file",
+            "file",
+            json!({"fileTypeId": "missing-file-type"}),
+        )
+        .await
+        .expect_err("a stale scalar lookup ID must fail before writes");
+        assert!(
+            invalid_scalar.contains("file.fileTypeId")
+                && invalid_scalar.contains("missing-file-type")
+                && invalid_scalar.contains("file_types.id"),
+            "unexpected scalar reference error: {invalid_scalar}"
+        );
+
+        let invalid_array = save(
+            &manager,
+            "preflight-file",
+            "file",
+            json!({"chapters": [42]}),
+        )
+        .await
+        .expect_err("non-string relation values must not be silently ignored");
+        assert!(
+            invalid_array.contains("file.chapters") && invalid_array.contains("only string IDs"),
+            "unexpected array reference error: {invalid_array}"
+        );
+
+        let after_failures = load(&manager, "preflight-file", "file").await;
+        assert_eq!(after_failures["fieldId"], "algebra");
+        assert_eq!(after_failures["chapters"], json!(["metadata-chapter"]));
+        let stored_json: String =
+            sqlx::query_scalar("SELECT metadata FROM resources WHERE id = 'preflight-file'")
+                .fetch_one(&manager.pool)
+                .await
+                .expect("resource JSON after failed preflights");
+        assert_eq!(
+            serde_json::from_str::<Value>(&stored_json).expect("valid resource JSON"),
+            normalized
+        );
+
+        let type_mismatch = save(&manager, "preflight-file", "table", json!({}))
+            .await
+            .expect_err("the editor must not write a different typed table");
+        assert!(
+            type_mismatch.contains("Resource type mismatch")
+                && type_mismatch.contains("database has 'file'")
+                && type_mismatch.contains("save requested 'table'"),
+            "unexpected type mismatch error: {type_mismatch}"
+        );
+    }
+
+    #[tokio::test]
+    async fn visible_defaults_are_persisted_and_required_names_are_validated() {
+        let manager = test_manager().await;
+
+        add_resource(&manager, "default-file", "file", json!({})).await;
+        let saved_file = save(&manager, "default-file", "file", json!({}))
+            .await
+            .expect("save default file metadata");
+        assert_eq!(saved_file["solvedProoved"], false);
+        assert_eq!(
+            load(&manager, "default-file", "file").await["solvedProoved"],
+            false
+        );
+        let decimal_error = save(&manager, "default-file", "file", json!({"difficulty": 2.5}))
+            .await
+            .expect_err("decimal integer fields must be rejected");
+        assert!(decimal_error.contains("whole number"));
+
+        add_resource(&manager, "default-table", "table", json!({})).await;
+        let saved_table = save(&manager, "default-table", "table", json!({}))
+            .await
+            .expect("save default table metadata");
+        assert_eq!(saved_table["environment"], "tabular");
+        assert_eq!(
+            load(&manager, "default-table", "table").await["environment"],
+            "tabular"
+        );
+
+        for (resource_type, id, name) in [
+            ("command", "default-command", "\\defaultcommand"),
+            ("package", "default-package", "default-package"),
+            ("preamble", "default-preamble", "Default preamble"),
+        ] {
+            add_resource(&manager, id, resource_type, json!({})).await;
+            save(&manager, id, resource_type, json!({"name": name}))
+                .await
+                .unwrap_or_else(|error| panic!("save default {resource_type}: {error}"));
+            let loaded = load(&manager, id, resource_type).await;
+            assert_eq!(loaded["builtIn"], false, "{resource_type} builtIn");
+            if resource_type == "preamble" {
+                for flag in [
+                    "useBibliography",
+                    "makeIndex",
+                    "makeGlossaries",
+                    "hasToc",
+                    "hasLot",
+                    "hasLof",
+                ] {
+                    assert_eq!(loaded[flag], false, "preamble {flag}");
+                }
+            }
+        }
+
+        for (resource_type, id) in [
+            ("command", "missing-command-name"),
+            ("package", "missing-package-name"),
+            ("class", "missing-class-name"),
+            ("preamble", "missing-preamble-name"),
+        ] {
+            add_resource(&manager, id, resource_type, json!({})).await;
+            let error = save(&manager, id, resource_type, json!({}))
+                .await
+                .expect_err("required name must be rejected");
+            assert!(
+                error.contains("name is required"),
+                "unexpected error: {error}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn visible_scalar_and_list_fields_round_trip_for_every_resource_form() {
+        let manager = test_manager().await;
+
+        let cases: Vec<(&str, &str, Value, Vec<&str>)> = vec![
+            (
+                "document",
+                "document-fields",
+                json!({
+                    "title": "Notes", "documentTypeId": "notes", "fieldId": "algebra",
+                    "date": "2026-07-16", "buildCommand": "lualatex",
+                    "bibliography": "refs.bib", "description": "Description",
+                    "customTags": ["document-tag"]
+                }),
+                vec![
+                    "title",
+                    "documentTypeId",
+                    "fieldId",
+                    "date",
+                    "buildCommand",
+                    "bibliography",
+                    "description",
+                    "customTags",
+                ],
+            ),
+            (
+                "table",
+                "table-fields",
+                json!({
+                    "tableTypeId": "data", "fieldId": "algebra", "date": "2026-07-16",
+                    "caption": "Results", "description": "Description", "environment": "tabularx",
+                    "placement": "htbp", "label": "tab:results", "width": "0.9\\textwidth",
+                    "alignment": "lcr", "rows": 3, "columns": 4,
+                    "requiredPackages": ["booktabs"], "customTags": ["table-tag"]
+                }),
+                vec![
+                    "tableTypeId",
+                    "fieldId",
+                    "date",
+                    "caption",
+                    "description",
+                    "environment",
+                    "placement",
+                    "label",
+                    "width",
+                    "alignment",
+                    "rows",
+                    "columns",
+                    "requiredPackages",
+                    "customTags",
+                ],
+            ),
+            (
+                "figure",
+                "figure-fields",
+                json!({
+                    "figureTypeId": "image", "fieldId": "algebra", "date": "2026-07-16",
+                    "environment": "figure", "caption": "Plot", "description": "Description",
+                    "width": "8cm", "height": "5cm", "options": "scale=.8", "tikzStyle": "plot",
+                    "label": "fig:plot", "placement": "htbp", "alignment": "centering",
+                    "requiredPackages": ["graphicx"], "customTags": ["figure-tag"]
+                }),
+                vec![
+                    "figureTypeId",
+                    "fieldId",
+                    "date",
+                    "environment",
+                    "caption",
+                    "description",
+                    "width",
+                    "height",
+                    "options",
+                    "tikzStyle",
+                    "label",
+                    "placement",
+                    "alignment",
+                    "requiredPackages",
+                    "customTags",
+                ],
+            ),
+            (
+                "command",
+                "command-fields",
+                json!({
+                    "name": "\\\\mycommand", "commandTypeId": "newcommand", "argumentsNum": 2,
+                    "optionalArgument": "default", "content": "#1+#2", "example": "example",
+                    "description": "Description", "builtIn": true,
+                    "requiredPackages": ["xcolor"], "customTags": ["command-tag"]
+                }),
+                vec![
+                    "name",
+                    "commandTypeId",
+                    "argumentsNum",
+                    "optionalArgument",
+                    "content",
+                    "example",
+                    "description",
+                    "builtIn",
+                    "requiredPackages",
+                    "customTags",
+                ],
+            ),
+            (
+                "package",
+                "package-fields",
+                json!({
+                    "name": "metadata-package", "topicId": "math", "date": "2026-07-16",
+                    "content": "content", "description": "Description", "options": "option",
+                    "builtIn": true, "documentation": "https://example.invalid", "example": "example",
+                    "topics": ["math", "graphics"], "providedCommands": ["\\\\pkgcmd"],
+                    "requiredPackages": ["package-only-dependency"], "customTags": ["package-tag"]
+                }),
+                vec![
+                    "name",
+                    "topicId",
+                    "date",
+                    "content",
+                    "description",
+                    "options",
+                    "builtIn",
+                    "documentation",
+                    "example",
+                    "topics",
+                    "providedCommands",
+                    "requiredPackages",
+                    "customTags",
+                ],
+            ),
+            (
+                "class",
+                "class-fields",
+                json!({
+                    "name": "metadata-class", "fileTypeId": "other", "date": "2026-07-16",
+                    "content": "content", "description": "Description", "engines": "pdflatex,xelatex",
+                    "paperSize": "a4paper", "fontSize": 11, "geometry": "margin=2cm",
+                    "options": "twoside", "languages": "english,greek",
+                    "providedCommands": ["\\\\classcmd"], "requiredPackages": ["geometry"],
+                    "customTags": ["class-tag"]
+                }),
+                vec![
+                    "name",
+                    "fileTypeId",
+                    "date",
+                    "content",
+                    "description",
+                    "engines",
+                    "paperSize",
+                    "fontSize",
+                    "geometry",
+                    "options",
+                    "languages",
+                    "providedCommands",
+                    "requiredPackages",
+                    "customTags",
+                ],
+            ),
+            (
+                "preamble",
+                "preamble-fields",
+                json!({
+                    "name": "Metadata preamble", "preambleTypeId": "article", "content": "content",
+                    "description": "Description", "builtIn": true, "engines": "xelatex",
+                    "date": "2026-07-16", "className": "article", "paperSize": "a4paper",
+                    "fontSize": 12, "options": "twoside", "languages": "greek",
+                    "geometry": "margin=2cm", "author": "Author", "title": "Title",
+                    "useBibliography": true, "bibCompileEngine": "biber", "makeIndex": true,
+                    "makeGlossaries": true, "hasToc": true, "hasLot": true, "hasLof": true,
+                    "requiredPackages": ["geometry"], "commandTypes": ["math"],
+                    "providedCommands": ["\\\\preamblecmd"]
+                }),
+                vec![
+                    "name",
+                    "preambleTypeId",
+                    "content",
+                    "description",
+                    "builtIn",
+                    "engines",
+                    "date",
+                    "className",
+                    "paperSize",
+                    "fontSize",
+                    "options",
+                    "languages",
+                    "geometry",
+                    "author",
+                    "title",
+                    "useBibliography",
+                    "bibCompileEngine",
+                    "makeIndex",
+                    "makeGlossaries",
+                    "hasToc",
+                    "hasLot",
+                    "hasLof",
+                    "requiredPackages",
+                    "commandTypes",
+                    "providedCommands",
+                ],
+            ),
+            (
+                "bibliography",
+                "bibliography-fields",
+                json!({
+                    "entryType": "Article", "citationKey": "smith2026", "journal": "Journal",
+                    "volume": "4", "series": "Series", "number": "2", "issue": "1",
+                    "year": "2026", "month": "July", "publisher": "Publisher", "edition": "2",
+                    "institution": "Institute", "school": "School", "organization": "Org",
+                    "address": "Address", "location": "Athens", "isbn": "isbn", "issn": "issn",
+                    "doi": "doi", "url": "https://example.invalid", "language": "el",
+                    "title": "Title", "subtitle": "Subtitle", "booktitle": "Book", "chapter": "3",
+                    "pages": "1--10", "abstract": "Abstract", "note": "Note", "crossref": "crossref",
+                    "authors": ["Author One", "Author Two"], "editors": ["Editor"],
+                    "translators": ["Translator"], "extras": {"custom": "value"}
+                }),
+                vec![
+                    "entryType",
+                    "citationKey",
+                    "journal",
+                    "volume",
+                    "series",
+                    "number",
+                    "issue",
+                    "year",
+                    "month",
+                    "publisher",
+                    "edition",
+                    "institution",
+                    "school",
+                    "organization",
+                    "address",
+                    "location",
+                    "isbn",
+                    "issn",
+                    "doi",
+                    "url",
+                    "language",
+                    "title",
+                    "subtitle",
+                    "booktitle",
+                    "chapter",
+                    "pages",
+                    "abstract",
+                    "note",
+                    "crossref",
+                    "authors",
+                    "editors",
+                    "translators",
+                    "extras",
+                ],
+            ),
+        ];
+
+        for (resource_type, id, expected, fields) in cases {
+            add_resource(&manager, id, resource_type, json!({})).await;
+            save(&manager, id, resource_type, expected.clone())
+                .await
+                .unwrap_or_else(|error| panic!("save {resource_type}: {error}"));
+            let actual = load(&manager, id, resource_type).await;
+            assert_fields(&expected, &actual, &fields);
+        }
+    }
+
+    #[tokio::test]
+    async fn dtx_and_ins_json_text_fields_do_not_gain_extra_encoding() {
+        let manager = test_manager().await;
+        add_resource(&manager, "dtx-resource", "dtx", json!({})).await;
+        add_resource(&manager, "ins-resource", "ins", json!({})).await;
+
+        let dtx = json!({
+            "baseName": "bundle",
+            "version": "1.0",
+            "providesClasses": "[\"alpha\",\"beta\"]",
+            "providesPackages": "[\"gamma\"]"
+        });
+        save(&manager, "dtx-resource", "dtx", dtx.clone())
+            .await
+            .expect("first DTX save");
+        let loaded_dtx = load(&manager, "dtx-resource", "dtx").await;
+        assert_fields(&dtx, &loaded_dtx, &["providesClasses", "providesPackages"]);
+        save(&manager, "dtx-resource", "dtx", loaded_dtx.clone())
+            .await
+            .expect("second DTX save");
+        assert_fields(
+            &dtx,
+            &load(&manager, "dtx-resource", "dtx").await,
+            &["providesClasses", "providesPackages"],
+        );
+
+        let ins = json!({
+            "targetDtxId": "dtx-resource",
+            "generatedFiles": "[\"alpha.cls\",\"gamma.sty\"]"
+        });
+        save(&manager, "ins-resource", "ins", ins.clone())
+            .await
+            .expect("first INS save");
+        let loaded_ins = load(&manager, "ins-resource", "ins").await;
+        assert_fields(&ins, &loaded_ins, &["targetDtxId", "generatedFiles"]);
+        save(&manager, "ins-resource", "ins", loaded_ins)
+            .await
+            .expect("second INS save");
+        assert_fields(
+            &ins,
+            &load(&manager, "ins-resource", "ins").await,
+            &["targetDtxId", "generatedFiles"],
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_resource_types_and_ids_are_rejected() {
+        let manager = test_manager().await;
+        let unknown_type = save(&manager, "missing", "unknown", json!({})).await;
+        assert!(unknown_type
+            .expect_err("unknown type must fail")
+            .contains("Unknown resource type"));
+
+        let missing_resource = save(&manager, "missing", "file", json!({})).await;
+        assert!(missing_resource
+            .expect_err("missing resource must fail")
+            .contains("Resource not found"));
+    }
 }
 
 #[tauri::command]

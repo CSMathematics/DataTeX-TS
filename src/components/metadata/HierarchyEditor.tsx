@@ -104,18 +104,33 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
   const renameSubsection = useTypedMetadataStore(
     (state) => state.renameSubsection,
   );
+  const chapters = useTypedMetadataStore((state) => state.chapters);
+  const sections = useTypedMetadataStore((state) => state.sections);
+  const subsections = useTypedMetadataStore((state) => state.subsections);
   const isLoading = useTypedMetadataStore((state) => state.isLoadingLookupData);
+
+  // Backend metadata may contain null for an empty optional array. Normalize
+  // at the component boundary so all controlled checkbox state stays iterable.
+  const normalizedChapterIds = Array.isArray(selectedChapterIds)
+    ? selectedChapterIds
+    : [];
+  const normalizedSectionIds = Array.isArray(selectedSectionIds)
+    ? selectedSectionIds
+    : [];
+  const normalizedSubsectionIds = Array.isArray(selectedSubsectionIds)
+    ? selectedSubsectionIds
+    : [];
 
   // Local checked state
   const [checkedFieldIds, setCheckedFieldIds] = useState<string[]>(
     selectedFieldId ? [selectedFieldId] : [],
   );
   const [checkedChapterIds, setCheckedChapterIds] =
-    useState<string[]>(selectedChapterIds);
+    useState<string[]>(normalizedChapterIds);
   const [checkedSectionIds, setCheckedSectionIds] =
-    useState<string[]>(selectedSectionIds);
+    useState<string[]>(normalizedSectionIds);
   const [checkedSubsectionIds, setCheckedSubsectionIds] = useState<string[]>(
-    selectedSubsectionIds,
+    normalizedSubsectionIds,
   );
 
   // UI State
@@ -123,45 +138,26 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
   const [newFieldPopoverOpened, setNewFieldPopoverOpened] = useState(false);
   const [newFieldName, setNewFieldName] = useState("");
 
-  // Debug log
-  useEffect(() => {
-    console.log(
-      "[HierarchyEditor] Props/State updated. Field:",
-      selectedFieldId,
-      "Chapters:",
-      selectedChapterIds,
-    );
-  }, [selectedFieldId, selectedChapterIds]);
-
-  // Load data on mount only
-  useEffect(() => {
-    loadFields(effectiveCollection || undefined);
-    loadChapters(undefined, effectiveCollection || undefined);
-    loadSections(undefined, effectiveCollection || undefined);
-    loadSubsections(undefined, effectiveCollection || undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveCollection]);
-
   // Sync with props - use JSON.stringify for stable comparison
   const selectedFieldIdStr = selectedFieldId || "";
-  const selectedChapterIdsStr = JSON.stringify(selectedChapterIds);
-  const selectedSectionIdsStr = JSON.stringify(selectedSectionIds);
-  const selectedSubsectionIdsStr = JSON.stringify(selectedSubsectionIds);
+  const selectedChapterIdsStr = JSON.stringify(normalizedChapterIds);
+  const selectedSectionIdsStr = JSON.stringify(normalizedSectionIds);
+  const selectedSubsectionIdsStr = JSON.stringify(normalizedSubsectionIds);
 
   useEffect(() => {
     setCheckedFieldIds(selectedFieldId ? [selectedFieldId] : []);
   }, [selectedFieldIdStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setCheckedChapterIds(selectedChapterIds);
+    setCheckedChapterIds(normalizedChapterIds);
   }, [selectedChapterIdsStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setCheckedSectionIds(selectedSectionIds);
+    setCheckedSectionIds(normalizedSectionIds);
   }, [selectedSectionIdsStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setCheckedSubsectionIds(selectedSubsectionIds);
+    setCheckedSubsectionIds(normalizedSubsectionIds);
   }, [selectedSubsectionIdsStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Notify parent of changes
@@ -282,6 +278,36 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
   const handleDelete = useCallback(
     async (type: HierarchyType, id: string) => {
       try {
+        const removedChapterIds = new Set<string>();
+        const removedSectionIds = new Set<string>();
+        const removedSubsectionIds = new Set<string>();
+
+        if (type === "field") {
+          chapters
+            .filter((chapter) => chapter.fieldId === id)
+            .forEach((chapter) => removedChapterIds.add(chapter.id));
+        } else if (type === "chapter") {
+          removedChapterIds.add(id);
+        }
+        if (removedChapterIds.size > 0) {
+          sections
+            .filter((section) => removedChapterIds.has(section.chapterId))
+            .forEach((section) => removedSectionIds.add(section.id));
+        } else if (type === "section") {
+          removedSectionIds.add(id);
+        }
+        if (removedSectionIds.size > 0) {
+          subsections
+            .filter((subsection) =>
+              removedSectionIds.has(subsection.sectionId),
+            )
+            .forEach((subsection) =>
+              removedSubsectionIds.add(subsection.id),
+            );
+        } else if (type === "subsection") {
+          removedSubsectionIds.add(id);
+        }
+
         switch (type) {
           case "field":
             await deleteField(id);
@@ -296,11 +322,48 @@ export const HierarchyEditor: React.FC<HierarchyEditorProps> = ({
             await deleteSubsection(id);
             break;
         }
+
+        const nextFields =
+          type === "field"
+            ? checkedFieldIds.filter((fieldId) => fieldId !== id)
+            : checkedFieldIds;
+        const nextChapters = checkedChapterIds.filter(
+          (chapterId) => !removedChapterIds.has(chapterId),
+        );
+        const nextSections = checkedSectionIds.filter(
+          (sectionId) => !removedSectionIds.has(sectionId),
+        );
+        const nextSubsections = checkedSubsectionIds.filter(
+          (subsectionId) => !removedSubsectionIds.has(subsectionId),
+        );
+        setCheckedFieldIds(nextFields);
+        setCheckedChapterIds(nextChapters);
+        setCheckedSectionIds(nextSections);
+        setCheckedSubsectionIds(nextSubsections);
+        notifyChange(
+          nextFields,
+          nextChapters,
+          nextSections,
+          nextSubsections,
+        );
       } catch (error) {
         console.error(`Failed to delete ${type}:`, error);
       }
     },
-    [deleteField, deleteChapter, deleteSection, deleteSubsection],
+    [
+      chapters,
+      sections,
+      subsections,
+      checkedFieldIds,
+      checkedChapterIds,
+      checkedSectionIds,
+      checkedSubsectionIds,
+      deleteField,
+      deleteChapter,
+      deleteSection,
+      deleteSubsection,
+      notifyChange,
+    ],
   );
 
   // Handle rename for any hierarchy type

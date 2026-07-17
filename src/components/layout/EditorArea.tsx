@@ -60,6 +60,7 @@ import { TexlabLspClient } from "../../services/lspClient";
 import { useDatabaseStore } from "../../stores/databaseStore";
 import { getMonacoKeyBinding } from "../../utils/ShortcutUtils";
 import { loadLocalMonaco } from "../../services/monacoLoader";
+import { configureLatexMonaco } from "../../services/latexMonaco";
 
 const MonacoEditor = React.lazy(() =>
   loadLocalMonaco().then(({ reactMonaco }) => ({
@@ -741,9 +742,18 @@ export const EditorArea = React.memo<EditorAreaProps>(
         fontFamily: editorSettings?.fontFamily ?? "Consolas, monospace",
         scrollBeyondLastLine: false,
         automaticLayout: true,
-        theme: editorSettings?.theme ?? "data-tex-dark",
         wordWrap: editorSettings?.wordWrap ?? "on",
         lineNumbers: editorSettings?.lineNumbers ?? "on",
+        matchBrackets: "always" as const,
+        bracketPairColorization: {
+          enabled: true,
+          independentColorPoolPerBracketType: true,
+        },
+        guides: {
+          bracketPairs: true,
+          bracketPairsHorizontal: "active" as const,
+          highlightActiveBracketPair: true,
+        },
       }),
       [editorSettings],
     );
@@ -1659,6 +1669,8 @@ export const EditorArea = React.memo<EditorAreaProps>(
                     path={activeFile.id}
                     height="100%"
                     defaultLanguage="my-latex"
+                    beforeMount={configureLatexMonaco}
+                    theme={editorSettings?.theme ?? "data-tex-dark"}
                     value={activeFile.content}
                     onMount={wrappedEditorMount}
                     onChange={(value) =>

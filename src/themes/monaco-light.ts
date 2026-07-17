@@ -1,86 +1,88 @@
-// Definition of "DataTex Light" theme for Monaco Editor
+import {
+  createLatexThemeRules,
+  type LatexSyntaxPalette,
+} from "./latex-theme-rules";
+
+const lightPalette = {
+  foreground: "202124",
+  control: "8C1D67",
+  command: "005EA8",
+  escaped: "9A1B61",
+  environment: "006B55",
+  mathEnvironment: "006A85",
+  className: "3D4EAA",
+  packageName: "005A8D",
+  section: "7A4A00",
+  sectionContent: "6E4300",
+  formatting: "08783E",
+  formattedText: "202124",
+  reference: "6242A6",
+  referenceContent: "55358F",
+  functionName: "005EA8",
+  userMacro: "9A3E00",
+  mathDelimiter: "9F2D20",
+  mathFunction: "006E68",
+  mathFallback: "005EA8",
+  mathEscaped: "9A1B61",
+  mathArithmetic: "8A4600",
+  mathBinary: "08783E",
+  mathLarge: "8A4600",
+  mathRelation: "9A1B61",
+  mathRelationSymbol: "8C1D67",
+  mathLogic: "6530A4",
+  mathArrow: "075AAD",
+  mathGreek: "6530A4",
+  mathSymbol: "755B00",
+  mathAccent: "006B55",
+  mathFont: "3D4EAA",
+  mathDelimiterCommand: "9F2D20",
+  mathSpacing: "52665A",
+  mathText: "7A4A00",
+  mathNumber: "087A45",
+  mathVariable: "202124",
+  mathSubscript: "9A1B61",
+  mathAlignment: "006A85",
+  mathPrime: "8A4600",
+  mathPunctuation: "52665A",
+  mathCurly: "8A5A00",
+  mathBracket: "005EA8",
+  mathParenthesis: "08783E",
+  comment: "52665A",
+  number: "087A45",
+  curly: "8A5A00",
+  bracket: "005EA8",
+  parenthesis: "08783E",
+  operator: "08783E",
+  comma: "52665A",
+  optionBracket: "005EA8",
+  requiredBlock: "08783E",
+  optionName: "8C1D67",
+  assignment: "08783E",
+  optionValue: "7A4A00",
+  optionNumber: "087A45",
+  verbatim: "7A4A00",
+} satisfies LatexSyntaxPalette;
+
 export const dataTexLightTheme = {
-  base: 'vs', // Based on VSCode Light theme
+  base: "vs" as const,
   inherit: true,
-  rules: [
-    // === LaTeX Structural Commands ===
-    { token: 'keyword.control.latex', foreground: 'AF00DB', fontStyle: 'bold' }, // \documentclass, \begin, \end, etc.
-    { token: 'keyword.latex', foreground: 'AF00DB' }, // Generic LaTeX commands
-    { token: 'keyword.escape.latex', foreground: 'AF00DB' }, // Escaped characters
-    
-    // === Environments ===
-    { token: 'entity.name.type.environment.latex', foreground: '267F99' }, // Environment names (teal)
-    { token: 'entity.name.type.environment.math.latex', foreground: '267F99', fontStyle: 'italic' }, // Math environment names
-    { token: 'entity.name.class.latex', foreground: '001080' }, // Document class names
-    { token: 'entity.name.package.latex', foreground: '001080' }, // Package names (dark blue)
-    
-    // === Sections ===
-    { token: 'entity.name.section.latex', foreground: '795E26', fontStyle: 'bold' }, // Section commands (brown)
-    { token: 'entity.name.section.content.latex', foreground: '795E26' }, // Section titles
-    
-    // === Formatting ===
-    { token: 'entity.name.function.formatting.latex', foreground: '795E26' }, // \textbf, \textit, etc.
-    { token: 'text.formatting.latex', foreground: '000000' }, // Text inside formatting commands
-    
-    // === References ===
-    { token: 'entity.name.reference.latex', foreground: '0000FF', fontStyle: 'italic' }, // \label, \ref, \cite
-    { token: 'entity.name.reference.content.latex', foreground: '0000FF' }, // Reference labels
-    
-    // === Functions ===
-    { token: 'entity.name.function.latex', foreground: '795E26' }, // Other functions
-    { token: 'entity.name.function.user.latex', foreground: 'AF00DB' }, // User-defined commands
-    
-    // === Math Mode ===
-    { token: 'keyword.math.delimiter.latex', foreground: 'A31515', fontStyle: 'bold' }, // $ and $$ delimiters
-    { token: 'entity.name.function.math.latex', foreground: '795E26' }, // Math commands (\frac, \sum, \alpha)
-    { token: 'keyword.math.latex', foreground: 'AF00DB' }, // Other math keywords
-    { token: 'keyword.escape.math.latex', foreground: 'AF00DB' }, // Escaped chars in math
-    { token: 'keyword.operator.math.latex', foreground: '000000' }, // Math operators (+, -, =)
-    { token: 'keyword.operator.subscript.latex', foreground: 'AF00DB' }, // _ and ^
-    { token: 'constant.numeric.math.latex', foreground: '098658' }, // Numbers in math
-    { token: 'variable.math.latex', foreground: '000000' }, // Variables (x, y, etc.)
-    
-    // Math delimiters
-    { token: 'delimiter.curly.math.latex', foreground: '0000FF' }, // {} in math
-    { token: 'delimiter.bracket.math.latex', foreground: 'AF00DB' }, // [] in math
-    { token: 'delimiter.parenthesis.math.latex', foreground: '000000' }, // () in math
-    
-    // === Comments ===
-    { token: 'comment.line.latex', foreground: '008000', fontStyle: 'italic' }, // % Comments
-    { token: 'comment.content.latex', foreground: '008000', fontStyle: 'italic' },
-    
-    // === Numbers and Units ===
-    { token: 'constant.numeric.latex', foreground: '098658' }, // Numbers and LaTeX lengths
-    
-    // === Delimiters (outside math) ===
-    { token: 'delimiter.curly.latex', foreground: '0000FF' }, // {}
-    { token: 'delimiter.bracket.latex', foreground: 'AF00DB' }, // []
-    { token: 'delimiter.parenthesis.latex', foreground: '000000' }, // ()
-    
-    // === Operators ===
-    { token: 'keyword.operator.latex', foreground: '000000' }, // &, ~, etc.
-    
-    // === Generic ===
-    { token: 'meta.bracket.latex', foreground: 'AF00DB' }, // Optional arguments
-    { token: 'meta.block.latex', foreground: '000000' }, // Required arguments
-    
-    // Legacy compatibility
-    { token: 'string', foreground: 'A31515' },
-    { token: 'string.math', foreground: 'A31515' },
-    { token: 'variable', foreground: '001080' },
-    { token: 'number', foreground: '098658' },
-    { token: 'tag', foreground: '800000' },
-    { token: 'attribute.name', foreground: 'FF0000' }
-  ],
+  rules: createLatexThemeRules(lightPalette),
   colors: {
-    'editor.background': '#FFFFFF',
-    'editor.foreground': '#000000',
-    'editor.lineHighlightBackground': '#E8E8E8',
-    'editorCursor.foreground': '#000000',
-    'editorWhitespace.foreground': '#D4D4D4',
-    'editorIndentGuide.background': '#D3D3D3',
-    'editorLineNumber.foreground': '#2B91AF',
-    'editorBracketMatch.background': '#E8E8E8',
-    'editorBracketMatch.border': '#888888'
-  }
-}
+    "editor.background": "#FFFFFF",
+    "editor.foreground": "#202124",
+    "editor.lineHighlightBackground": "#F0F2F5",
+    "editorCursor.foreground": "#202124",
+    "editorWhitespace.foreground": "#C8CCD0",
+    "editorIndentGuide.background": "#D3D7DC",
+    "editorLineNumber.foreground": "#526B78",
+    "editorBracketMatch.background": "#DDE7F0",
+    "editorBracketMatch.border": "#66737F",
+    "editorBracketHighlight.foreground1": "#8A5A00",
+    "editorBracketHighlight.foreground2": "#005EA8",
+    "editorBracketHighlight.foreground3": "#08783E",
+    "editorBracketHighlight.foreground4": "#6530A4",
+    "editorBracketHighlight.foreground5": "#9A1B61",
+    "editorBracketHighlight.foreground6": "#9A3E00",
+    "editorBracketHighlight.unexpectedBracket.foreground": "#B00020",
+  },
+};

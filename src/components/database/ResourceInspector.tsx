@@ -36,6 +36,8 @@ import { PdfViewerContainer } from "./PdfViewerContainer";
 import { LoadingState, EmptyState, PanelHeader, ToolbarButton } from "../ui";
 import { faCode } from "@fortawesome/free-solid-svg-icons";
 import { loadLocalMonaco } from "../../services/monacoLoader";
+import { configureLatexMonaco } from "../../services/latexMonaco";
+import { useSettingsStore } from "../../stores/settingsStore";
 import "../../styles/pdf-viewer.css";
 
 const PreambleWizard = lazy(() =>
@@ -130,6 +132,7 @@ const ResourceInspectorComponent = ({
   const allLoadedResources = useDatabaseStore(
     (state) => state.allLoadedResources,
   );
+  const resources = useDatabaseStore((state) => state.resources);
   const activeResourceId = useDatabaseStore(
     (state) => state.activeResourceId,
   );
@@ -144,6 +147,7 @@ const ResourceInspectorComponent = ({
   const markMetadataDirty = useTabsStore(
     (state) => state.markMetadataDirty,
   );
+  const editorTheme = useSettingsStore((state) => state.settings.editor.theme);
 
   // Do two separate lookups so an earlier activeResourceId match cannot win
   // over the resource that belongs to the active editor tab.
@@ -151,15 +155,21 @@ const ResourceInspectorComponent = ({
     const activeEditorPath = activeEditorTab?.id
       ? normalizePath(activeEditorTab.id)
       : null;
+    const findResource = (
+      predicate: (candidate: (typeof resources)[number]) => boolean,
+    ) => allLoadedResources.find(predicate) ?? resources.find(predicate);
     const editorResource = activeEditorTab?.id
-      ? allLoadedResources.find(
+      ? findResource(
           (candidate) =>
             normalizePath(candidate.path) === activeEditorPath ||
             candidate.id === activeEditorTab.id,
         )
       : undefined;
-    const fallbackResource = activeResourceId
-      ? allLoadedResources.find(
+    // A standalone .dtex editor owns its metadata. Falling back to the last
+    // selected database row here could save that metadata onto an unrelated
+    // resource when the .dtex file has not been imported into the database.
+    const fallbackResource = !activeEditorTab?.isDtexFile && activeResourceId
+      ? findResource(
           (candidate) => candidate.id === activeResourceId,
         )
       : undefined;
@@ -168,7 +178,13 @@ const ResourceInspectorComponent = ({
       resource: editorResource ?? fallbackResource,
       isActiveEditorResource: Boolean(editorResource),
     };
-  }, [allLoadedResources, activeEditorTab?.id, activeResourceId]);
+  }, [
+    allLoadedResources,
+    resources,
+    activeEditorTab?.id,
+    activeEditorTab?.isDtexFile,
+    activeResourceId,
+  ]);
   const mainEditorOwnsPdf = Boolean(
     isActiveEditorResource &&
       activeEditorTab?.id &&
@@ -542,6 +558,7 @@ const ResourceInspectorComponent = ({
               {effectivePdfUrl ? (
                 <PdfViewerContainer
                   pdfUrl={effectivePdfUrl}
+                  isVisible={activeInspectorTab === "preview"}
                   syncTexCoords={syncTexCoords}
                   onSyncTexInverse={onSyncTexInverse}
                 />
@@ -769,7 +786,8 @@ const ResourceInspectorComponent = ({
                     <CodeEditor
                       value={codeContent}
                       language="my-latex"
-                      theme="data-tex-dark"
+                      beforeMount={configureLatexMonaco}
+                      theme={editorTheme}
                       options={{
                         readOnly: true,
                         minimap: { enabled: true, scale: 2 },
@@ -777,6 +795,16 @@ const ResourceInspectorComponent = ({
                         scrollBeyondLastLine: false,
                         wordWrap: "on",
                         fontSize: 12,
+                        matchBrackets: "always",
+                        bracketPairColorization: {
+                          enabled: true,
+                          independentColorPoolPerBracketType: true,
+                        },
+                        guides: {
+                          bracketPairs: true,
+                          bracketPairsHorizontal: "active",
+                          highlightActiveBracketPair: true,
+                        },
                       }}
                     />
                   </Suspense>

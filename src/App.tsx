@@ -67,15 +67,9 @@ import { useDtexAutoSave } from "./hooks/useDtexAutoSave";
 import { DtexService } from "./services/dtexService";
 
 import {
-  latexLanguage,
-  latexConfiguration,
-  setupLatexProviders,
-} from "./languages/latex";
-import { dataTexDarkTheme } from "./themes/monaco-theme";
-import { dataTexLightTheme } from "./themes/monaco-light";
-import { dataTexHCTheme } from "./themes/monaco-hc";
-import { monokaiTheme } from "./themes/monaco-monokai";
-import { nordTheme } from "./themes/monaco-nord";
+  applyLatexSyntaxThemeOverrides,
+  configureLatexMonaco,
+} from "./services/latexMonaco";
 import { useSettings } from "./hooks/useSettings";
 
 import { TexlabLspClient } from "./services/lspClient";
@@ -135,7 +129,10 @@ const GraphicxWizard = lazy(() =>
   })),
 );
 const PackageGallery = lazy(() =>
-  import("./components/wizards/PackageGallery").then((module) => ({
+  Promise.all([
+    import("./components/wizards/PackageGallery"),
+    loadLocalMonaco(),
+  ]).then(([module]) => ({
     default: module.PackageGallery,
   })),
 );
@@ -233,7 +230,18 @@ export default function App() {
     updateCustomThemeOverride,
     addCustomTheme,
     removeCustomTheme,
+    setLatexSyntaxColor,
+    resetLatexSyntaxColor,
+    setLatexSyntaxFontStyle,
+    resetLatexSyntaxFontStyles,
+    resetLatexSyntaxColorGroup,
+    resetLatexSyntaxTheme,
+    resetAllLatexSyntaxColors,
   } = useSettings();
+
+  useEffect(() => {
+    applyLatexSyntaxThemeOverrides(settings.latexSyntaxHighlighting.themes);
+  }, [settings.latexSyntaxHighlighting.themes]);
 
   const activeTheme = getTheme(
     settings.uiTheme,
@@ -1058,24 +1066,7 @@ export default function App() {
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: any) => {
       editorRef.current = editor;
-      if (
-        !monaco.languages.getLanguages().some((l: any) => l.id === "my-latex")
-      ) {
-        monaco.languages.register({ id: "my-latex" });
-        monaco.languages.setMonarchTokensProvider("my-latex", latexLanguage);
-        monaco.languages.setLanguageConfiguration(
-          "my-latex",
-          latexConfiguration,
-        );
-
-        setupLatexProviders(monaco);
-
-        monaco.editor.defineTheme("data-tex-dark", dataTexDarkTheme);
-        monaco.editor.defineTheme("data-tex-light", dataTexLightTheme);
-        monaco.editor.defineTheme("data-tex-hc", dataTexHCTheme);
-        monaco.editor.defineTheme("data-tex-monokai", monokaiTheme);
-        monaco.editor.defineTheme("data-tex-nord", nordTheme);
-      }
+      configureLatexMonaco(monaco);
       // settings is a dependency here
       monaco.editor.setTheme(settings.editor.theme);
     },
@@ -1846,100 +1837,113 @@ export default function App() {
                       onUpdateCustomThemeOverride={updateCustomThemeOverride}
                       onAddCustomTheme={addCustomTheme}
                       onRemoveCustomTheme={removeCustomTheme}
+                      onSetLatexSyntaxColor={setLatexSyntaxColor}
+                      onResetLatexSyntaxColor={resetLatexSyntaxColor}
+                      onSetLatexSyntaxFontStyle={setLatexSyntaxFontStyle}
+                      onResetLatexSyntaxFontStyles={
+                        resetLatexSyntaxFontStyles
+                      }
+                      onResetLatexSyntaxColorGroup={
+                        resetLatexSyntaxColorGroup
+                      }
+                      onResetLatexSyntaxTheme={resetLatexSyntaxTheme}
+                      onResetAllLatexSyntaxColors={
+                        resetAllLatexSyntaxColors
+                      }
                     />
                   </Suspense>
                 ) : /* Default: EDITOR AREA with optional Database Panel */
                 databasePanelPosition === "left" && showDatabasePanel ? (
                   /* Horizontal layout: Database left, Editor right */
-                  <Group gap={0} h="100%" wrap="nowrap">
+                  <Group
+                    className="database-left-layout"
+                    gap={0}
+                    h="100%"
+                    wrap="nowrap"
+                  >
                     <Box
+                      className="database-left-panel"
                       style={{
-                        width: "var(--database-panel-width)",
-                        minWidth: 250,
-                        maxWidth: 800,
-                        height: "100%",
                         borderRight:
                           "1px solid var(--mantine-color-default-border)",
-                        overflow: "hidden",
                       }}
                     >
-                      <Suspense fallback={<ViewLoadingFallback />}>
-                        <DatabaseView
-                          onOpenFile={handleOpenFileFromTable}
-                          canInsert={(() => {
-                            if (!activeTab) return false;
+                      <Box className="database-left-panel__content">
+                        <Suspense fallback={<ViewLoadingFallback />}>
+                          <DatabaseView
+                            onOpenFile={handleOpenFileFromTable}
+                            canInsert={(() => {
+                              if (!activeTab) return false;
 
-                            // 1. Check Metadata
-                            const resource = useDatabaseStore
-                              .getState()
-                              .allLoadedResources.find(
-                                (r) =>
-                                  r.path === activeTab.id ||
-                                  r.id === activeTab.id,
-                              );
-                            if (resource && resource.kind === "document")
-                              return true;
+                              // 1. Check Metadata
+                              const resource = useDatabaseStore
+                                .getState()
+                                .allLoadedResources.find(
+                                  (r) =>
+                                    r.path === activeTab.id ||
+                                    r.id === activeTab.id,
+                                );
+                              if (resource && resource.kind === "document")
+                                return true;
 
-                            // 2. Fallback: Check content
-                            if (
-                              activeTab.content &&
-                              activeTab.content.includes("\\documentclass")
-                            )
-                              return true;
+                              // 2. Fallback: Check content
+                              if (
+                                activeTab.content &&
+                                activeTab.content.includes("\\documentclass")
+                              )
+                                return true;
 
-                            return false;
-                          })()}
-                        />
-                      </Suspense>
+                              return false;
+                            })()}
+                          />
+                        </Suspense>
+                      </Box>
                     </Box>
                     <ResizerHandle
                       onPointerDown={startResizeDatabase}
                       orientation="vertical"
                     />
                     <Box
-                      style={{
-                        flex: 1,
-                        minWidth: 0,
-                        height: "100%",
-                        overflow: "hidden",
-                      }}
+                      className="database-left-editor"
                     >
-                      <EditorArea
-                        files={tabs}
-                        activeFileId={activeTabId}
-                        onFileSelect={handleTabChange}
-                        onFileClose={handleCloseTab}
-                        onCloseFiles={handleCloseTabs}
-                        onContentChange={handleEditorChange}
-                        onMount={handleEditorDidMount}
-                        showPdf={showRightPanel && activeView === "editor"}
-                        onTogglePdf={handleTogglePdf}
-                        isTexFile={isTexFile}
-                        onCompile={handleCompile}
-                        isCompiling={isCompiling}
-                        onStopCompile={handleStopCompile}
-                        onSave={handleSave}
-                        onCreateEmpty={handleCreateEmpty}
-                        onOpenWizard={handleOpenPreambleWizard}
-                        onCreateFromTemplate={handleCreateFromTemplate}
-                        recentProjects={recentProjects}
-                        onOpenRecent={handleOpenRecent}
-                        onOpenDatabase={handleOpenDatabase}
-                        onOpenPackageBrowser={handleOpenPackageBrowser}
-                        onOpenExamGenerator={handleOpenExamGenerator}
-                        editorSettings={editorSettingsMemo}
-                        logEntries={logEntries}
-                        showLogPanel={showLogPanel}
-                        onCloseLogPanel={handleCloseLogPanel}
-                        onJumpToLine={handleRevealLine}
-                        onCursorChange={handleCursorChange}
-                        onSyncTexForward={handleSyncTexForward}
-                        spellCheckEnabled={spellCheckEnabled}
-                        onOpenFileFromTable={handleOpenFileFromTable}
-                        onOpenFile={handleOpenFileFromTable} // handleOpenFileFromTable is stable
-                        onOpenFileDialog={handleOpenFileDialog}
-                        lspClient={lspClientRef.current}
-                      />
+                      <Box className="database-left-editor__content">
+                        <EditorArea
+                          files={tabs}
+                          activeFileId={activeTabId}
+                          onFileSelect={handleTabChange}
+                          onFileClose={handleCloseTab}
+                          onCloseFiles={handleCloseTabs}
+                          onContentChange={handleEditorChange}
+                          onMount={handleEditorDidMount}
+                          showPdf={showRightPanel && activeView === "editor"}
+                          onTogglePdf={handleTogglePdf}
+                          isTexFile={isTexFile}
+                          onCompile={handleCompile}
+                          isCompiling={isCompiling}
+                          onStopCompile={handleStopCompile}
+                          onSave={handleSave}
+                          onCreateEmpty={handleCreateEmpty}
+                          onOpenWizard={handleOpenPreambleWizard}
+                          onCreateFromTemplate={handleCreateFromTemplate}
+                          recentProjects={recentProjects}
+                          onOpenRecent={handleOpenRecent}
+                          onOpenDatabase={handleOpenDatabase}
+                          onOpenPackageBrowser={handleOpenPackageBrowser}
+                          onOpenExamGenerator={handleOpenExamGenerator}
+                          editorSettings={editorSettingsMemo}
+                          logEntries={logEntries}
+                          showLogPanel={showLogPanel}
+                          onCloseLogPanel={handleCloseLogPanel}
+                          onJumpToLine={handleRevealLine}
+                          onCursorChange={handleCursorChange}
+                          onSyncTexForward={handleSyncTexForward}
+                          spellCheckEnabled={spellCheckEnabled}
+                          onOpenFileFromTable={handleOpenFileFromTable}
+                          onOpenFile={handleOpenFileFromTable}
+                          onOpenFileDialog={handleOpenFileDialog}
+                          lspClient={lspClientRef.current}
+                        />
+                      </Box>
                     </Box>
                   </Group>
                 ) : (

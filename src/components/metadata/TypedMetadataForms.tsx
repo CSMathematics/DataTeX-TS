@@ -1,5 +1,5 @@
 // Typed Metadata Form Components with Creatable Combobox Lookups
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Stack,
   Textarea,
@@ -193,12 +193,22 @@ interface FileMetadataFormProps {
   collectionName?: string;
 }
 
+const EMPTY_FILE_METADATA: FileMetadata = {};
+
 export const FileMetadataForm: React.FC<FileMetadataFormProps> = ({
-  initialMetadata = {},
+  initialMetadata = EMPTY_FILE_METADATA,
   onChange,
   collectionName,
 }) => {
   const [metadata, setMetadata] = useState<FileMetadata>(initialMetadata);
+
+  // The backend returns the canonical snapshot after save. Keep the form's
+  // local editing buffer aligned when that snapshot (or the resource) changes.
+  // Ordinary keystrokes are not clobbered because each local update is emitted
+  // to the parent as the same object before this effect runs.
+  useEffect(() => {
+    setMetadata(initialMetadata);
+  }, [initialMetadata]);
 
   // Only need fileTypes and exerciseTypes - HierarchyEditor handles hierarchy data
   const fileTypes = useTypedMetadataStore((state) => state.fileTypes);
@@ -284,6 +294,8 @@ export const FileMetadataForm: React.FC<FileMetadataFormProps> = ({
         placeholder="1-5"
         min={1}
         max={5}
+        allowDecimal={false}
+        step={1}
         value={metadata.difficulty}
         onChange={(value) =>
           handleChange(

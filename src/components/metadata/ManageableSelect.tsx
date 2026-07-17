@@ -204,6 +204,10 @@ export const ManageableSelect: React.FC<ManageableSelectProps> = ({
         store={combobox}
         onOptionSubmit={(val) => {
           if (editingId) return;
+          if (val === "$create") {
+            void handleCreate();
+            return;
+          }
           // Ensure empty strings are treated as undefined to avoid FK violations
           onChange(val || undefined);
           setSearch("");
@@ -238,7 +242,7 @@ export const ManageableSelect: React.FC<ManageableSelectProps> = ({
             <ScrollArea.Autosize mah={200}>
               {options}
               {search.trim() && !exactMatch && !creating && (
-                <Combobox.Option value="$create" onClick={handleCreate}>
+                <Combobox.Option value="$create">
                   <Text size="sm" c="blue">
                     + Create "{search}"
                   </Text>

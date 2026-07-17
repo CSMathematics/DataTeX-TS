@@ -1,63 +1,7 @@
 /**
  * PDF Viewer Custom Styles
- * Centralized CSS overrides for react-pdf-viewer components.
- * Previously duplicated in ResourceInspector.tsx and PdfPreview.tsx
+ * Centralized CSS for the lightweight virtualized PDF viewer.
  */
-
-/* Hide sidebar completely */
-.rpv-default-layout__sidebar {
-  display: none !important;
-}
-
-/* Ensure toolbar is at the top */
-.rpv-default-layout__toolbar {
-  order: -1;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Maximize PDF viewing area */
-.rpv-default-layout__main {
-  width: 100% !important;
-  flex: 1 !important;
-}
-
-/* Dark mode toolbar styling */
-.rpv-core__viewer--dark .rpv-default-layout__toolbar {
-  background-color: var(--mantine-color-dark-7);
-  border-bottom-color: transparent;
-  height: auto !important;
-  min-height: 30px;
-}
-
-/* Smaller font sizes for page controls */
-.pdf-page-controls input {
-  height: 24px !important;
-  font-size: 12px !important;
-  width: 40px !important;
-  padding: 0 4px !important;
-  text-align: center;
-  border-radius: 4px;
-}
-
-.pdf-page-controls span {
-  font-size: 12px !important;
-}
-
-/* Smaller zoom control buttons */
-.pdf-zoom-controls button {
-  height: 24px !important;
-  font-size: 12px !important;
-}
-
-/* Remove default button styles from RPV if any leak through */
-.rpv-core__button {
-  display: none !important;
-}
-
-/* Custom Styling for the Zoom Menu text */
-.rpv-core__popover-body {
-  font-size: 12px !important;
-}
 
 /* SyncTeX Pulse Animation */
 @keyframes syncPulse {
@@ -83,6 +27,75 @@
 
 .pdf-viewer-page {
   contain: layout paint style;
+}
+
+.pdf-viewer-side-panel {
+  contain: layout paint;
+}
+
+.pdf-viewer-thumbnail,
+.pdf-viewer-outline-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--mantine-color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pdf-viewer-thumbnail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 10px;
+  padding: 6px 4px;
+  border-radius: 6px;
+}
+
+.pdf-viewer-thumbnail:hover,
+.pdf-viewer-thumbnail[data-active="true"] {
+  background: color-mix(in srgb, var(--app-accent-color), transparent 88%);
+}
+
+.pdf-viewer-thumbnail-preview {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: 4px;
+  background: white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+}
+
+.pdf-viewer-outline-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  text-align: left;
+  border-radius: 0;
+}
+
+.pdf-viewer-outline-item:hover:not(:disabled) {
+  background: var(--mantine-color-default-hover);
+}
+
+.pdf-viewer-outline-item:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.pdf-viewer-outline-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-viewer-outline-item small {
+  color: var(--mantine-color-dimmed);
+  font-size: 10px;
 }
 
 .pdf-viewer-toolbar {

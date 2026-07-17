@@ -12,6 +12,8 @@ import { useAIStore } from "../../stores/aiStore";
 import { useTabsStore } from "../../stores/useTabsStore";
 import { writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { notifications } from "@mantine/notifications";
+import { configureLatexMonaco } from "../../services/latexMonaco";
+import { useSettingsStore } from "../../stores/settingsStore";
 
 interface AIReviewTabProps {
   original: string;
@@ -28,6 +30,7 @@ export const AIReviewTab: React.FC<AIReviewTabProps> = ({
 }) => {
   const { setPendingWrite, addMessage } = useAIStore();
   const { closeTab } = useTabsStore();
+  const editorTheme = useSettingsStore((state) => state.settings.editor.theme);
   const [viewMode, setViewMode] = useState<"split" | "unified">("split");
 
   const handleAccept = async () => {
@@ -134,8 +137,9 @@ export const AIReviewTab: React.FC<AIReviewTabProps> = ({
           height="100%"
           original={original}
           modified={modified}
-          language="latex"
-          theme="vs-dark" // or dynamic based on settings
+          language="my-latex"
+          beforeMount={configureLatexMonaco}
+          theme={editorTheme}
           options={{
             readOnly: true,
             renderSideBySide: viewMode === "split",

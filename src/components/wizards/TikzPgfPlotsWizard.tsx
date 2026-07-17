@@ -37,6 +37,8 @@ import {
 import { TIKZ_TEMPLATES } from "./tikzTemplates";
 import { useResizable } from "../../hooks/useResizable";
 import { ResizerHandle } from "../ui/ResizerHandle";
+import { configureLatexMonaco } from "../../services/latexMonaco";
+import { useSettingsStore } from "../../stores/settingsStore";
 
 // --- Types ---
 export type WizardMode = "shapes" | "plots" | "text" | "templates";
@@ -138,6 +140,7 @@ const DEFAULT_STYLE: ElementStyle = {
 };
 
 export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
+  const editorTheme = useSettingsStore((state) => state.settings.editor.theme);
   // --- Layout State ---
   const [activeTab, setActiveTab] = useState<string>("shapes");
   const {
@@ -1600,9 +1603,10 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
         >
           <Editor
             height="100%"
-            defaultLanguage="latex"
+            defaultLanguage="my-latex"
+            beforeMount={configureLatexMonaco}
             value={codeValue}
-            theme="vs-dark"
+            theme={editorTheme}
             options={{
               minimap: { enabled: true },
               lineNumbers: "on",
@@ -1612,6 +1616,10 @@ export function TikzPgfPlotsWizard({ onInsert }: TikzPgfPlotsWizardProps) {
               wordWrap: "on",
               fontFamily: "monospace",
               fontSize: 12,
+              bracketPairColorization: {
+                enabled: true,
+                independentColorPoolPerBracketType: true,
+              },
             }}
           />
           <Button

@@ -1,6 +1,28 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import i18n from "../i18n";
+import {
+  DEFAULT_LATEX_SYNTAX_HIGHLIGHTING,
+  normalizeLatexSyntaxColor,
+  sanitizeLatexSyntaxHighlightingSettings,
+} from "../themes/latex-theme-customization";
+import type {
+  LatexEditorThemeId,
+  LatexSyntaxColorSlotId,
+  LatexSyntaxFontStyle,
+  LatexSyntaxHighlightingSettings,
+  LatexSyntaxSlotOverride,
+  LatexSyntaxSlotOverrides,
+} from "../themes/latex-theme-customization";
+
+export type {
+  LatexEditorThemeId,
+  LatexSyntaxColorSlotId,
+  LatexSyntaxFontStyle,
+  LatexSyntaxHighlightingSettings,
+  LatexSyntaxSlotOverride,
+  LatexSyntaxSlotOverrides,
+} from "../themes/latex-theme-customization";
 
 export interface EditorSettings {
   fontSize: number;
@@ -112,6 +134,7 @@ export interface AppSettings {
   uiTheme: string; // Theme ID (e.g. 'dark-blue', 'light-gray')
   customThemeOverrides?: CustomThemeOverrides;
   customThemes?: CustomTheme[];
+  latexSyntaxHighlighting: LatexSyntaxHighlightingSettings;
   shortcuts: Record<string, string>;
 }
 
@@ -191,6 +214,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   uiTheme: "dark-blue",
   customThemeOverrides: {},
   customThemes: [],
+  latexSyntaxHighlighting: DEFAULT_LATEX_SYNTAX_HIGHLIGHTING,
   shortcuts: {
     "file.save": "Ctrl+S",
     "file.saveAll": "Ctrl+Shift+S",
@@ -245,6 +269,31 @@ interface SettingsState {
   ) => void;
   addCustomTheme: (theme: CustomTheme) => void;
   removeCustomTheme: (id: string) => void;
+  setLatexSyntaxColor: (
+    themeId: LatexEditorThemeId,
+    slotId: LatexSyntaxColorSlotId,
+    color: string
+  ) => void;
+  resetLatexSyntaxColor: (
+    themeId: LatexEditorThemeId,
+    slotId: LatexSyntaxColorSlotId
+  ) => void;
+  setLatexSyntaxFontStyle: (
+    themeId: LatexEditorThemeId,
+    slotId: LatexSyntaxColorSlotId,
+    fontStyle: LatexSyntaxFontStyle,
+    enabled: boolean
+  ) => void;
+  resetLatexSyntaxFontStyles: (
+    themeId: LatexEditorThemeId,
+    slotId: LatexSyntaxColorSlotId
+  ) => void;
+  resetLatexSyntaxColorGroup: (
+    themeId: LatexEditorThemeId,
+    slotIds: readonly LatexSyntaxColorSlotId[]
+  ) => void;
+  resetLatexSyntaxTheme: (themeId: LatexEditorThemeId) => void;
+  resetAllLatexSyntaxColors: () => void;
   updateShortcut: (id: string, keys: string) => void;
   resetShortcuts: () => void;
   resetSettings: () => void;
@@ -353,6 +402,208 @@ export const useSettingsStore = create<SettingsState>()(
           },
         })),
 
+      setLatexSyntaxColor: (themeId, slotId, color) => {
+        const normalized = normalizeLatexSyntaxColor(color);
+        if (!normalized) return;
+
+        set((state) => {
+          const currentTheme =
+            state.settings.latexSyntaxHighlighting.themes[themeId] ?? {};
+          const currentSlot = currentTheme[slotId] ?? {};
+          if (currentSlot.foreground === normalized) return state;
+
+          return {
+            settings: {
+              ...state.settings,
+              latexSyntaxHighlighting: {
+                version: 2,
+                themes: {
+                  ...state.settings.latexSyntaxHighlighting.themes,
+                  [themeId]: {
+                    ...currentTheme,
+                    [slotId]: {
+                      ...currentSlot,
+                      foreground: normalized,
+                    },
+                  },
+                },
+              },
+            },
+          };
+        });
+      },
+
+      resetLatexSyntaxColor: (themeId, slotId) =>
+        set((state) => {
+          const currentTheme =
+            state.settings.latexSyntaxHighlighting.themes[themeId];
+          const currentSlot = currentTheme?.[slotId];
+          if (!currentTheme || currentSlot?.foreground === undefined) {
+            return state;
+          }
+
+          const nextSlot: LatexSyntaxSlotOverride = { ...currentSlot };
+          delete nextSlot.foreground;
+          const nextTheme: LatexSyntaxSlotOverrides = { ...currentTheme };
+          if (Object.keys(nextSlot).length === 0) {
+            delete nextTheme[slotId];
+          } else {
+            nextTheme[slotId] = nextSlot;
+          }
+          const nextThemes = {
+            ...state.settings.latexSyntaxHighlighting.themes,
+          };
+          if (Object.keys(nextTheme).length === 0) {
+            delete nextThemes[themeId];
+          } else {
+            nextThemes[themeId] = nextTheme;
+          }
+
+          return {
+            settings: {
+              ...state.settings,
+              latexSyntaxHighlighting: { version: 2, themes: nextThemes },
+            },
+          };
+        }),
+
+      setLatexSyntaxFontStyle: (
+        themeId,
+        slotId,
+        fontStyle,
+        enabled
+      ) =>
+        set((state) => {
+          const currentTheme =
+            state.settings.latexSyntaxHighlighting.themes[themeId] ?? {};
+          const currentSlot = currentTheme[slotId] ?? {};
+          if (currentSlot.fontStyles?.[fontStyle] === enabled) return state;
+
+          const candidate = sanitizeLatexSyntaxHighlightingSettings({
+            version: 2,
+            themes: {
+              ...state.settings.latexSyntaxHighlighting.themes,
+              [themeId]: {
+                ...currentTheme,
+                [slotId]: {
+                  ...currentSlot,
+                  fontStyles: {
+                    ...currentSlot.fontStyles,
+                    [fontStyle]: enabled,
+                  },
+                },
+              },
+            },
+          });
+
+          return {
+            settings: {
+              ...state.settings,
+              latexSyntaxHighlighting: candidate,
+            },
+          };
+        }),
+
+      resetLatexSyntaxFontStyles: (themeId, slotId) =>
+        set((state) => {
+          const currentTheme =
+            state.settings.latexSyntaxHighlighting.themes[themeId];
+          const currentSlot = currentTheme?.[slotId];
+          if (!currentTheme || currentSlot?.fontStyles === undefined) {
+            return state;
+          }
+
+          const nextSlot: LatexSyntaxSlotOverride = { ...currentSlot };
+          delete nextSlot.fontStyles;
+          const nextTheme: LatexSyntaxSlotOverrides = { ...currentTheme };
+          if (Object.keys(nextSlot).length === 0) {
+            delete nextTheme[slotId];
+          } else {
+            nextTheme[slotId] = nextSlot;
+          }
+          const nextThemes = {
+            ...state.settings.latexSyntaxHighlighting.themes,
+          };
+          if (Object.keys(nextTheme).length === 0) {
+            delete nextThemes[themeId];
+          } else {
+            nextThemes[themeId] = nextTheme;
+          }
+
+          return {
+            settings: {
+              ...state.settings,
+              latexSyntaxHighlighting: { version: 2, themes: nextThemes },
+            },
+          };
+        }),
+
+      resetLatexSyntaxColorGroup: (themeId, slotIds) =>
+        set((state) => {
+          const currentTheme =
+            state.settings.latexSyntaxHighlighting.themes[themeId];
+          if (!currentTheme) return state;
+
+          const nextTheme: LatexSyntaxSlotOverrides = { ...currentTheme };
+          let changed = false;
+          for (const slotId of slotIds) {
+            if (nextTheme[slotId] !== undefined) {
+              delete nextTheme[slotId];
+              changed = true;
+            }
+          }
+          if (!changed) return state;
+
+          const nextThemes = {
+            ...state.settings.latexSyntaxHighlighting.themes,
+          };
+          if (Object.keys(nextTheme).length === 0) {
+            delete nextThemes[themeId];
+          } else {
+            nextThemes[themeId] = nextTheme;
+          }
+
+          return {
+            settings: {
+              ...state.settings,
+              latexSyntaxHighlighting: { version: 2, themes: nextThemes },
+            },
+          };
+        }),
+
+      resetLatexSyntaxTheme: (themeId) =>
+        set((state) => {
+          if (!state.settings.latexSyntaxHighlighting.themes[themeId]) {
+            return state;
+          }
+          const nextThemes = {
+            ...state.settings.latexSyntaxHighlighting.themes,
+          };
+          delete nextThemes[themeId];
+          return {
+            settings: {
+              ...state.settings,
+              latexSyntaxHighlighting: { version: 2, themes: nextThemes },
+            },
+          };
+        }),
+
+      resetAllLatexSyntaxColors: () =>
+        set((state) => {
+          if (
+            Object.keys(state.settings.latexSyntaxHighlighting.themes)
+              .length === 0
+          ) {
+            return state;
+          }
+          return {
+            settings: {
+              ...state.settings,
+              latexSyntaxHighlighting: DEFAULT_LATEX_SYNTAX_HIGHLIGHTING,
+            },
+          };
+        }),
+
       updateShortcut: (id, keys) =>
         set((state) => ({
           settings: {
@@ -385,6 +636,9 @@ export const useSettingsStore = create<SettingsState>()(
         const mergedSettings = {
           ...DEFAULT_SETTINGS,
           ...loadedSettings,
+          latexSyntaxHighlighting: sanitizeLatexSyntaxHighlightingSettings(
+            loadedSettings.latexSyntaxHighlighting,
+          ),
           shortcuts: {
             ...DEFAULT_SETTINGS.shortcuts,
             ...(loadedSettings.shortcuts || {}),

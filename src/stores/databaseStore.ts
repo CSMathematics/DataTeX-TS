@@ -82,6 +82,10 @@ interface DatabaseState {
     id: string,
     metadata: LatexFileMetadata,
   ) => Promise<void>;
+  setResourceMetadataLocal: (
+    id: string,
+    metadata: LatexFileMetadata,
+  ) => void;
   linkResources: (
     sourceId: string,
     targetId: string,
@@ -401,19 +405,22 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
       });
 
       // Update local state to reflect changes immediately without refetching everything
-      const { resources, allLoadedResources } = get();
-
-      const updateResource = (r: Resource) =>
-        r.id === id ? { ...r, metadata } : r;
-
-      set({
-        resources: resources.map(updateResource),
-        allLoadedResources: allLoadedResources.map(updateResource),
-        isLoading: false,
-      });
+      get().setResourceMetadataLocal(id, metadata);
+      set({ isLoading: false });
     } catch (err: any) {
       set({ error: err.toString(), isLoading: false });
+      throw err;
     }
+  },
+
+  setResourceMetadataLocal: (id, metadata) => {
+    const updateResource = (resource: Resource) =>
+      resource.id === id ? { ...resource, metadata } : resource;
+
+    set((state) => ({
+      resources: state.resources.map(updateResource),
+      allLoadedResources: state.allLoadedResources.map(updateResource),
+    }));
   },
 
   linkResources: async (

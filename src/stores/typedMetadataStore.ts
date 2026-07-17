@@ -125,7 +125,7 @@ interface TypedMetadataState {
     resourceId: string,
     resourceType: ResourceType,
     metadata: any,
-  ) => Promise<void>;
+  ) => Promise<any>;
   loadTypedMetadata: (
     resourceId: string,
     resourceType: ResourceType,
@@ -348,33 +348,84 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     if (loadedLookupKey === key) return Promise.resolve();
     if (lookupLoadInFlight?.key === key) return lookupLoadInFlight.promise;
 
-    const generation = lookupLoadGeneration;
+    // A lookup snapshot is collection-scoped. Supersede any older request so
+    // a slow response for collection A cannot overwrite a newer collection B.
+    const generation = ++lookupLoadGeneration;
+    loadedLookupKey = null;
     set({ isLoadingLookupData: true });
     const promise = Promise.all([
-      get().loadFields(collectionName),
-      get().loadChapters(undefined, collectionName),
-      get().loadSections(undefined, collectionName),
-      get().loadSubsections(undefined, collectionName),
-      get().loadExerciseTypes(),
-      get().loadFileTypes(),
-      get().loadDocumentTypes(),
-      get().loadTableTypes(),
-      get().loadFigureTypes(),
-      get().loadPackageTopics(),
-      get().loadMacroCommandTypes(),
-      get().loadCommandTypes(),
-      get().loadPreambleTypes(),
-    ]).then(() => {
-        if (generation === lookupLoadGeneration) {
+      invoke<Field[]>("get_fields_cmd", { collectionName }),
+      invoke<Chapter[]>("get_chapters_cmd", {
+        fieldId: undefined,
+        collectionName,
+      }),
+      invoke<Section[]>("get_sections_cmd", {
+        chapterId: undefined,
+        collectionName,
+      }),
+      invoke<Subsection[]>("get_subsections_cmd", {
+        sectionId: undefined,
+        collectionName,
+      }),
+      invoke<ExerciseType[]>("get_exercise_types_cmd"),
+      invoke<FileType[]>("get_file_types_cmd"),
+      invoke<DocumentType[]>("get_document_types_cmd"),
+      invoke<TableType[]>("get_table_types_cmd"),
+      invoke<FigureType[]>("get_figure_types_cmd"),
+      invoke<PackageTopic[]>("get_package_topics_cmd"),
+      invoke<MacroCommandType[]>("get_macro_command_types_cmd"),
+      invoke<CommandType[]>("get_command_types_cmd"),
+      invoke<PreambleType[]>("get_preamble_types_cmd"),
+    ])
+      .then(
+        ([
+          fields,
+          chapters,
+          sections,
+          subsections,
+          exerciseTypes,
+          fileTypes,
+          documentTypes,
+          tableTypes,
+          figureTypes,
+          packageTopics,
+          macroCommandTypes,
+          commandTypes,
+          preambleTypes,
+        ]) => {
+          if (generation !== lookupLoadGeneration) return;
+
+          // Commit the complete collection snapshot in one store update. A
+          // partial/failed request never leaves lookup arrays out of sync.
           loadedLookupKey = key;
+          set({
+            fields,
+            chapters,
+            sections,
+            subsections,
+            exerciseTypes,
+            fileTypes,
+            documentTypes,
+            tableTypes,
+            figureTypes,
+            packageTopics,
+            macroCommandTypes,
+            commandTypes,
+            preambleTypes,
+            isLoadingLookupData: false,
+          });
+        },
+      )
+      .catch((error) => {
+        if (generation === lookupLoadGeneration) {
+          // Leave loadedLookupKey unset so the next call retries the request.
+          set({ isLoadingLookupData: false });
         }
+        throw error;
       })
       .finally(() => {
         if (lookupLoadInFlight?.promise === promise) {
           lookupLoadInFlight = null;
-        }
-        if (generation === lookupLoadGeneration) {
-          set({ isLoadingLookupData: false });
         }
       });
 
@@ -601,18 +652,50 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
   // Delete Actions
   deleteField: async (id: string) => {
     await invoke("delete_field_cmd", { id });
-    set((state) => ({
-      fields: state.fields.filter((f) => f.id !== id),
-      chapters: state.chapters.filter((ch) => ch.fieldId !== id),
-    }));
+    set((state) => {
+      const chapterIds = new Set(
+        state.chapters
+          .filter((chapter) => chapter.fieldId === id)
+          .map((chapter) => chapter.id),
+      );
+      const sectionIds = new Set(
+        state.sections
+          .filter((section) => chapterIds.has(section.chapterId))
+          .map((section) => section.id),
+      );
+      return {
+        fields: state.fields.filter((field) => field.id !== id),
+        chapters: state.chapters.filter(
+          (chapter) => !chapterIds.has(chapter.id),
+        ),
+        sections: state.sections.filter(
+          (section) => !sectionIds.has(section.id),
+        ),
+        subsections: state.subsections.filter(
+          (subsection) => !sectionIds.has(subsection.sectionId),
+        ),
+      };
+    });
   },
 
   deleteChapter: async (id: string) => {
     await invoke("delete_chapter_cmd", { id });
-    set((state) => ({
-      chapters: state.chapters.filter((ch) => ch.id !== id),
-      sections: state.sections.filter((s) => s.chapterId !== id),
-    }));
+    set((state) => {
+      const sectionIds = new Set(
+        state.sections
+          .filter((section) => section.chapterId === id)
+          .map((section) => section.id),
+      );
+      return {
+        chapters: state.chapters.filter((chapter) => chapter.id !== id),
+        sections: state.sections.filter(
+          (section) => !sectionIds.has(section.id),
+        ),
+        subsections: state.subsections.filter(
+          (subsection) => !sectionIds.has(subsection.sectionId),
+        ),
+      };
+    });
   },
 
   deleteSection: async (id: string) => {
@@ -789,7 +872,7 @@ export const useTypedMetadataStore = create<TypedMetadataState>((set, get) => ({
     metadata: any,
   ) => {
     try {
-      await invoke("save_typed_metadata_cmd", {
+      return await invoke<any>("save_typed_metadata_cmd", {
         resourceId,
         resourceType,
         metadata,

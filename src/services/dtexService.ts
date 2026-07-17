@@ -243,7 +243,6 @@ export class DtexService {
         id: crypto.randomUUID(),
         fileType: "file",
         description: `Exported from ${fileName}`,
-        difficulty: 0,
       };
 
       // 4. Create DtexFile structure
