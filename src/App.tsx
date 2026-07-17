@@ -481,6 +481,7 @@ export default function App() {
   }, []);
 
   const {
+    pdfPath,
     pdfUrl,
     pdfLoading,
     syncTexCoords,
@@ -2185,6 +2186,7 @@ export default function App() {
                       />
                     ) : (
                       <ResourceInspector
+                        mainEditorPdfPath={pdfPath}
                         mainEditorPdfUrl={pdfUrl}
                         mainEditorPdfLoading={pdfLoading}
                         syncTexCoords={syncTexCoords}

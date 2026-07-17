@@ -1,11 +1,67 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { debugLog } from "../utils/debugLogger";
 
 const PDF_SOURCE_EXTENSION = /\.(?:tex|sty|cls|bib|dtx|ins)$/i;
+const PDF_MIN_STABLE_AGE_MS = 120;
+const PDF_HEADER_SCAN_BYTES = 1_024;
+const PDF_EOF_SCAN_BYTES = 16 * 1_024;
+const PDF_HEADER = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]);
+const PDF_EOF = new Uint8Array([0x25, 0x25, 0x45, 0x4f, 0x46]);
+
 const toPdfPath = (path: string) =>
   PDF_SOURCE_EXTENSION.test(path)
     ? path.replace(PDF_SOURCE_EXTENSION, ".pdf")
     : null;
+
+const containsBytes = (
+  data: Uint8Array,
+  pattern: Uint8Array,
+  start: number,
+  end: number,
+) => {
+  const lastStart = Math.min(end, data.byteLength) - pattern.byteLength;
+  for (let offset = Math.max(0, start); offset <= lastStart; offset += 1) {
+    let matches = true;
+    for (let index = 0; index < pattern.byteLength; index += 1) {
+      if (data[offset + index] !== pattern[index]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return true;
+  }
+  return false;
+};
+
+const validatePdfSnapshot = (data: Uint8Array) => {
+  if (data.byteLength === 0) {
+    throw new Error("The generated PDF is empty.");
+  }
+  if (
+    !containsBytes(
+      data,
+      PDF_HEADER,
+      0,
+      Math.min(data.byteLength, PDF_HEADER_SCAN_BYTES),
+    )
+  ) {
+    throw new Error("The generated PDF header is incomplete.");
+  }
+  if (
+    !containsBytes(
+      data,
+      PDF_EOF,
+      Math.max(0, data.byteLength - PDF_EOF_SCAN_BYTES),
+      data.byteLength,
+    )
+  ) {
+    throw new Error("The generated PDF is not complete yet.");
+  }
+};
+
+const fileTime = (value: Date | null) =>
+  value ? new Date(value).getTime() : null;
 
 interface UsePdfStateOptions {
   activeTab: any;
@@ -16,6 +72,7 @@ interface UsePdfStateOptions {
 }
 
 interface UsePdfStateReturn {
+  pdfPath: string | null;
   pdfUrl: string | null;
   pdfLoading: boolean;
   syncTexCoords: {
@@ -100,6 +157,11 @@ export function usePdfState({
 
       const pdfPath = expectedPdfPath;
       const isSamePathRefresh = loadedPdfRef.current?.path === pdfPath;
+      debugLog("info", "PDF_SOURCE", "load-start", {
+        path: pdfPath,
+        refreshVersion: pdfRefreshTrigger,
+        samePathRefresh: isSamePathRefresh,
+      });
       setPdfLoadStatus({
         path: pdfPath,
         version: pdfRefreshTrigger,
@@ -113,26 +175,52 @@ export function usePdfState({
 
       try {
         // Use Tauri to read the file as binary
-        const { readFile } = await import("@tauri-apps/plugin-fs");
-        const retryDelays =
-          pdfRefreshTrigger > 0 ? [0, 40, 120] : [0];
+        const { readFile, stat } = await import("@tauri-apps/plugin-fs");
+        const retryDelays = [0, 40, 80, 160, 240];
         let pdfData: Uint8Array | null = null;
         let readError: unknown;
 
-        for (const delay of retryDelays) {
+        for (const [attemptIndex, delay] of retryDelays.entries()) {
           if (delay > 0) {
             await new Promise((resolve) => setTimeout(resolve, delay));
           }
           if (cancelled) return;
 
           try {
-            pdfData = await readFile(pdfPath);
-            if (pdfData.byteLength === 0) {
-              throw new Error("The generated PDF is empty.");
+            const before = await stat(pdfPath);
+            if (!before.isFile) {
+              throw new Error("The generated PDF path is not a file.");
             }
+
+            const modifiedAt = fileTime(before.mtime);
+            if (
+              modifiedAt !== null &&
+              Date.now() - modifiedAt < PDF_MIN_STABLE_AGE_MS
+            ) {
+              throw new Error("The generated PDF is still being written.");
+            }
+
+            const candidate = await readFile(pdfPath);
+            const after = await stat(pdfPath);
+            if (
+              before.size !== after.size ||
+              fileTime(before.mtime) !== fileTime(after.mtime) ||
+              after.size !== candidate.byteLength
+            ) {
+              throw new Error("The generated PDF changed while being read.");
+            }
+
+            validatePdfSnapshot(candidate);
+            pdfData = candidate;
             break;
           } catch (error) {
             readError = error;
+            debugLog("debug", "PDF_SOURCE", "snapshot-retry", {
+              path: pdfPath,
+              attempt: attemptIndex + 1,
+              delayMs: delay,
+              error,
+            });
           }
         }
 
@@ -146,10 +234,20 @@ export function usePdfState({
         }
 
         setLoadedPdf({ path: pdfPath, url: nextBlobUrl });
+        debugLog("info", "PDF_SOURCE", "load-complete", {
+          path: pdfPath,
+          bytes: pdfData.byteLength,
+          refreshVersion: pdfRefreshTrigger,
+        });
       } catch (e) {
         // Missing PDFs are expected before the first compilation. Reading
         // directly avoids a separate `exists` IPC round-trip on every load.
         console.debug("PDF is not available yet:", e);
+        debugLog("warn", "PDF_SOURCE", "load-unavailable", {
+          path: pdfPath,
+          refreshVersion: pdfRefreshTrigger,
+          error: e,
+        });
         // A transient post-compile read failure must not destroy a still valid
         // canvas. New paths have no stale document to preserve.
         if (!cancelled && !isSamePathRefresh) setLoadedPdf(null);
@@ -298,6 +396,7 @@ export function usePdfState({
   );
 
   return {
+    pdfPath: expectedPdfPath,
     pdfUrl,
     pdfLoading,
     syncTexCoords,

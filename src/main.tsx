@@ -2,12 +2,15 @@ import React from "react";
 import "./i18n"; // Initialize i18n
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
+import { installGlobalDebugHandlers } from "./utils/debugLogger";
 
 // 1. IMPORT ΤΩΝ ΒΑΣΙΚΩΝ STYLES ΤΟΥ MANTINE (ΑΠΑΡΑΙΤΗΤΟ ΓΙΑ V7)
 import "@mantine/core/styles.css";
 
 // 2. IMPORT ΤΟΥ APP.CSS (Πρέπει να είναι μετά το Mantine για να κάνει override)
 import "./App.css";
+
+installGlobalDebugHandlers();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -9,6 +9,7 @@
     "test:latex-highlighting": "node scripts/test-latex-highlighting.mjs",
     "preview": "vite preview",
     "tauri": "__NV_DISABLE_EXPLICIT_SYNC=1 pnpm exec tauri",
+    "tauri:debug": "RUST_BACKTRACE=full DATATEX_DEBUG=1 DATATEX_PDF_DEBUG=1 __NV_DISABLE_EXPLICIT_SYNC=1 pnpm exec tauri dev",
     "tauri:compat": "WEBKIT_DISABLE_DMABUF_RENDERER=1 pnpm exec tauri",
     "tauri:software": "WEBKIT_DISABLE_DMABUF_RENDERER=1 WEBKIT_DISABLE_COMPOSITING_MODE=1 pnpm exec tauri"
   },
@@ -44,7 +45,6 @@
     "lodash": "^4.17.21",
     "mathjs": "^15.1.0",
     "monaco-editor": "^0.55.1",
-    "pdfjs-dist": "^3.11.174",
     "postcss": "^8.5.6",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",
@@ -54,7 +54,6 @@
     "react-force-graph-2d": "^1.29.0",
     "react-i18next": "^16.5.3",
     "react-markdown": "^10.1.0",
-    "react-pdf": "^10.2.0",
     "react-virtualized-auto-sizer": "^2.0.2",
     "react-window": "^2.2.5",
     "rehype-katex": "^7.0.1",

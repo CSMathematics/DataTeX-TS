@@ -19,7 +19,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -35,6 +35,8 @@ uuid = { version = "1.19.0", features = ["v4"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 regex = "1"
 rayon = "1.10"
+pdfium-render = "0.9.3"
+image = "0.25"
 # Git integration & Local History
 git2 = "0.19"
 sha2 = "0.10"
@@ -46,3 +48,12 @@ reqwest = { version = "0.12", features = ["blocking", "rustls-tls", "json"] }
 flate2 = "1.0"
 tar = "0.4"
 zip = "2.2"
+
+# PDF rasterization and encoding are hot paths during development as well as
+# release builds. Keep these dependencies optimized without slowing down
+# recompilation of the application crate itself.
+[profile.dev.package.image]
+opt-level = 3
+
+[profile.dev.package.pdfium-render]
+opt-level = 3
