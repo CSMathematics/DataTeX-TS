@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "resources/pdfium/macos-x86_64/": "pdfium/"
+    }
+  }
+}

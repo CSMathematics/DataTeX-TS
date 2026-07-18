@@ -26,6 +26,7 @@ const PDF_HEADER_SCAN_BYTES: usize = 1_024;
 const PDF_EOF_SCAN_BYTES: usize = 16 * 1_024;
 const MAX_OUTLINE_ITEMS: usize = 5_000;
 const MAX_OUTLINE_DEPTH: usize = 64;
+const PDFIUM_RESOURCE_BUNDLE_DIR: &str = "pdfium";
 
 static PDFIUM_RESOURCE_DIR: OnceLock<PathBuf> = OnceLock::new();
 
@@ -764,25 +765,46 @@ fn initialize_pdfium() -> Result<Pdfium, String> {
     let bindings = if let Ok(path) = std::env::var("DATATEX_PDFIUM_LIBRARY_PATH")
         .or_else(|_| std::env::var("PDFIUM_LIBRARY_PATH"))
     {
-        Pdfium::bind_to_library(path)
+        Pdfium::bind_to_library(path).map_err(|error| error.to_string())
     } else {
-        Pdfium::bind_to_system_library().or_else(|system_error| {
-            for candidate in candidate_pdfium_paths() {
-                if candidate.exists() {
-                    match Pdfium::bind_to_library(&candidate) {
-                        Ok(bindings) => return Ok(bindings),
-                        Err(error) => {
-                            eprintln!(
-                                "Failed to bind Pdfium candidate '{}': {}",
-                                candidate.display(),
-                                error
-                            );
-                        }
+        let candidates = candidate_pdfium_paths();
+        let searched_paths = candidates
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>();
+
+        candidates
+            .into_iter()
+            .find_map(|candidate| {
+                if !candidate.exists() {
+                    return None;
+                }
+
+                match Pdfium::bind_to_library(&candidate) {
+                    Ok(bindings) => Some(Ok(bindings)),
+                    Err(error) => {
+                        eprintln!(
+                            "Failed to bind Pdfium candidate '{}': {}",
+                            candidate.display(),
+                            error
+                        );
+                        None
                     }
                 }
-            }
-            Err(system_error)
-        })
+            })
+            .unwrap_or_else(|| {
+                Pdfium::bind_to_system_library().map_err(|system_error| {
+                    format!(
+                        "{} Searched bundled candidates: {}",
+                        system_error,
+                        if searched_paths.is_empty() {
+                            "(none)".to_string()
+                        } else {
+                            searched_paths.join(", ")
+                        }
+                    )
+                })
+            })
     }
     .map_err(|error| {
         format!(
@@ -799,45 +821,94 @@ fn initialize_pdfium() -> Result<Pdfium, String> {
 
 fn candidate_pdfium_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
+    let library_name = PathBuf::from(Pdfium::pdfium_platform_library_name());
+    let target_dir = pdfium_resource_target_dir();
 
     if let Some(resource_dir) = PDFIUM_RESOURCE_DIR.get() {
-        paths.push(
-            resource_dir
-                .join("pdfium")
-                .join(Pdfium::pdfium_platform_library_name()),
+        push_pdfium_library_candidates(
+            &mut paths,
+            &resource_dir.join(PDFIUM_RESOURCE_BUNDLE_DIR),
+            target_dir,
+            &library_name,
         );
-        paths.push(
-            resource_dir
-                .join("pdfium")
-                .join("lib")
-                .join(Pdfium::pdfium_platform_library_name()),
-        );
+        push_pdfium_library_candidates(&mut paths, resource_dir, target_dir, &library_name);
     }
 
     if let Ok(executable) = std::env::current_exe() {
         if let Some(executable_dir) = executable.parent() {
-            paths.push(executable_dir.join(Pdfium::pdfium_platform_library_name()));
-            paths.push(
-                executable_dir
-                    .join("pdfium")
-                    .join(Pdfium::pdfium_platform_library_name()),
+            paths.push(executable_dir.join(&library_name));
+            push_pdfium_library_candidates(
+                &mut paths,
+                &executable_dir.join(PDFIUM_RESOURCE_BUNDLE_DIR),
+                target_dir,
+                &library_name,
             );
         }
     }
 
-    #[cfg(all(debug_assertions, target_os = "linux", target_arch = "x86_64"))]
+    #[cfg(debug_assertions)]
     {
-        paths.push(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        push_pdfium_library_candidates(
+            &mut paths,
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("resources")
-                .join("pdfium")
-                .join("linux-x86_64")
-                .join("lib")
-                .join(Pdfium::pdfium_platform_library_name()),
+                .join(PDFIUM_RESOURCE_BUNDLE_DIR),
+            target_dir,
+            &library_name,
         );
     }
 
     paths
+}
+
+fn push_pdfium_library_candidates(
+    paths: &mut Vec<PathBuf>,
+    base_dir: &Path,
+    target_dir: &str,
+    library_name: &Path,
+) {
+    paths.push(base_dir.join("lib").join(library_name));
+    paths.push(base_dir.join(library_name));
+    paths.push(base_dir.join(target_dir).join("lib").join(library_name));
+    paths.push(base_dir.join(target_dir).join(library_name));
+}
+
+fn pdfium_resource_target_dir() -> &'static str {
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        "linux-x86_64"
+    }
+    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+    {
+        "linux-aarch64"
+    }
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    {
+        "windows-x86_64"
+    }
+    #[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+    {
+        "windows-aarch64"
+    }
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    {
+        "macos-x86_64"
+    }
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        "macos-aarch64"
+    }
+    #[cfg(not(any(
+        all(target_os = "linux", target_arch = "x86_64"),
+        all(target_os = "linux", target_arch = "aarch64"),
+        all(target_os = "windows", target_arch = "x86_64"),
+        all(target_os = "windows", target_arch = "aarch64"),
+        all(target_os = "macos", target_arch = "x86_64"),
+        all(target_os = "macos", target_arch = "aarch64"),
+    )))]
+    {
+        "unknown"
+    }
 }
 
 fn pdf_cache_root() -> Result<PathBuf, String> {
