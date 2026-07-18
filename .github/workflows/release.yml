@@ -1,0 +1,120 @@
+name: "Release"
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag. Use v__VERSION__ to derive it from tauri.conf.json."
+        required: true
+        default: "v__VERSION__"
+      prerelease:
+        description: "Mark the GitHub release as prerelease."
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            platform: ubuntu-22.04
+            args: "--config src-tauri/tauri.linux.conf.json"
+            rust-targets: ""
+          - name: windows-x64
+            platform: windows-latest
+            args: "--config src-tauri/tauri.windows.conf.json"
+            rust-targets: ""
+          - name: macos-x64
+<<<<<<< ours
+            platform: macos-15-intel
+            args: "--config src-tauri/tauri.macos-x86_64.conf.json --target x86_64-apple-darwin"
+            rust-targets: "x86_64-apple-darwin"
+          - name: macos-arm64
+            platform: macos-15
+=======
+            platform: macos-latest
+            args: "--config src-tauri/tauri.macos-x86_64.conf.json --target x86_64-apple-darwin"
+            rust-targets: "x86_64-apple-darwin"
+          - name: macos-arm64
+            platform: macos-latest
+>>>>>>> theirs
+            args: "--config src-tauri/tauri.macos-aarch64.conf.json --target aarch64-apple-darwin"
+            rust-targets: "aarch64-apple-darwin"
+
+    runs-on: ${{ matrix.platform }}
+<<<<<<< ours
+    name: ${{ matrix.name }}
+=======
+>>>>>>> theirs
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2
+
+<<<<<<< ours
+      - name: setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+=======
+>>>>>>> theirs
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
+
+<<<<<<< ours
+=======
+      - name: setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+>>>>>>> theirs
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - name: install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: build and upload release assets
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          __NV_DISABLE_EXPLICIT_SYNC: "1"
+        with:
+          tauriScript: pnpm exec tauri
+          args: ${{ matrix.args }}
+          tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          releaseName: "DataTeX ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          releaseBody: "Cross-platform DataTeX build with the native Rust/Pdfium PDF viewer."
+          releaseDraft: true
+          prerelease: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}
+<<<<<<< ours
+          includeUpdaterJson: false
+          retryAttempts: 2
+          assetNamePattern: "[name]-[version]-[platform]-[arch][setup].[ext]"
+=======
+          uploadUpdaterJson: false
+          retryAttempts: 2
+          releaseAssetNamePattern: "[name]-[version]-[platform]-[arch][setup].[ext]"
+>>>>>>> theirs

@@ -44,8 +44,6 @@ export default defineConfig(async () => ({
             "@mantine/hooks",
             "@mantine/notifications",
           ],
-          // PDF libraries
-          "vendor-pdf": ["react-pdf", "pdfjs-dist"],
           // Graph visualization
           "vendor-graph": ["react-force-graph-2d"],
           // Utilities

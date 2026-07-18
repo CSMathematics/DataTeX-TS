@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "resources/pdfium/linux-x86_64/": "pdfium/"
+    }
+  }
+}

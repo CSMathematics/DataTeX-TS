@@ -78,6 +78,7 @@ const RESOURCE_KINDS = [
 
 interface ResourceInspectorProps {
   /** PDF URL from main editor */
+  mainEditorPdfPath?: string | null;
   mainEditorPdfUrl?: string | null;
   mainEditorPdfLoading?: boolean;
   syncTexCoords?: {
@@ -109,6 +110,7 @@ const sameInspectorProps = (
   next: ResourceInspectorProps,
 ) =>
   previous.mainEditorPdfUrl === next.mainEditorPdfUrl &&
+  previous.mainEditorPdfPath === next.mainEditorPdfPath &&
   previous.mainEditorPdfLoading === next.mainEditorPdfLoading &&
   sameSyncTexCoords(previous.syncTexCoords, next.syncTexCoords) &&
   previous.onInsertFragment === next.onInsertFragment &&
@@ -121,6 +123,7 @@ const sameInspectorProps = (
 
 const ResourceInspectorComponent = ({
   mainEditorPdfUrl,
+  mainEditorPdfPath,
   mainEditorPdfLoading,
   syncTexCoords,
   onInsertFragment,
@@ -477,6 +480,9 @@ const ResourceInspectorComponent = ({
   const effectivePdfUrl = mainEditorOwnsPdf
     ? mainEditorPdfUrl
     : previewUrl || pdfUrl || (!resource ? mainEditorPdfUrl : null);
+  const effectivePdfPath = mainEditorOwnsPdf
+    ? mainEditorPdfPath
+    : expectedLocalPdfPath || (!resource ? mainEditorPdfPath : null);
   const effectivePdfLoading = mainEditorOwnsPdf || !resource
     ? Boolean(mainEditorPdfLoading)
     : pdfLoading;
@@ -557,6 +563,7 @@ const ResourceInspectorComponent = ({
             >
               {effectivePdfUrl ? (
                 <PdfViewerContainer
+                  pdfPath={effectivePdfPath}
                   pdfUrl={effectivePdfUrl}
                   isVisible={activeInspectorTab === "preview"}
                   syncTexCoords={syncTexCoords}

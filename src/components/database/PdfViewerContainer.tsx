@@ -8,7 +8,8 @@ import {
   useMemo,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { Document, Page, pdfjs } from "react-pdf";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import {
   Group,
   ActionIcon,
@@ -38,11 +39,7 @@ import {
   IconZoomOut,
 } from "@tabler/icons-react";
 import { LoadingState, EmptyState } from "../ui";
-import "react-pdf/dist/Page/AnnotationLayer.css";
-import "react-pdf/dist/Page/TextLayer.css";
-
-// Configure PDF.js worker - use local file for faster loading and offline capability
-pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+import { debugLog } from "../../utils/debugLogger";
 
 // Constants for virtual scrolling
 const PAGE_BUFFER = 1; // Number of pages to pre-render above/below the active page
@@ -50,11 +47,14 @@ const PAGE_GAP = 20;
 const PAGE_PADDING = 20;
 const DEFAULT_PAGE_WIDTH = 595; // A4 width in points (approximate)
 const DEFAULT_PAGE_HEIGHT = 842; // A4 height in points (approximate)
-const MAX_DEVICE_PIXEL_RATIO = 1.5;
+const PDFIUM_SUPERSAMPLING = 1.5;
+const MIN_PDFIUM_DEVICE_PIXEL_RATIO = 1.5;
+const MAX_PDFIUM_DEVICE_PIXEL_RATIO = 2;
 const THUMBNAIL_WIDTH = 92;
 const THUMBNAIL_BUFFER = 4;
 
 interface PdfViewerContainerProps {
+  pdfPath?: string | null;
   pdfUrl: string | null;
   isVisible?: boolean;
   onSyncTexInverse?: (page: number, x: number, y: number) => void;
@@ -71,26 +71,6 @@ interface PageRange {
   end: number;
 }
 
-interface PdfDocumentInfo {
-  numPages: number;
-  getPage: (pageNumber: number) => Promise<{
-    getViewport: (options: { scale: number }) => {
-      width: number;
-      height: number;
-    };
-    getTextContent?: () => Promise<{ items: unknown[] }>;
-  }>;
-  getOutline?: () => Promise<PdfOutlineNode[] | null>;
-  getDestination?: (destination: string) => Promise<unknown[] | null>;
-  getPageIndex?: (ref: any) => Promise<number>;
-}
-
-interface PdfOutlineNode {
-  title?: string;
-  dest?: string | unknown[] | null;
-  items?: PdfOutlineNode[];
-}
-
 interface PdfOutlineItem {
   id: string;
   title: string;
@@ -105,7 +85,92 @@ interface SearchMatch {
 
 type PdfSidePanel = "thumbnails" | "outline" | null;
 
+interface PdfiumRendererStatus {
+  available: boolean;
+  message: string;
+  libraryName: string;
+  cacheDir?: string | null;
+}
+
+let pdfiumStatusRequest: Promise<PdfiumRendererStatus> | null = null;
+
+const getPdfiumRendererStatus = () => {
+  if (!pdfiumStatusRequest) {
+    pdfiumStatusRequest = invoke<PdfiumRendererStatus>(
+      "pdfium_renderer_status_cmd",
+    ).catch((error) => {
+      pdfiumStatusRequest = null;
+      throw error;
+    });
+  }
+  return pdfiumStatusRequest;
+};
+
+interface PdfiumPageSize {
+  width: number;
+  height: number;
+}
+
+interface PdfiumOpenDocumentResponse {
+  docId: string;
+  path: string;
+  versionKey: string;
+  numPages: number;
+  pageSizes: PdfiumPageSize[];
+  cacheDir: string;
+  openTimeMs: number;
+  cacheHit: boolean;
+}
+
+interface PdfiumRenderPageResponse {
+  docId: string;
+  pageNumber: number;
+  imagePath: string;
+  width: number;
+  height: number;
+  cssWidth: number;
+  cssHeight: number;
+  renderTimeMs: number;
+  pageLoadTimeMs: number;
+  rasterTimeMs: number;
+  encodeTimeMs: number;
+  cacheHit: boolean;
+}
+
+interface PdfiumPageTextResponse {
+  docId: string;
+  pageNumber: number;
+  text: string;
+}
+
+interface PdfiumOutlineResponse {
+  docId: string;
+  items: PdfOutlineItem[];
+}
+
+interface PdfRenderMetric {
+  backend: "pdfium";
+  pageNumber: number;
+  totalTimeMs: number;
+  nativeTimeMs?: number;
+  pageLoadTimeMs?: number;
+  rasterTimeMs?: number;
+  encodeTimeMs?: number;
+  cacheHit?: boolean;
+}
+
 const EMPTY_PAGE_RANGE: PageRange = { start: 1, end: 0 };
+
+const getPdfiumDevicePixelRatio = () => {
+  const displayPixelRatio = window.devicePixelRatio || 1;
+  return Math.min(
+    MAX_PDFIUM_DEVICE_PIXEL_RATIO,
+    Math.max(
+      MIN_PDFIUM_DEVICE_PIXEL_RATIO,
+      displayPixelRatio * PDFIUM_SUPERSAMPLING,
+    ),
+  );
+};
 
 const clampPage = (page: number, numPages: number) =>
   Math.max(1, Math.min(page, Math.max(1, numPages)));
@@ -184,56 +249,13 @@ const countMatches = (text: string, query: string) => {
   return count;
 };
 
-const resolveDestinationPage = async (
-  document: PdfDocumentInfo,
-  destination: string | unknown[] | null | undefined,
-) => {
-  if (!destination || !document.getPageIndex) return null;
-  const explicitDestination = Array.isArray(destination)
-    ? destination
-    : await document.getDestination?.(destination);
-  const pageRef = explicitDestination?.[0];
-  if (!pageRef) return null;
-
-  try {
-    return (await document.getPageIndex(pageRef)) + 1;
-  } catch {
-    return null;
-  }
-};
-
-const flattenOutline = async (
-  document: PdfDocumentInfo,
-  nodes: PdfOutlineNode[] | null | undefined,
-  depth = 0,
-  prefix = "outline",
-): Promise<PdfOutlineItem[]> => {
-  if (!nodes?.length) return [];
-
-  const items: PdfOutlineItem[] = [];
-  for (let index = 0; index < nodes.length; index += 1) {
-    const node = nodes[index];
-    const id = `${prefix}-${index}`;
-    const page = await resolveDestinationPage(document, node.dest);
-    items.push({
-      id,
-      title: node.title || "Untitled",
-      page,
-      depth,
-    });
-    items.push(
-      ...(await flattenOutline(document, node.items, depth + 1, id)),
-    );
-  }
-  return items;
-};
-
 // Memoized toolbar - completely stable, only updates via props
 const PdfToolbar = memo(
   ({
     currentPage,
     numPages,
     scale,
+    renderMetric,
     isSearchOpen,
     sidePanel,
     onPageChange,
@@ -251,6 +273,7 @@ const PdfToolbar = memo(
     currentPage: number;
     numPages: number;
     scale: number;
+    renderMetric: PdfRenderMetric | null;
     isSearchOpen: boolean;
     sidePanel: PdfSidePanel;
     onPageChange: (page: number) => void;
@@ -415,6 +438,24 @@ const PdfToolbar = memo(
 
         {/* Actions */}
         <Group gap={4} wrap="nowrap">
+          {renderMetric && (
+            <Tooltip
+              label={`Page ${renderMetric.pageNumber}: ${renderMetric.totalTimeMs} ms displayed · ${renderMetric.nativeTimeMs ?? 0} ms native (${renderMetric.pageLoadTimeMs ?? 0} ms page load + ${renderMetric.rasterTimeMs ?? 0} ms raster + ${renderMetric.encodeTimeMs ?? 0} ms encode)${renderMetric.cacheHit ? " · disk cache hit" : ""}`}
+            >
+              <Text
+                size="xs"
+                c={renderMetric.cacheHit ? "teal" : "dimmed"}
+                style={{
+                  whiteSpace: "nowrap",
+                  fontSize: 10,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                p{renderMetric.pageNumber} · {renderMetric.totalTimeMs}ms
+                {renderMetric.cacheHit ? " · cache" : ""}
+              </Text>
+            </Tooltip>
+          )}
           <Tooltip label="Search">
             <ActionIcon
               variant={isSearchOpen ? "light" : "subtle"}
@@ -456,6 +497,7 @@ PdfToolbar.displayName = "PdfToolbar";
 // Main container component
 export const PdfViewerContainer = memo(
   ({
+    pdfPath,
     pdfUrl,
     isVisible = true,
     onSyncTexInverse,
@@ -475,6 +517,14 @@ export const PdfViewerContainer = memo(
       useState<PageRange>(EMPTY_PAGE_RANGE);
     const [visiblePageRenderEpoch, setVisiblePageRenderEpoch] = useState(0);
     const [rotation, setRotation] = useState(0);
+    const [pdfiumStatus, setPdfiumStatus] =
+      useState<PdfiumRendererStatus | null>(null);
+    const [pdfiumDocument, setPdfiumDocument] =
+      useState<PdfiumOpenDocumentResponse | null>(null);
+    const [pdfiumOpenError, setPdfiumOpenError] = useState<string | null>(null);
+    const [renderMetric, setRenderMetric] = useState<PdfRenderMetric | null>(
+      null,
+    );
     const [sidePanel, setSidePanel] = useState<PdfSidePanel>(null);
     const [isSearchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
@@ -486,7 +536,6 @@ export const PdfViewerContainer = memo(
     const [outlineItems, setOutlineItems] = useState<PdfOutlineItem[]>([]);
     const [outlineLoading, setOutlineLoading] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    const documentRef = useRef<PdfDocumentInfo | null>(null);
     const pageDimensionsRef = useRef<typeof pageDimensions>(null);
     const currentPageRef = useRef(currentPage);
     const numPagesRef = useRef(numPages);
@@ -514,6 +563,8 @@ export const PdfViewerContainer = memo(
     const [debouncedScale] = useDebouncedValue(scale, 100);
     const [debouncedSearchQuery] = useDebouncedValue(searchQuery.trim(), 250);
     const isQuarterTurn = rotation % 180 !== 0;
+    const canUsePdfium = Boolean(pdfPath && pdfiumStatus?.available === true);
+    const isPdfiumActive = Boolean(canUsePdfium && pdfiumDocument);
 
     // Estimated page height for placeholders
     const estimatedPageHeight = useMemo(() => {
@@ -593,7 +644,6 @@ export const PdfViewerContainer = memo(
       numPagesRef.current = 0;
       loadedDocumentGenerationRef.current = 0;
       lastSyncCoordsRef.current = null;
-      documentRef.current = null;
       searchRunRef.current += 1;
       setSearchQuery("");
       setSearchMatches([]);
@@ -602,9 +652,204 @@ export const PdfViewerContainer = memo(
       setOutlineItems([]);
       setOutlineLoading(false);
       setRotation(0);
+      setPdfiumDocument(null);
+      setPdfiumOpenError(null);
+      setRenderMetric(null);
       setVisiblePageRenderEpoch(0);
       if (containerRef.current) containerRef.current.scrollTop = 0;
     }, [documentGeneration, pdfUrl]);
+
+    useEffect(() => {
+      localStorage.removeItem("datatex-pdf-render-backend");
+      let cancelled = false;
+      void getPdfiumRendererStatus()
+        .then((status) => {
+          if (!cancelled) {
+            setPdfiumStatus(status);
+            debugLog("info", "PDFIUM_UI", "renderer-status", status);
+          }
+        })
+        .catch((statusError) => {
+          if (!cancelled) {
+            debugLog("error", "PDFIUM_UI", "renderer-status-failed", {
+              error: statusError,
+            });
+            setPdfiumStatus({
+              available: false,
+              message: String(statusError),
+              libraryName: "pdfium",
+              cacheDir: null,
+            });
+          }
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }, []);
+
+    useEffect(() => {
+      if (!pdfUrl) {
+        setPdfiumDocument(null);
+        setPdfiumOpenError(null);
+        setLoading(false);
+        return;
+      }
+
+      if (!pdfPath) {
+        const pathError =
+          "Native PDF renderer requires a local PDF path for this document.";
+        setPdfiumDocument(null);
+        setPdfiumOpenError(pathError);
+        setError(pathError);
+        setLoading(false);
+        return;
+      }
+
+      if (!pdfiumStatus) {
+        setPdfiumDocument(null);
+        setPdfiumOpenError(null);
+        setLoading(true);
+        return;
+      }
+
+      if (!pdfiumStatus.available) {
+        const statusError = `Rust PDF renderer unavailable: ${pdfiumStatus.message}`;
+        setPdfiumDocument(null);
+        setPdfiumOpenError(statusError);
+        setError(statusError);
+        setLoading(false);
+        return;
+      }
+
+      let cancelled = false;
+      let openedDocId: string | null = null;
+      setOutlineItems([]);
+      setOutlineLoading(false);
+      setPdfiumOpenError(null);
+      setPdfiumDocument(null);
+      setLoading(true);
+      debugLog("info", "PDFIUM_UI", "open-request", {
+        path: pdfPath,
+        generation: documentGeneration,
+      });
+
+      void invoke<PdfiumOpenDocumentResponse>("pdfium_open_document_cmd", {
+        path: pdfPath,
+      })
+        .then((document) => {
+          if (cancelled) {
+            debugLog("debug", "PDFIUM_UI", "open-result-after-cancel", {
+              path: pdfPath,
+              docId: document.docId,
+              generation: documentGeneration,
+            });
+            void invoke("pdfium_close_document_cmd", {
+              docId: document.docId,
+            }).catch(() => {});
+            return;
+          }
+
+          openedDocId = document.docId;
+          debugLog("info", "PDFIUM_UI", "open-complete", {
+            path: document.path,
+            docId: document.docId,
+            pages: document.numPages,
+            openTimeMs: document.openTimeMs,
+            cacheHit: document.cacheHit,
+            generation: documentGeneration,
+          });
+          setPdfiumDocument(document);
+          const firstPage = document.pageSizes[0];
+          if (firstPage) {
+            const dimensions = {
+              width: firstPage.width,
+              height: firstPage.height,
+            };
+            pageDimensionsRef.current = dimensions;
+            setPageDimensions(dimensions);
+          }
+
+          loadedDocumentGenerationRef.current = documentGeneration;
+          numPagesRef.current = document.numPages;
+          currentPageRef.current = clampPage(
+            currentPageRef.current,
+            document.numPages,
+          );
+          setNumPages(document.numPages);
+          setCurrentPage(currentPageRef.current);
+          setError(null);
+          setLoading(false);
+
+          const container = containerRef.current;
+          if (container) applyViewport(container, document.numPages, false);
+
+          setOutlineLoading(true);
+          void invoke<PdfiumOutlineResponse>("pdfium_extract_outline_cmd", {
+            docId: document.docId,
+          })
+            .then((outline) => {
+              if (
+                cancelled ||
+                loadedDocumentGenerationRef.current !== documentGeneration
+              ) {
+                return;
+              }
+              setOutlineItems(outline.items);
+            })
+            .catch((outlineError) => {
+              if (cancelled) return;
+              debugLog("error", "PDFIUM_UI", "outline-failed", {
+                path: pdfPath,
+                docId: document.docId,
+                generation: documentGeneration,
+                error: outlineError,
+              });
+              setOutlineItems([]);
+            })
+            .finally(() => {
+              if (
+                !cancelled &&
+                loadedDocumentGenerationRef.current === documentGeneration
+              ) {
+                setOutlineLoading(false);
+              }
+            });
+        })
+        .catch((openError) => {
+          if (cancelled) return;
+          debugLog("error", "PDFIUM_UI", "open-failed", {
+            path: pdfPath,
+            generation: documentGeneration,
+            error: openError,
+          });
+          setPdfiumDocument(null);
+          const errorMessage = String(openError);
+          setPdfiumOpenError(errorMessage);
+          setError(`Rust PDF renderer failed: ${errorMessage}`);
+          setLoading(false);
+        });
+
+      return () => {
+        cancelled = true;
+        if (openedDocId) {
+          debugLog("debug", "PDFIUM_UI", "close-request", {
+            path: pdfPath,
+            docId: openedDocId,
+            generation: documentGeneration,
+          });
+          void invoke("pdfium_close_document_cmd", {
+            docId: openedDocId,
+          }).catch(() => {});
+        }
+      };
+    }, [
+      applyViewport,
+      documentGeneration,
+      pdfPath,
+      pdfUrl,
+      pdfiumStatus,
+    ]);
 
     useLayoutEffect(() => {
       const becameVisible = isVisible && !wasVisibleRef.current;
@@ -758,6 +1003,11 @@ export const PdfViewerContainer = memo(
       setVisiblePageRenderEpoch((epoch) => epoch + 1);
     }, []);
 
+    const handleRenderMetric = useCallback((metric: PdfRenderMetric) => {
+      if (metric.pageNumber !== currentPageRef.current) return;
+      setRenderMetric(metric);
+    }, []);
+
     const handleSearchStep = useCallback(
       (direction: 1 | -1) => {
         if (searchMatches.length === 0) return;
@@ -770,90 +1020,6 @@ export const PdfViewerContainer = memo(
         });
       },
       [handlePageChange, searchMatches],
-    );
-
-    const onDocumentLoadSuccess = useCallback(
-      (document: PdfDocumentInfo) => {
-        const loadedPageCount = document.numPages;
-        if (
-          documentIdentityRef.current.generation !== documentGeneration ||
-          documentIdentityRef.current.url !== pdfUrl
-        ) {
-          return;
-        }
-
-        loadedDocumentGenerationRef.current = documentGeneration;
-        documentRef.current = document;
-        const nextPage = clampPage(currentPageRef.current, loadedPageCount);
-        numPagesRef.current = loadedPageCount;
-        currentPageRef.current = nextPage;
-        setNumPages(loadedPageCount);
-        setCurrentPage(nextPage);
-        setLoading(false);
-        setError(null);
-
-        // Read the canonical first-page geometry from the document itself.
-        // Visible pages may finish out of order, especially after SyncTeX.
-        void document
-          .getPage(1)
-          .then((page) => {
-            if (
-              loadedDocumentGenerationRef.current !== documentGeneration ||
-              documentIdentityRef.current.generation !== documentGeneration ||
-              pageDimensionsRef.current
-            ) {
-              return;
-            }
-            const viewport = page.getViewport({ scale: 1 });
-            const dimensions = {
-              width: viewport.width,
-              height: viewport.height,
-            };
-            pageDimensionsRef.current = dimensions;
-            setPageDimensions(dimensions);
-          })
-          .catch((dimensionError) => {
-            console.debug("Could not read PDF page dimensions:", dimensionError);
-          });
-
-        const container = containerRef.current;
-        if (container) {
-          const maxTarget = PAGE_PADDING + (nextPage - 1) * rowStrideRef.current;
-          container.scrollTop = Math.min(container.scrollTop, maxTarget);
-          // The new spacers are not committed yet, so scrollHeight still
-          // belongs to the loading/previous document. Update only the range.
-          applyViewport(container, loadedPageCount, false);
-        }
-
-        if (document.getOutline) {
-          setOutlineLoading(true);
-          void document
-            .getOutline()
-            .then((outline) => flattenOutline(document, outline))
-            .then((items) => {
-              if (
-                loadedDocumentGenerationRef.current !== documentGeneration ||
-                documentIdentityRef.current.generation !== documentGeneration
-              ) {
-                return;
-              }
-              setOutlineItems(items);
-            })
-            .catch((outlineError) => {
-              console.debug("Could not read PDF outline:", outlineError);
-              setOutlineItems([]);
-            })
-            .finally(() => {
-              if (
-                loadedDocumentGenerationRef.current === documentGeneration &&
-                documentIdentityRef.current.generation === documentGeneration
-              ) {
-                setOutlineLoading(false);
-              }
-            });
-        }
-      },
-      [applyViewport, documentGeneration, pdfUrl],
     );
 
     // Re-evaluate current page only after the new virtual spacers have been
@@ -869,20 +1035,6 @@ export const PdfViewerContainer = memo(
       if (container) applyViewport(container, numPages);
     }, [applyViewport, documentGeneration, numPages]);
 
-    const onDocumentLoadError = useCallback(
-      (err: Error) => {
-        if (
-          documentIdentityRef.current.generation !== documentGeneration ||
-          documentIdentityRef.current.url !== pdfUrl
-        ) {
-          return;
-        }
-        console.error("PDF Load Error:", err);
-        setLoading(false);
-        setError(err.message || "Failed to load PDF");
-      },
-      [documentGeneration, pdfUrl],
-    );
     useEffect(() => {
       if (
         !syncTexCoords ||
@@ -901,7 +1053,6 @@ export const PdfViewerContainer = memo(
     }, [documentGeneration, handlePageChange, numPages, syncTexCoords]);
 
     useEffect(() => {
-      const document = documentRef.current;
       const normalizedQuery = debouncedSearchQuery.toLowerCase();
       const runId = searchRunRef.current + 1;
       searchRunRef.current = runId;
@@ -909,7 +1060,7 @@ export const PdfViewerContainer = memo(
       if (
         !isSearchOpen ||
         normalizedQuery.length < 2 ||
-        !document ||
+        !pdfiumDocument ||
         numPages <= 0 ||
         loadedDocumentGenerationRef.current !== documentGeneration
       ) {
@@ -931,19 +1082,14 @@ export const PdfViewerContainer = memo(
           setSearchIndexingPage(pageNumber);
 
           try {
-            const page = await document.getPage(pageNumber);
-            const textContent = await page.getTextContent?.();
-            const text = (textContent?.items ?? [])
-              .map((item) =>
-                item &&
-                typeof item === "object" &&
-                "str" in item &&
-                typeof item.str === "string"
-                  ? item.str
-                  : "",
-              )
-              .join(" ")
-              .toLowerCase();
+            const pageText = await invoke<PdfiumPageTextResponse>(
+              "pdfium_extract_page_text_cmd",
+              {
+                docId: pdfiumDocument.docId,
+                pageNumber,
+              },
+            );
+            const text = pageText.text.toLowerCase();
             const matchCount = countMatches(text, normalizedQuery);
             if (matchCount > 0) {
               nextMatches.push({ page: pageNumber, matchCount });
@@ -970,6 +1116,7 @@ export const PdfViewerContainer = memo(
       documentGeneration,
       isSearchOpen,
       numPages,
+      pdfiumDocument,
     ]);
 
     const handleZoomIn = useCallback(() => {
@@ -1022,25 +1169,27 @@ export const PdfViewerContainer = memo(
     }, [pdfUrl]);
 
     const handlePrint = useCallback(() => {
-      if (pdfUrl) {
-        const printWindow = window.open(pdfUrl, "_blank");
-        if (!printWindow) return;
-
-        let printed = false;
-        let fallbackTimer: number | null = null;
-        const printWhenReady = () => {
-          if (printed || printWindow.closed) return;
-          printed = true;
-          if (fallbackTimer !== null) window.clearTimeout(fallbackTimer);
-          printWindow.focus();
-          printWindow.print();
-        };
-
-        printWindow.addEventListener("load", printWhenReady, { once: true });
-        // Some embedded PDF plugins do not forward a reliable load event.
-        fallbackTimer = window.setTimeout(printWhenReady, 2000);
+      if (pdfPath) {
+        void openPath(pdfPath).catch((printError) => {
+          debugLog("error", "PDF_UI", "open-print-failed", {
+            path: pdfPath,
+            error: printError,
+          });
+          setError(String(printError));
+        });
+        return;
       }
-    }, [pdfUrl]);
+
+      if (pdfUrl) {
+        void openUrl(pdfUrl).catch((printError) => {
+          debugLog("error", "PDF_UI", "open-url-print-failed", {
+            url: pdfUrl,
+            error: printError,
+          });
+          setError(String(printError));
+        });
+      }
+    }, [pdfPath, pdfUrl]);
 
     const handlePageClick = useCallback(
       (e: React.MouseEvent) => {
@@ -1094,6 +1243,181 @@ export const PdfViewerContainer = memo(
       return <EmptyState message={t("database.inspector.noPdf")} />;
     }
 
+    const viewerBody = (
+      <Box
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          overflow: "hidden",
+        }}
+      >
+        {sidePanel && (
+          <Box
+            className="pdf-viewer-side-panel"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              width: 152,
+              minWidth: 152,
+              borderRight: "1px solid var(--mantine-color-default-border)",
+              backgroundColor: "var(--mantine-color-body)",
+            }}
+          >
+            <Group justify="space-between" px={8} py={6} wrap="nowrap">
+              <Text size="xs" fw={600}>
+                {sidePanel === "thumbnails" ? "Pages" : "Outline"}
+              </Text>
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size="xs"
+                onClick={() => setSidePanel(null)}
+              >
+                <IconX size={14} />
+              </ActionIcon>
+            </Group>
+            <Divider />
+            <ScrollArea style={{ flex: 1, minHeight: 0 }}>
+              {sidePanel === "thumbnails" ? (
+                pdfiumDocument ? (
+                  <StackPdfiumThumbnailList
+                    docId={pdfiumDocument.docId}
+                    currentPage={currentPage}
+                    numPages={numPages}
+                    pageSizes={pdfiumDocument.pageSizes}
+                    rotation={rotation}
+                    renderRange={thumbnailRenderRange}
+                    thumbnailWidth={THUMBNAIL_WIDTH}
+                    onPageChange={handlePageChange}
+                  />
+                ) : (
+                  <Box p="xs">
+                    <Text size="xs" c="dimmed">
+                      Loading pages…
+                    </Text>
+                  </Box>
+                )
+              ) : outlineLoading ? (
+                <Box p="xs">
+                  <Text size="xs" c="dimmed">
+                    Loading outline…
+                  </Text>
+                </Box>
+              ) : outlineItems.length > 0 ? (
+                <Box py={4}>
+                  {outlineItems.map((item) => (
+                    <button
+                      key={item.id}
+                      className="pdf-viewer-outline-item"
+                      disabled={!item.page}
+                      onClick={() => item.page && handlePageChange(item.page)}
+                      style={{
+                        paddingLeft: 8 + item.depth * 12,
+                      }}
+                    >
+                      <span>{item.title}</span>
+                      {item.page && <small>{item.page}</small>}
+                    </button>
+                  ))}
+                </Box>
+              ) : (
+                <Box p="xs">
+                  <Text size="xs" c="dimmed">
+                    No outline in this PDF.
+                  </Text>
+                </Box>
+              )}
+            </ScrollArea>
+          </Box>
+        )}
+
+        <Box
+          ref={containerRef}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            minHeight: 0,
+            overflow: "auto",
+            overflowAnchor: "none",
+            backgroundColor: "var(--mantine-color-default)",
+          }}
+          className="pdf-viewer-scroll"
+          onClick={handlePageClick}
+          onScroll={handleScroll}
+        >
+          {loading && <LoadingState message={t("common.loading")} />}
+          {error && <EmptyState message={error} bg="transparent" />}
+          {pdfiumOpenError && !error && !isPdfiumActive && (
+            <Box px="sm" py={6}>
+              <Text size="xs" c="orange">
+                Rust renderer failed: {pdfiumOpenError}
+              </Text>
+            </Box>
+          )}
+          {numPages > 0 && (
+            <Box
+              className="pdf-viewer-page-window"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                minWidth: "min-content",
+              }}
+            >
+              <Box
+                aria-hidden="true"
+                style={{ height: topSpacerHeight, flex: "0 0 auto" }}
+              />
+              {visiblePages.map((pageNum) => (
+                <Box
+                  key={pageNum}
+                  data-page-num={pageNum}
+                  data-page-number={pageNum}
+                  className="pdf-viewer-page"
+                  style={{
+                    width: estimatedPageWidth,
+                    height: estimatedPageHeight,
+                    marginBottom: PAGE_GAP,
+                    flex: "0 0 auto",
+                    boxShadow:
+                      pageNum === currentPage
+                        ? "0 4px 12px rgba(0, 0, 0, 0.4)"
+                        : "0 2px 6px rgba(0, 0, 0, 0.25)",
+                    background: "white",
+                  }}
+                >
+                  {pdfiumDocument ? (
+                    <PdfiumRenderedPage
+                      key={`${pdfiumDocument.docId}:${visiblePageRenderEpoch}:${rotation}:${debouncedScale}:${pageNum}`}
+                      docId={pdfiumDocument.docId}
+                      pageNumber={pageNum}
+                      scale={debouncedScale}
+                      rotation={rotation}
+                      width={estimatedPageWidth}
+                      height={estimatedPageHeight}
+                      isActive={pageNum === currentPage}
+                      onRenderComplete={handleRenderMetric}
+                    />
+                  ) : (
+                    <Skeleton
+                      height={estimatedPageHeight}
+                      width={estimatedPageWidth}
+                      animate={pageNum === currentPage}
+                    />
+                  )}
+                </Box>
+              ))}
+              <Box
+                aria-hidden="true"
+                style={{ height: bottomSpacerHeight, flex: "0 0 auto" }}
+              />
+            </Box>
+          )}
+        </Box>
+      </Box>
+    );
+
     return (
       <Box
         h="100%"
@@ -1104,6 +1428,7 @@ export const PdfViewerContainer = memo(
           currentPage={currentPage}
           numPages={numPages}
           scale={scale}
+          renderMetric={renderMetric}
           isSearchOpen={isSearchOpen}
           sidePanel={sidePanel}
           onPageChange={handlePageChange}
@@ -1187,201 +1512,201 @@ export const PdfViewerContainer = memo(
           </Group>
         )}
 
-        <Document
-          file={pdfUrl}
-          onLoadSuccess={onDocumentLoadSuccess}
-          onLoadError={onDocumentLoadError}
-          loading={<LoadingState message={t("common.loading")} />}
-          error={
-            <EmptyState
-              message={error || "Failed to load PDF"}
-              bg="transparent"
-            />
-          }
-        >
-          <Box
-            style={{
-              flex: 1,
-              minHeight: 0,
-              display: "flex",
-              overflow: "hidden",
-            }}
-          >
-            {sidePanel && (
-              <Box
-                className="pdf-viewer-side-panel"
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  width: 152,
-                  minWidth: 152,
-                  borderRight: "1px solid var(--mantine-color-default-border)",
-                  backgroundColor: "var(--mantine-color-body)",
-                }}
-              >
-                <Group
-                  justify="space-between"
-                  px={8}
-                  py={6}
-                  wrap="nowrap"
-                >
-                  <Text size="xs" fw={600}>
-                    {sidePanel === "thumbnails" ? "Pages" : "Outline"}
-                  </Text>
-                  <ActionIcon
-                    variant="subtle"
-                    color="gray"
-                    size="xs"
-                    onClick={() => setSidePanel(null)}
-                  >
-                    <IconX size={14} />
-                  </ActionIcon>
-                </Group>
-                <Divider />
-                <ScrollArea style={{ flex: 1, minHeight: 0 }}>
-                  {sidePanel === "thumbnails" ? (
-                    <StackThumbnailList
-                      currentPage={currentPage}
-                      numPages={numPages}
-                      rotation={rotation}
-                      renderRange={thumbnailRenderRange}
-                      onPageChange={handlePageChange}
-                    />
-                  ) : outlineLoading ? (
-                    <Box p="xs">
-                      <Text size="xs" c="dimmed">
-                        Loading outline…
-                      </Text>
-                    </Box>
-                  ) : outlineItems.length > 0 ? (
-                    <Box py={4}>
-                      {outlineItems.map((item) => (
-                        <button
-                          key={item.id}
-                          className="pdf-viewer-outline-item"
-                          disabled={!item.page}
-                          onClick={() => item.page && handlePageChange(item.page)}
-                          style={{
-                            paddingLeft: 8 + item.depth * 12,
-                          }}
-                        >
-                          <span>{item.title}</span>
-                          {item.page && <small>{item.page}</small>}
-                        </button>
-                      ))}
-                    </Box>
-                  ) : (
-                    <Box p="xs">
-                      <Text size="xs" c="dimmed">
-                        No outline in this PDF.
-                      </Text>
-                    </Box>
-                  )}
-                </ScrollArea>
-              </Box>
-            )}
-
-            <Box
-              ref={containerRef}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                minHeight: 0,
-                overflow: "auto",
-                overflowAnchor: "none",
-                backgroundColor: "var(--mantine-color-default)",
-              }}
-              className="pdf-viewer-scroll"
-              onClick={handlePageClick}
-              onScroll={handleScroll}
-            >
-              {loading && <LoadingState message={t("common.loading")} />}
-              {error && <EmptyState message={error} bg="transparent" />}
-              {numPages > 0 && (
-                <Box
-                  className="pdf-viewer-page-window"
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    minWidth: "min-content",
-                  }}
-                >
-                  <Box
-                    aria-hidden="true"
-                    style={{ height: topSpacerHeight, flex: "0 0 auto" }}
-                  />
-                  {visiblePages.map((pageNum) => (
-                    <Box
-                      key={pageNum}
-                      data-page-num={pageNum}
-                      className="pdf-viewer-page"
-                      style={{
-                        width: estimatedPageWidth,
-                        height: estimatedPageHeight,
-                        marginBottom: PAGE_GAP,
-                        flex: "0 0 auto",
-                        boxShadow:
-                          pageNum === currentPage
-                            ? "0 4px 12px rgba(0, 0, 0, 0.4)"
-                            : "0 2px 6px rgba(0, 0, 0, 0.25)",
-                        background: "white",
-                      }}
-                    >
-                      <Page
-                        key={`${documentGeneration}:${visiblePageRenderEpoch}:${rotation}:${pageNum}`}
-                        pageNumber={pageNum}
-                        scale={debouncedScale}
-                        rotate={rotation}
-                        devicePixelRatio={Math.min(
-                          window.devicePixelRatio || 1,
-                          MAX_DEVICE_PIXEL_RATIO,
-                        )}
-                        renderTextLayer={pageNum === currentPage}
-                        renderAnnotationLayer={pageNum === currentPage}
-                        loading={
-                          <Skeleton
-                            height={estimatedPageHeight}
-                            width={estimatedPageWidth}
-                            animate={pageNum === currentPage}
-                          />
-                        }
-                      />
-                    </Box>
-                  ))}
-                  <Box
-                    aria-hidden="true"
-                    style={{ height: bottomSpacerHeight, flex: "0 0 auto" }}
-                  />
-                </Box>
-              )}
-            </Box>
-          </Box>
-        </Document>
+        {viewerBody}
       </Box>
     );
   },
 );
 
-interface StackThumbnailListProps {
+interface PdfiumRenderedPageProps {
+  docId: string;
+  pageNumber: number;
+  scale: number;
+  rotation: number;
+  width: number;
+  height: number;
+  isActive: boolean;
+  onRenderComplete: (metric: PdfRenderMetric) => void;
+}
+
+const PdfiumRenderedPage = memo(function PdfiumRenderedPage({
+  docId,
+  pageNumber,
+  scale,
+  rotation,
+  width,
+  height,
+  isActive,
+  onRenderComplete,
+}: PdfiumRenderedPageProps) {
+  const [renderedPage, setRenderedPage] =
+    useState<PdfiumRenderPageResponse | null>(null);
+  const [renderError, setRenderError] = useState<string | null>(null);
+  const startedAtRef = useRef(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    let deferredRenderTimer: number | null = null;
+    setRenderedPage(null);
+    setRenderError(null);
+
+    const renderPage = () => {
+      startedAtRef.current = performance.now();
+      if (isActive) {
+        console.debug("[DataTeX][PDFIUM_UI] active-page-render-request", {
+          docId,
+          pageNumber,
+          scale,
+          rotation,
+        });
+      }
+      void invoke<PdfiumRenderPageResponse>("pdfium_render_page_cmd", {
+        request: {
+          docId,
+          pageNumber,
+          scale,
+          rotation,
+          devicePixelRatio: getPdfiumDevicePixelRatio(),
+        },
+      })
+        .then((response) => {
+          if (!cancelled) {
+            if (isActive) {
+              console.debug("[DataTeX][PDFIUM_UI] active-page-render-complete", {
+                docId,
+                pageNumber,
+                cacheHit: response.cacheHit,
+                nativeTimeMs: response.renderTimeMs,
+              });
+            }
+            setRenderedPage(response);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            debugLog("error", "PDFIUM_UI", "page-render-failed", {
+              docId,
+              pageNumber,
+              scale,
+              rotation,
+              error,
+            });
+            setRenderError(String(error));
+          }
+        });
+    };
+
+    if (isActive) {
+      renderPage();
+    } else {
+      // The native renderer is intentionally serialized. Give the active page
+      // first access to it before pre-rendering viewport buffer pages.
+      deferredRenderTimer = window.setTimeout(renderPage, 40);
+    }
+
+    return () => {
+      cancelled = true;
+      if (deferredRenderTimer !== null) {
+        window.clearTimeout(deferredRenderTimer);
+      }
+    };
+  }, [docId, pageNumber, rotation, scale]);
+
+  if (renderError) {
+    return (
+      <Box
+        h="100%"
+        w="100%"
+        bg="white"
+        p="sm"
+        style={{ display: "grid", placeItems: "center" }}
+      >
+        <Text size="xs" c="red" ta="center">
+          Rust render failed: {renderError}
+        </Text>
+      </Box>
+    );
+  }
+
+  if (!renderedPage) {
+    return (
+      <Skeleton
+        height={height}
+        width={width}
+        animate={isActive}
+      />
+    );
+  }
+
+  return (
+    <img
+      src={convertFileSrc(renderedPage.imagePath)}
+      alt={`PDF page ${pageNumber}`}
+      draggable={false}
+      className="pdf-viewer-rust-page-image"
+      data-cache-hit={renderedPage.cacheHit || undefined}
+      onLoad={() => {
+        onRenderComplete({
+          backend: "pdfium",
+          pageNumber,
+          totalTimeMs: Math.max(
+            0,
+            Math.round(performance.now() - startedAtRef.current),
+          ),
+          nativeTimeMs: renderedPage.renderTimeMs,
+          pageLoadTimeMs: renderedPage.pageLoadTimeMs,
+          rasterTimeMs: renderedPage.rasterTimeMs,
+          encodeTimeMs: renderedPage.encodeTimeMs,
+          cacheHit: renderedPage.cacheHit,
+        });
+      }}
+      style={{
+        display: "block",
+        width: "100%",
+        height: "100%",
+        userSelect: "none",
+      }}
+    />
+  );
+});
+
+interface StackPdfiumThumbnailListProps {
+  docId: string;
   currentPage: number;
   numPages: number;
+  pageSizes: PdfiumPageSize[];
   rotation: number;
   renderRange: PageRange;
+  thumbnailWidth: number;
   onPageChange: (page: number) => void;
 }
 
-const StackThumbnailList = memo(function StackThumbnailList({
+const StackPdfiumThumbnailList = memo(function StackPdfiumThumbnailList({
+  docId,
   currentPage,
   numPages,
+  pageSizes,
   rotation,
   renderRange,
+  thumbnailWidth,
   onPageChange,
-}: StackThumbnailListProps) {
+}: StackPdfiumThumbnailListProps) {
   return (
     <Box p={8}>
       {Array.from({ length: numPages }, (_, index) => {
         const pageNum = index + 1;
+        const pageSize = pageSizes[index];
+        const isQuarterTurn = rotation % 180 !== 0;
+        const displayWidth = isQuarterTurn
+          ? (pageSize?.height ?? DEFAULT_PAGE_HEIGHT)
+          : (pageSize?.width ?? DEFAULT_PAGE_WIDTH);
+        const displayHeight = isQuarterTurn
+          ? (pageSize?.width ?? DEFAULT_PAGE_WIDTH)
+          : (pageSize?.height ?? DEFAULT_PAGE_HEIGHT);
+        const previewHeight = Math.max(
+          1,
+          Math.round(thumbnailWidth * (displayHeight / displayWidth)),
+        );
         const shouldRenderPage =
           pageNum >= renderRange.start && pageNum <= renderRange.end;
 
@@ -1395,24 +1720,18 @@ const StackThumbnailList = memo(function StackThumbnailList({
             <Box
               className="pdf-viewer-thumbnail-preview"
               style={{
-                width: THUMBNAIL_WIDTH,
-                height: Math.round(THUMBNAIL_WIDTH * 1.42),
+                width: thumbnailWidth,
+                height: previewHeight,
               }}
             >
-              {shouldRenderPage ? (
-                <Page
+              {shouldRenderPage && pageSize ? (
+                <PdfiumThumbnailPreview
+                  docId={docId}
                   pageNumber={pageNum}
-                  width={THUMBNAIL_WIDTH}
-                  rotate={rotation}
-                  devicePixelRatio={1}
-                  renderTextLayer={false}
-                  renderAnnotationLayer={false}
-                  loading={
-                    <Skeleton
-                      width={THUMBNAIL_WIDTH}
-                      height={Math.round(THUMBNAIL_WIDTH * 1.42)}
-                    />
-                  }
+                  pageSize={pageSize}
+                  rotation={rotation}
+                  thumbnailWidth={thumbnailWidth}
+                  isActive={pageNum === currentPage}
                 />
               ) : (
                 <Text size="xs" c="dimmed">
@@ -1427,6 +1746,100 @@ const StackThumbnailList = memo(function StackThumbnailList({
         );
       })}
     </Box>
+  );
+});
+
+interface PdfiumThumbnailPreviewProps {
+  docId: string;
+  pageNumber: number;
+  pageSize: PdfiumPageSize;
+  rotation: number;
+  thumbnailWidth: number;
+  isActive: boolean;
+}
+
+const PdfiumThumbnailPreview = memo(function PdfiumThumbnailPreview({
+  docId,
+  pageNumber,
+  pageSize,
+  rotation,
+  thumbnailWidth,
+  isActive,
+}: PdfiumThumbnailPreviewProps) {
+  const [renderedPage, setRenderedPage] =
+    useState<PdfiumRenderPageResponse | null>(null);
+  const [renderError, setRenderError] = useState<string | null>(null);
+
+  const isQuarterTurn = rotation % 180 !== 0;
+  const displayWidth = isQuarterTurn ? pageSize.height : pageSize.width;
+  const scale = thumbnailWidth / Math.max(1, displayWidth);
+
+  useEffect(() => {
+    let cancelled = false;
+    let deferredRenderTimer: number | null = null;
+    setRenderedPage(null);
+    setRenderError(null);
+
+    const renderThumbnail = () => {
+      void invoke<PdfiumRenderPageResponse>("pdfium_render_page_cmd", {
+        request: {
+          docId,
+          pageNumber,
+          scale,
+          rotation,
+          devicePixelRatio: 1,
+        },
+      })
+        .then((response) => {
+          if (!cancelled) setRenderedPage(response);
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            debugLog("error", "PDFIUM_UI", "thumbnail-render-failed", {
+              docId,
+              pageNumber,
+              scale,
+              rotation,
+              error,
+            });
+            setRenderError(String(error));
+          }
+        });
+    };
+
+    if (isActive) {
+      renderThumbnail();
+    } else {
+      deferredRenderTimer = window.setTimeout(renderThumbnail, 80);
+    }
+
+    return () => {
+      cancelled = true;
+      if (deferredRenderTimer !== null) {
+        window.clearTimeout(deferredRenderTimer);
+      }
+    };
+  }, [docId, isActive, pageNumber, rotation, scale]);
+
+  if (renderError) {
+    return (
+      <Text size="xs" c="red" ta="center">
+        {pageNumber}
+      </Text>
+    );
+  }
+
+  if (!renderedPage) {
+    return <Skeleton height="100%" width="100%" animate={isActive} />;
+  }
+
+  return (
+    <img
+      src={convertFileSrc(renderedPage.imagePath)}
+      alt={`PDF page ${pageNumber} thumbnail`}
+      draggable={false}
+      className="pdf-viewer-rust-thumbnail-image"
+    />
   );
 });
 

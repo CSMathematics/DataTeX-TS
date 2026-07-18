@@ -10,9 +10,11 @@ mod agent;
 mod ai;
 mod compiler;
 mod database;
+mod diagnostics;
 mod git;
 mod history;
 mod lsp;
+mod pdf_renderer;
 mod search;
 mod texlab_downloader;
 mod tools;
@@ -5914,6 +5916,7 @@ async fn lsp_shutdown(state: State<'_, AppState>) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    diagnostics::init();
     tauri::Builder::default()
         .manage(AppState {
             db_manager: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
@@ -5921,6 +5924,8 @@ pub fn run() {
             compilation_manager: compiler::CompilationManager::default(),
         })
         .setup(|app| {
+            diagnostics::terminal_log("INFO", "BOOT", "tauri-setup-start", None);
+            pdf_renderer::configure_resource_dir(app.path().resource_dir().ok());
             let proj_dirs = ProjectDirs::from("", "", "datatex");
             let data_dir = if let Some(proj_dirs) = proj_dirs {
                 let dir = proj_dirs.data_dir().to_path_buf();
@@ -5967,12 +5972,29 @@ pub fn run() {
                 }
             });
 
+            diagnostics::terminal_log("INFO", "BOOT", "tauri-setup-complete", None);
             Ok(())
+        })
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { .. } => diagnostics::terminal_log(
+                "WARN",
+                "WINDOW",
+                "close-requested",
+                Some(&format!("label={}", window.label())),
+            ),
+            tauri::WindowEvent::Destroyed => diagnostics::terminal_log(
+                "WARN",
+                "WINDOW",
+                "destroyed",
+                Some(&format!("label={}", window.label())),
+            ),
+            _ => {}
         })
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(Mutex::new(watcher::GitWatcher::new()))
+        .manage(pdf_renderer::PdfRendererState::default())
         .invoke_handler(tauri::generate_handler![
             git_watch_repo_cmd,
             git_unwatch_repo_cmd,
@@ -6152,6 +6174,14 @@ pub fn run() {
             commands::project_files::get_project_files,
             commands::dtex::load_dtex_cmd,
             commands::dtex::save_dtex_cmd,
+            diagnostics::frontend_debug_log_cmd,
+            pdf_renderer::pdfium_renderer_status_cmd,
+            pdf_renderer::pdfium_open_document_cmd,
+            pdf_renderer::pdfium_render_page_cmd,
+            pdf_renderer::pdfium_extract_page_text_cmd,
+            pdf_renderer::pdfium_extract_outline_cmd,
+            pdf_renderer::pdfium_close_document_cmd,
+            pdf_renderer::pdfium_clear_documents_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
