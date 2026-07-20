@@ -8,6 +8,7 @@ use walkdir::WalkDir; // For typed metadata queries
 
 mod agent;
 mod ai;
+mod bibliography;
 mod compiler;
 mod database;
 mod diagnostics;
@@ -48,18 +49,31 @@ struct AppState {
     db_manager: Arc<Mutex<Option<DatabaseManager>>>,
     lsp_manager: Arc<Mutex<Option<TexlabManager>>>,
     compilation_manager: compiler::CompilationManager,
+    bibliography_watcher: Arc<Mutex<watcher::BibliographyWatcher>>,
 }
 
 // 2. Open Project Command
 #[tauri::command]
-async fn open_project(path: String, state: State<'_, AppState>) -> Result<String, String> {
+async fn open_project(
+    path: String,
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
     println!("Switching active project database to: {}", path);
 
     // Re-initialize the database manager with the new path
     match DatabaseManager::new(&path).await {
         Ok(new_manager) => {
+            let pool = new_manager.pool.clone();
             let mut db_guard = state.db_manager.lock().await;
             *db_guard = Some(new_manager);
+            drop(db_guard);
+            backfill_and_watch_bibliography(
+                pool,
+                app_handle,
+                Arc::clone(&state.bibliography_watcher),
+            )
+            .await;
             println!("Database successfully switched to: {}/project.db", path);
             Ok(format!("Database switched to {}", path))
         }
@@ -123,6 +137,467 @@ async fn run_texcount_command(args: Vec<String>, cwd: String) -> Result<String, 
 }
 
 #[tauri::command]
+fn parse_bibliography_preview_cmd(content: String) -> bibliography::parser::ParsedBibliography {
+    bibliography::parser::parse_bibliography(&content)
+}
+
+#[tauri::command]
+async fn reparse_bibliography_resource_cmd(
+    resource_id: String,
+    state: State<'_, AppState>,
+) -> Result<bibliography::service::BibliographyImportResult, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::reparse_bibliography_resource(&db.pool, &resource_id).await
+}
+
+#[tauri::command]
+async fn backfill_existing_bibliography_metadata_cmd(
+    state: State<'_, AppState>,
+) -> Result<bibliography::service::BibliographyBackfillResult, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::backfill_existing_bibliography_metadata(&db.pool).await
+}
+
+#[tauri::command]
+async fn list_bibliography_entries_for_resource_cmd(
+    resource_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::BibliographyEntrySummary>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::list_bibliography_entries_for_resource(&db.pool, &resource_id).await
+}
+
+#[tauri::command]
+async fn search_bibliography_entries_cmd(
+    resource_id: Option<String>,
+    query: String,
+    limit: Option<i64>,
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::BibliographyEntrySummary>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::search_bibliography_entries(
+        &db.pool,
+        resource_id.as_deref(),
+        &query,
+        limit.unwrap_or(80),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn list_bibliography_workspace_entries_cmd(
+    source_id: Option<String>,
+    query: String,
+    entry_type: Option<String>,
+    smart_view: Option<String>,
+    tag: Option<String>,
+    limit: Option<i64>,
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::BibliographyEntrySummary>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::list_workspace_bibliography_entries(
+        &db.pool,
+        source_id.as_deref(),
+        &query,
+        entry_type.as_deref(),
+        smart_view.as_deref(),
+        tag.as_deref(),
+        limit.unwrap_or(500),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn update_bibliography_entry_cmd(
+    request: bibliography::service::BibliographyEntryUpdateRequest,
+    state: State<'_, AppState>,
+) -> Result<bibliography::service::BibliographyEntrySummary, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::update_bibliography_entry(&db.pool, request).await
+}
+
+#[tauri::command]
+async fn batch_update_bibliography_entries_cmd(
+    request: bibliography::service::BatchBibliographyEntryUpdateRequest,
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::BibliographyEntrySummary>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::batch_update_bibliography_entries(&db.pool, request).await
+}
+
+#[tauri::command]
+async fn export_bibliography_entries_cmd(
+    entry_ids: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::export_bibliography_entries(&db.pool, entry_ids).await
+}
+
+#[tauri::command]
+async fn export_bibliography_entries_as_cmd(
+    entry_ids: Vec<String>,
+    format: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::export_bibliography_entries_as(&db.pool, entry_ids, &format).await
+}
+
+#[tauri::command]
+async fn import_bibliography_content_cmd(
+    request: bibliography::service::BibliographyContentImportRequest,
+    state: State<'_, AppState>,
+) -> Result<bibliography::service::BibliographyContentImportResult, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::import_bibliography_content(&db.pool, request).await
+}
+
+#[tauri::command]
+async fn lookup_bibliography_doi_cmd(
+    request: bibliography::service::BibliographyDoiLookupRequest,
+) -> Result<bibliography::service::BibliographyDoiLookupResult, String> {
+    bibliography::service::lookup_bibliography_doi(request).await
+}
+
+#[tauri::command]
+async fn import_bibliography_doi_cmd(
+    request: bibliography::service::BibliographyDoiLookupRequest,
+    state: State<'_, AppState>,
+) -> Result<bibliography::service::BibliographyContentImportResult, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::import_bibliography_doi(&db.pool, request).await
+}
+
+#[tauri::command]
+async fn list_bibliography_tags_cmd(
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::BibliographyTagSummary>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::list_bibliography_tags(&db.pool).await
+}
+
+#[tauri::command]
+async fn list_bibliography_history_cmd(
+    source_id: Option<String>,
+    entry_id: Option<String>,
+    resource_id: Option<String>,
+    limit: Option<i64>,
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::BibliographyHistorySummary>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::list_bibliography_history(
+        &db.pool,
+        source_id.as_deref(),
+        entry_id.as_deref(),
+        resource_id.as_deref(),
+        limit.unwrap_or(100),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn list_bibliography_entry_notes_cmd(
+    entry_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::BibliographyEntryNoteSummary>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::list_bibliography_entry_notes(&db.pool, &entry_id).await
+}
+
+#[tauri::command]
+async fn save_bibliography_entry_note_cmd(
+    request: bibliography::service::BibliographyEntryNoteUpsertRequest,
+    state: State<'_, AppState>,
+) -> Result<bibliography::service::BibliographyEntryNoteSummary, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::save_bibliography_entry_note(&db.pool, request).await
+}
+
+#[tauri::command]
+async fn delete_bibliography_entry_note_cmd(
+    note_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::delete_bibliography_entry_note(&db.pool, &note_id).await
+}
+
+#[tauri::command]
+async fn list_bibliography_entry_attachments_cmd(
+    entry_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::BibliographyEntryAttachmentSummary>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::list_bibliography_entry_attachments(&db.pool, &entry_id).await
+}
+
+#[tauri::command]
+async fn attach_bibliography_entry_file_cmd(
+    request: bibliography::service::BibliographyEntryAttachmentRequest,
+    state: State<'_, AppState>,
+) -> Result<bibliography::service::BibliographyEntryAttachmentSummary, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::attach_bibliography_entry_file(&db.pool, request).await
+}
+
+#[tauri::command]
+async fn delete_bibliography_entry_attachment_cmd(
+    attachment_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::delete_bibliography_entry_attachment(&db.pool, &attachment_id).await
+}
+
+#[tauri::command]
+async fn list_bibliography_pdf_annotations_cmd(
+    entry_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::BibliographyPdfAnnotationSummary>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::list_bibliography_pdf_annotations(&db.pool, &entry_id).await
+}
+
+#[tauri::command]
+async fn save_bibliography_pdf_annotation_cmd(
+    request: bibliography::service::BibliographyPdfAnnotationUpsertRequest,
+    state: State<'_, AppState>,
+) -> Result<bibliography::service::BibliographyPdfAnnotationSummary, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::save_bibliography_pdf_annotation(&db.pool, request).await
+}
+
+#[tauri::command]
+async fn delete_bibliography_pdf_annotation_cmd(
+    annotation_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::delete_bibliography_pdf_annotation(&db.pool, &annotation_id).await
+}
+
+#[tauri::command]
+async fn bibliography_citation_graph_cmd(
+    entry_id: String,
+    limit: Option<i64>,
+    state: State<'_, AppState>,
+) -> Result<bibliography::service::BibliographyCitationGraphSummary, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::bibliography_citation_graph(&db.pool, &entry_id, limit.unwrap_or(80))
+        .await
+}
+
+#[tauri::command]
+async fn list_bibliography_collection_federation_cmd(
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::BibliographyCollectionFederationSummary>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::list_bibliography_collection_federation(&db.pool).await
+}
+
+#[tauri::command]
+async fn save_bibliography_collection_federation_cmd(
+    request: bibliography::service::BibliographyCollectionFederationRequest,
+    state: State<'_, AppState>,
+) -> Result<bibliography::service::BibliographyCollectionFederationSummary, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::save_bibliography_collection_federation(&db.pool, request).await
+}
+
+#[tauri::command]
+async fn delete_bibliography_collection_federation_cmd(
+    collection: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::delete_bibliography_collection_federation(&db.pool, &collection).await
+}
+
+#[tauri::command]
+async fn watch_bibliography_resources_cmd(
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<watcher::BibliographyWatchSummary, String> {
+    let pool = {
+        let db_guard = state.db_manager.lock().await;
+        let db = db_guard.as_ref().ok_or("Database not initialized")?;
+        db.pool.clone()
+    };
+    let watcher = state.bibliography_watcher.lock().await;
+    watcher.watch_tracked(pool, app_handle).await
+}
+
+#[tauri::command]
+async fn unwatch_bibliography_resources_cmd(state: State<'_, AppState>) -> Result<(), String> {
+    let watcher = state.bibliography_watcher.lock().await;
+    watcher.unwatch();
+    Ok(())
+}
+
+async fn backfill_and_watch_bibliography(
+    pool: sqlx::SqlitePool,
+    app_handle: tauri::AppHandle,
+    bibliography_watcher: Arc<Mutex<watcher::BibliographyWatcher>>,
+) {
+    match bibliography::service::backfill_existing_bibliography_metadata(&pool).await {
+        Ok(result) => {
+            if result.entries_imported > 0
+                || result.sources_created > 0
+                || !result.warnings.is_empty()
+            {
+                println!(
+                    "Bibliography backfill complete: {} sources, {} entries, {} skipped existing, {} skipped invalid.",
+                    result.sources_created,
+                    result.entries_imported,
+                    result.skipped_existing,
+                    result.skipped_invalid
+                );
+                for warning in result.warnings.iter().take(5) {
+                    eprintln!("Bibliography backfill warning: {warning}");
+                }
+            }
+        }
+        Err(error) => eprintln!("Failed to backfill bibliography metadata: {error}"),
+    }
+
+    match bibliography_watcher
+        .lock()
+        .await
+        .watch_tracked(pool, app_handle)
+        .await
+    {
+        Ok(summary) => println!(
+            "Bibliography watcher started: {} resources in {} directories.",
+            summary.tracked_resources, summary.watched_directories
+        ),
+        Err(error) => {
+            eprintln!("Failed to start bibliography watcher: {error}");
+        }
+    }
+}
+
+#[tauri::command]
+async fn set_bibliography_entry_tags_cmd(
+    entry_id: String,
+    tags: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<bibliography::service::BibliographyEntrySummary, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::set_bibliography_entry_tags(&db.pool, &entry_id, tags).await
+}
+
+#[tauri::command]
+async fn list_all_bibliography_sources_cmd(
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::BibliographySourceOption>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::list_all_bibliography_sources(&db.pool).await
+}
+
+#[tauri::command]
+async fn list_linked_bibliography_sources_cmd(
+    resource_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::BibliographySourceOption>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::list_linked_bibliography_sources(&db.pool, &resource_id).await
+}
+
+#[tauri::command]
+async fn link_bibliography_source_cmd(
+    resource_id: String,
+    source_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::link_bibliography_source(&db.pool, &resource_id, &source_id).await
+}
+
+#[tauri::command]
+async fn unlink_bibliography_source_cmd(
+    resource_id: String,
+    source_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::unlink_bibliography_source(&db.pool, &resource_id, &source_id).await
+}
+
+#[tauri::command]
+async fn detect_bibliography_declarations_cmd(
+    resource_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::BibliographyDeclarationSummary>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::detect_bibliography_declarations(&db.pool, &resource_id).await
+}
+
+#[tauri::command]
+async fn auto_link_declared_bibliography_sources_cmd(
+    resource_id: String,
+    state: State<'_, AppState>,
+) -> Result<bibliography::service::BibliographyAutoLinkResult, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::auto_link_declared_bibliography_sources(&db.pool, &resource_id).await
+}
+
+#[tauri::command]
+async fn scan_resource_citations_cmd(
+    resource_id: String,
+    state: State<'_, AppState>,
+) -> Result<bibliography::service::CitationScanResult, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::scan_resource_citations(&db.pool, &resource_id).await
+}
+
+#[tauri::command]
+async fn resolve_citation_keys_cmd(
+    resource_id: Option<String>,
+    citation_keys: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<bibliography::service::CitationKeyResolutionSummary>, String> {
+    let db_guard = state.db_manager.lock().await;
+    let db = db_guard.as_ref().ok_or("Database not initialized")?;
+    bibliography::service::resolve_citation_keys(&db.pool, resource_id.as_deref(), citation_keys)
+        .await
+}
+
+#[tauri::command]
 async fn compile_resource_cmd(
     id: String,
     preamble_override: Option<String>,
@@ -131,7 +606,7 @@ async fn compile_resource_cmd(
 ) -> Result<String, String> {
     let compilation_id = compilation_id.unwrap_or_else(|| Uuid::new_v4().to_string());
     let permit = state.compilation_manager.begin(compilation_id)?;
-    let (resource, preamble_id, build_command, preamble_path) = {
+    let (resource, preamble_id, build_command, preamble_path, use_bibliography, bib_compile_engine) = {
         let db_guard = state.db_manager.lock().await;
         let db = db_guard.as_ref().ok_or("Database not initialized")?;
         let resource = db
@@ -148,6 +623,17 @@ async fn compile_resource_cmd(
             .and_then(|value| value.as_str())
             .unwrap_or("pdflatex")
             .to_owned();
+        let use_bibliography = metadata
+            .get("useBibliography")
+            .or_else(|| metadata.get("use_bibliography"))
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
+        let bib_compile_engine = metadata
+            .get("bibCompileEngine")
+            .or_else(|| metadata.get("bib_compile_engine"))
+            .and_then(|value| value.as_str())
+            .unwrap_or("biber")
+            .to_owned();
         let preamble_path = match (&preamble_override, &preamble_id) {
             (None, Some(preamble_id)) if !preamble_id.starts_with("builtin:") => Some(
                 db.get_resource_by_id(preamble_id)
@@ -157,7 +643,14 @@ async fn compile_resource_cmd(
             ),
             _ => None,
         };
-        (resource, preamble_id, build_command, preamble_path)
+        (
+            resource,
+            preamble_id,
+            build_command,
+            preamble_path,
+            use_bibliography,
+            bib_compile_engine,
+        )
     };
 
     tokio::task::spawn_blocking(move || {
@@ -200,7 +693,7 @@ async fn compile_resource_cmd(
             fs::write(&temp_path, full_document)
                 .map_err(|error| format!("Failed to write preview file: {}", error))?;
 
-            let result = compiler::compile(
+            let result = compiler::compile_with_bibliography(
                 &temp_path.to_string_lossy(),
                 &build_command,
                 vec![
@@ -209,12 +702,13 @@ async fn compile_resource_cmd(
                     format!("-jobname={}", file_stem),
                 ],
                 &output_dir,
+                use_bibliography.then_some(bib_compile_engine.as_str()),
                 permit,
             );
             let _ = fs::remove_file(&temp_path);
             result?;
         } else {
-            compiler::compile(
+            compiler::compile_with_bibliography(
                 &resource.path,
                 &build_command,
                 vec![
@@ -222,6 +716,7 @@ async fn compile_resource_cmd(
                     "-synctex=1".to_string(),
                 ],
                 &output_dir,
+                use_bibliography.then_some(bib_compile_engine.as_str()),
                 permit,
             )?;
         }
@@ -5922,6 +6417,9 @@ pub fn run() {
             db_manager: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
             lsp_manager: std::sync::Arc::new(tokio::sync::Mutex::new(None)),
             compilation_manager: compiler::CompilationManager::default(),
+            bibliography_watcher: std::sync::Arc::new(tokio::sync::Mutex::new(
+                watcher::BibliographyWatcher::new(),
+            )),
         })
         .setup(|app| {
             diagnostics::terminal_log("INFO", "BOOT", "tauri-setup-start", None);
@@ -5961,9 +6459,17 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 match DatabaseManager::new(&data_dir_str).await {
                     Ok(manager) => {
+                        let pool = manager.pool.clone();
                         let state = app_handle.state::<AppState>();
                         let mut db_guard = state.db_manager.lock().await;
                         *db_guard = Some(manager);
+                        drop(db_guard);
+                        backfill_and_watch_bibliography(
+                            pool,
+                            app_handle.clone(),
+                            Arc::clone(&state.bibliography_watcher),
+                        )
+                        .await;
                         println!("Global database initialized successfully.");
                     }
                     Err(e) => {
@@ -6006,6 +6512,45 @@ pub fn run() {
             stop_compile,
             run_synctex_command,
             run_texcount_command,
+            parse_bibliography_preview_cmd,
+            reparse_bibliography_resource_cmd,
+            backfill_existing_bibliography_metadata_cmd,
+            list_bibliography_entries_for_resource_cmd,
+            search_bibliography_entries_cmd,
+            list_bibliography_workspace_entries_cmd,
+            update_bibliography_entry_cmd,
+            batch_update_bibliography_entries_cmd,
+            export_bibliography_entries_cmd,
+            export_bibliography_entries_as_cmd,
+            import_bibliography_content_cmd,
+            lookup_bibliography_doi_cmd,
+            import_bibliography_doi_cmd,
+            list_bibliography_tags_cmd,
+            list_bibliography_history_cmd,
+            list_bibliography_entry_notes_cmd,
+            save_bibliography_entry_note_cmd,
+            delete_bibliography_entry_note_cmd,
+            list_bibliography_entry_attachments_cmd,
+            attach_bibliography_entry_file_cmd,
+            delete_bibliography_entry_attachment_cmd,
+            list_bibliography_pdf_annotations_cmd,
+            save_bibliography_pdf_annotation_cmd,
+            delete_bibliography_pdf_annotation_cmd,
+            bibliography_citation_graph_cmd,
+            list_bibliography_collection_federation_cmd,
+            save_bibliography_collection_federation_cmd,
+            delete_bibliography_collection_federation_cmd,
+            watch_bibliography_resources_cmd,
+            unwatch_bibliography_resources_cmd,
+            set_bibliography_entry_tags_cmd,
+            list_all_bibliography_sources_cmd,
+            list_linked_bibliography_sources_cmd,
+            link_bibliography_source_cmd,
+            unlink_bibliography_source_cmd,
+            detect_bibliography_declarations_cmd,
+            auto_link_declared_bibliography_sources_cmd,
+            scan_resource_citations_cmd,
+            resolve_citation_keys_cmd,
             compile_resource_cmd,
             get_system_fonts,
             get_table_data_cmd,

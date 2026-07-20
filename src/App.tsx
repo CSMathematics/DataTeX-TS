@@ -146,6 +146,11 @@ const DatabaseView = lazy(() =>
     default: module.DatabaseView,
   })),
 );
+const BibliographyWorkspace = lazy(() =>
+  import("./components/bibliography/BibliographyWorkspace").then((module) => ({
+    default: module.BibliographyWorkspace,
+  })),
+);
 const ResourceInspector = lazy(() =>
   import("./components/database/ResourceInspector").then((module) => ({
     default: module.ResourceInspector,
@@ -646,9 +651,14 @@ export default function App() {
       } else {
         if (section === "database") {
           setActiveView("database");
+          setShowDatabasePanel(true);
+        } else if (section === "bibliography") {
+          setActiveView("bibliography-workspace");
         } else {
           setActiveView((currentView) =>
-            currentView === "settings" || currentView === "database"
+            currentView === "settings" ||
+            currentView === "database" ||
+            currentView === "bibliography-workspace"
               ? "editor"
               : currentView,
           );
@@ -665,6 +675,25 @@ export default function App() {
     },
     [activeActivity],
   );
+
+  const handleNavigateView = useCallback((view: ViewType) => {
+    setActiveView(view);
+
+    if (view === "database") {
+      setActiveActivity("database");
+      setShowDatabasePanel(true);
+      return;
+    }
+
+    if (view === "bibliography-workspace") {
+      setActiveActivity("bibliography");
+      setIsSidebarOpen(true);
+    }
+  }, []);
+
+  const handleExitBibliographyWorkspace = useCallback(() => {
+    handleNavigateView("database");
+  }, [handleNavigateView]);
 
   // --- HELPER: Load Project Files ---
   // --- HELPER: Load Project Files (Moved to useProjectFiles) ---
@@ -1778,7 +1807,7 @@ export default function App() {
                 onResizeStart={startResizeSidebar}
                 activeSection={activeActivity} // This assumes activeActivity is of type SidebarSection
                 onToggleSection={handleToggleSidebar}
-                onNavigate={setActiveView}
+                onNavigate={handleNavigateView}
                 // File System
                 onOpenFolder={handleOpenFolder}
                 onAddFolder={handleAddFolder}
@@ -1851,6 +1880,12 @@ export default function App() {
                       onResetAllLatexSyntaxColors={
                         resetAllLatexSyntaxColors
                       }
+                    />
+                  </Suspense>
+                ) : activeView === "bibliography-workspace" ? (
+                  <Suspense fallback={<ViewLoadingFallback />}>
+                    <BibliographyWorkspace
+                      onClose={handleExitBibliographyWorkspace}
                     />
                   </Suspense>
                 ) : /* Default: EDITOR AREA with optional Database Panel */
@@ -2054,7 +2089,7 @@ export default function App() {
               </Box>
 
               {/* 3. RIGHT PANEL (PDF / Inspectors / Gallery) */}
-              {showRightPanel && (
+              {showRightPanel && activeView !== "bibliography-workspace" && (
                 <>
                   <ResizerHandle
                     onPointerDown={startResizeRightPanel}
