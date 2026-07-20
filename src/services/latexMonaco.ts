@@ -3,6 +3,7 @@ import {
   latexLanguage,
   setupLatexProviders,
 } from "../languages/latex";
+import { registerCitationProviders } from "./citationCompletions";
 import { dataTexHCTheme } from "../themes/monaco-hc";
 import { dataTexLightTheme } from "../themes/monaco-light";
 import { monokaiTheme } from "../themes/monaco-monokai";
@@ -94,6 +95,7 @@ export function configureLatexMonaco(monaco: any): void {
     latexConfiguration,
   );
   setupLatexProviders(monaco);
+  registerCitationProviders(monaco);
   configuredInstances.add(monaco);
 }
 

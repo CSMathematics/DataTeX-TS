@@ -143,6 +143,7 @@ impl CompilationPermit {
         {
             let mut lifecycle = lock_unpoisoned(&self.signal.lifecycle);
             lifecycle.pid = Some(pid);
+            lifecycle.finished = false;
             self.signal.changed.notify_all();
         }
         self.manager.cancellation_requested(&self.id)
@@ -253,7 +254,7 @@ fn signal_process_tree(_pid: u32, _force: bool) -> Result<(), String> {
 
 fn is_allowed_engine(engine: &str) -> bool {
     let allowed_engines = [
-        "pdflatex", "xelatex", "lualatex", "latexmk", "synctex", "texcount",
+        "pdflatex", "xelatex", "lualatex", "latexmk", "bibtex", "biber", "synctex", "texcount",
     ];
     let path = Path::new(engine);
     let name = path
@@ -263,6 +264,19 @@ fn is_allowed_engine(engine: &str) -> bool {
         .unwrap_or_default();
 
     allowed_engines.contains(&name.as_str())
+}
+
+fn is_latex_engine(engine: &str) -> bool {
+    let path = Path::new(engine);
+    let name = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_lowercase())
+        .unwrap_or_default();
+    matches!(
+        name.as_str(),
+        "pdflatex" | "xelatex" | "lualatex" | "latexmk"
+    )
 }
 
 // Helper to add common LaTeX paths.
@@ -333,17 +347,36 @@ pub fn compile(
     file_path: &str,
     engine: &str,
     args: Vec<String>,
+    output_dir: &str,
+    permit: CompilationPermit,
+) -> Result<String, String> {
+    compile_with_bibliography(file_path, engine, args, output_dir, None, permit)
+}
+
+pub fn compile_with_bibliography(
+    file_path: &str,
+    engine: &str,
+    args: Vec<String>,
     _output_dir: &str,
+    bibliography_engine: Option<&str>,
     permit: CompilationPermit,
 ) -> Result<String, String> {
     permit.ensure_not_cancelled()?;
 
     // 1. Validate engine
-    if !is_allowed_engine(engine) {
+    if !is_latex_engine(engine) {
         return Err(format!(
             "Invalid engine: {}. Allowed engines are: pdflatex, xelatex, lualatex, latexmk",
             engine
         ));
+    }
+    if let Some(bibliography_engine) = bibliography_engine {
+        if !is_allowed_engine(bibliography_engine) || !is_bibliography_engine(bibliography_engine) {
+            return Err(format!(
+                "Invalid bibliography engine: {}. Allowed bibliography engines are: bibtex, biber",
+                bibliography_engine
+            ));
+        }
     }
 
     let path = Path::new(file_path);
@@ -358,10 +391,64 @@ pub fn compile(
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| "The LaTeX file path has no valid UTF-8 file name".to_string())?;
+    let job_name = job_name_from_args(&args).unwrap_or_else(|| {
+        path.file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap_or(file_name)
+            .to_string()
+    });
+
+    run_compilation_process(engine, args.clone(), file_name, parent_dir, &permit)?;
+
+    if let Some(bibliography_engine) = bibliography_engine {
+        run_compilation_process(bibliography_engine, vec![job_name], "", parent_dir, &permit)?;
+        run_compilation_process(engine, args.clone(), file_name, parent_dir, &permit)?;
+        run_compilation_process(engine, args, file_name, parent_dir, &permit)?;
+    }
+
+    Ok("Compilation successful".to_string())
+}
+
+fn is_bibliography_engine(engine: &str) -> bool {
+    let path = Path::new(engine);
+    let name = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_lowercase())
+        .unwrap_or_default();
+    matches!(name.as_str(), "bibtex" | "biber")
+}
+
+fn job_name_from_args(args: &[String]) -> Option<String> {
+    let mut index = 0;
+    while index < args.len() {
+        let arg = &args[index];
+        if let Some(value) = arg.strip_prefix("-jobname=") {
+            return Some(value.trim_matches('"').to_string()).filter(|value| !value.is_empty());
+        }
+        if arg == "-jobname" {
+            return args
+                .get(index + 1)
+                .map(|value| value.trim_matches('"').to_string())
+                .filter(|value| !value.is_empty());
+        }
+        index += 1;
+    }
+    None
+}
+
+fn run_compilation_process(
+    command: &str,
+    args: Vec<String>,
+    file_name: &str,
+    cwd: &Path,
+    permit: &CompilationPermit,
+) -> Result<String, String> {
+    permit.ensure_not_cancelled()?;
 
     // 3. Setup Command
-    let mut cmd = Command::new(engine);
-    cmd.current_dir(parent_dir);
+    let mut cmd = Command::new(command);
+    cmd.current_dir(cwd);
     configure_process_group(&mut cmd);
 
     // Inject augmented PATH.
@@ -374,7 +461,9 @@ pub fn compile(
     }
 
     // Always add the filename last
-    cmd.arg(file_name);
+    if !file_name.is_empty() {
+        cmd.arg(file_name);
+    }
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -383,7 +472,7 @@ pub fn compile(
     let mut child = cmd.spawn().map_err(|e| {
         format!(
             "Failed to execute command '{}'. \nSystem Error: {} \nDebug Path: {}",
-            engine, e, new_path_env
+            command, e, new_path_env
         )
     })?;
 
@@ -434,10 +523,11 @@ pub fn compile(
     }
 
     if status.success() {
-        Ok("Compilation successful".to_string())
+        Ok(format!("Command '{}' completed successfully", command))
     } else {
         Err(format!(
-            "Compilation failed with status code: {:?}\n\nSTDOUT:\n{}\n\nSTDERR:\n{}",
+            "Command '{}' failed with status code: {:?}\n\nSTDOUT:\n{}\n\nSTDERR:\n{}",
+            command,
             status.code(),
             String::from_utf8_lossy(&stdout),
             String::from_utf8_lossy(&stderr)
@@ -487,8 +577,13 @@ mod tests {
         assert!(is_allowed_engine("xelatex"));
         assert!(is_allowed_engine("lualatex"));
         assert!(is_allowed_engine("latexmk"));
+        assert!(is_allowed_engine("bibtex"));
+        assert!(is_allowed_engine("biber"));
         assert!(is_allowed_engine("synctex"));
         assert!(is_allowed_engine("texcount"));
+        assert!(is_latex_engine("pdflatex"));
+        assert!(!is_latex_engine("bibtex"));
+        assert!(is_bibliography_engine("biber"));
     }
 
     #[test]
@@ -572,6 +667,69 @@ mod tests {
 
         let result = compile_thread.join().expect("compiler thread should join");
         assert_eq!(result, Err("Compilation stopped by user".to_string()));
+        fs::remove_dir_all(&test_dir).expect("remove test directory");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bibliography_pipeline_runs_latex_bibtex_latex_latex_with_jobname() {
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+
+        let test_dir = env::temp_dir().join(format!(
+            "datatex-compiler-bib-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&test_dir).expect("create test directory");
+        let latex_path = test_dir.join("pdflatex");
+        let bibtex_path = test_dir.join("bibtex");
+        let tex_path = test_dir.join("document.tex");
+        fs::write(
+            &latex_path,
+            "#!/bin/sh\necho \"pdflatex:$*\" >> compile.log\nexit 0\n",
+        )
+        .expect("write fake latex");
+        fs::write(
+            &bibtex_path,
+            "#!/bin/sh\necho \"bibtex:$*\" >> compile.log\nexit 0\n",
+        )
+        .expect("write fake bibtex");
+        for path in [&latex_path, &bibtex_path] {
+            let mut permissions = fs::metadata(path).expect("metadata").permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(path, permissions).expect("make executable");
+        }
+        fs::write(&tex_path, "\\documentclass{article}").expect("write test TeX file");
+
+        let manager = CompilationManager::default();
+        let permit = manager
+            .begin("bib-pipeline".to_string())
+            .expect("register compilation");
+        let result = compile_with_bibliography(
+            tex_path.to_str().expect("UTF-8 test path"),
+            latex_path.to_str().expect("UTF-8 latex path"),
+            vec![
+                "-interaction=nonstopmode".to_string(),
+                "-jobname=custom-output".to_string(),
+            ],
+            "",
+            Some(bibtex_path.to_str().expect("UTF-8 bibtex path")),
+            permit,
+        );
+        assert_eq!(result, Ok("Compilation successful".to_string()));
+
+        let log = fs::read_to_string(test_dir.join("compile.log")).expect("read log");
+        let lines: Vec<&str> = log.lines().collect();
+        assert_eq!(
+            lines,
+            vec![
+                "pdflatex:-interaction=nonstopmode -jobname=custom-output document.tex",
+                "bibtex:custom-output",
+                "pdflatex:-interaction=nonstopmode -jobname=custom-output document.tex",
+                "pdflatex:-interaction=nonstopmode -jobname=custom-output document.tex",
+            ]
+        );
+
         fs::remove_dir_all(&test_dir).expect("remove test directory");
     }
 }

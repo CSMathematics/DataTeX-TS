@@ -61,6 +61,7 @@ import { useDatabaseStore } from "../../stores/databaseStore";
 import { getMonacoKeyBinding } from "../../utils/ShortcutUtils";
 import { loadLocalMonaco } from "../../services/monacoLoader";
 import { configureLatexMonaco } from "../../services/latexMonaco";
+import { attachCitationDiagnostics } from "../../services/citationDiagnostics";
 
 const MonacoEditor = React.lazy(() =>
   loadLocalMonaco().then(({ reactMonaco }) => ({
@@ -499,6 +500,12 @@ export const EditorArea = React.memo<EditorAreaProps>(
       setMonacoInstance(monaco);
       handleEditorMount(editor, monaco);
     };
+
+    React.useEffect(() => {
+      if (!editorInstance || !monacoInstance) return;
+      const disposable = attachCitationDiagnostics(editorInstance, monacoInstance);
+      return () => disposable.dispose();
+    }, [editorInstance, monacoInstance]);
 
     // --- LSP Integration Effect ---
     // This runs when lspClient becomes ready or editorInstance changes

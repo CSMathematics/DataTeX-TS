@@ -59,6 +59,13 @@ impl DatabaseManager {
             include_str!("../../migrations/013_resource_dtx_ins.sql"), // 12
             include_str!("../../migrations/014_json_metadata_backfill.sql"), // 13
             include_str!("../../migrations/015_preserve_exercise_types.sql"), // 14
+            include_str!("../../migrations/016_bibliography_core.sql"), // 15
+            include_str!("../../migrations/017_bibliography_tags.sql"), // 16
+            include_str!("../../migrations/018_bibliography_fts_history.sql"), // 17
+            include_str!("../../migrations/019_bibliography_notes.sql"), // 18
+            include_str!("../../migrations/020_bibliography_attachments.sql"), // 19
+            include_str!("../../migrations/021_bibliography_pdf_annotations.sql"), // 20
+            include_str!("../../migrations/022_bibliography_federation.sql"), // 21
         ];
 
         // `user_version` is the number of successfully applied entries in `schemas`.
@@ -548,12 +555,20 @@ mod tests {
             .await
             .expect("fresh schema should initialize");
 
-        assert_eq!(user_version(&pool).await, 14);
+        assert_eq!(user_version(&pool).await, 21);
         for table in [
             "resources",
             "resource_files",
             "resource_documents",
             "resource_bibliographies",
+            "bib_sources",
+            "bib_entries",
+            "bib_entry_notes",
+            "bib_entry_attachments",
+            "bib_entry_pdf_annotations",
+            "bib_collection_federation",
+            "bib_entry_fts",
+            "bib_history",
             "resource_dtx",
             "resource_ins",
         ] {
@@ -632,7 +647,7 @@ mod tests {
             .await
             .expect("idempotent replay should succeed");
 
-        assert_eq!(user_version(&pool).await, 14);
+        assert_eq!(user_version(&pool).await, 21);
         let title: (String,) =
             sqlx::query_as("SELECT title FROM resources WHERE id = 'legacy-resource'")
                 .fetch_one(&pool)
@@ -656,7 +671,7 @@ mod tests {
             .await
             .expect("legacy sentinel should replay safely");
 
-        assert_eq!(user_version(&pool).await, 14);
+        assert_eq!(user_version(&pool).await, 21);
     }
 
     #[tokio::test]
@@ -665,7 +680,7 @@ mod tests {
         DatabaseManager::init_schema(&pool)
             .await
             .expect("initial schema");
-        sqlx::query("PRAGMA user_version = 15")
+        sqlx::query("PRAGMA user_version = 23")
             .execute(&pool)
             .await
             .expect("simulate newer application schema");
@@ -675,7 +690,7 @@ mod tests {
             .expect_err("newer schema must be rejected");
 
         assert!(error.to_string().contains("newer than supported"));
-        assert_eq!(user_version(&pool).await, 15);
+        assert_eq!(user_version(&pool).await, 23);
     }
 
     #[tokio::test]
@@ -867,7 +882,7 @@ mod tests {
             .await
             .expect("safe JSON backfill");
 
-        assert_eq!(user_version(&pool).await, 14);
+        assert_eq!(user_version(&pool).await, 21);
         let existing_description: (Option<String>,) = sqlx::query_as(
             "SELECT file_description FROM resource_files WHERE resource_id = 'existing-file'",
         )
@@ -1010,6 +1025,6 @@ mod tests {
         .await
         .expect("existing row after repeat");
         assert_eq!(existing_after_repeat.0.as_deref(), Some("keep typed data"));
-        assert_eq!(user_version(&pool).await, 14);
+        assert_eq!(user_version(&pool).await, 21);
     }
 }

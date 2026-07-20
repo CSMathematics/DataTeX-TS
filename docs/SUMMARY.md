@@ -21,4 +21,7 @@
 - [Overview](developer-guide/README.md)
 - [Architecture](developer-guide/architecture.md)
 - [Technical Implementation](developer-guide/technical-implementation.md)
+- [Bibliography Management Plan](bibliography-management-plan.md)
+- [Package Studio Implementation Plan](package-studio-plan.md)
+- [Graphics Package Studio Implementation Plan](graphics-package-studio-plan.md)
 - [Contributing](developer-guide/contributing.md)

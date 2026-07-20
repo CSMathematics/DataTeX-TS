@@ -18,6 +18,7 @@ import {
   faCodeBranch,
   faCog,
   faDatabase,
+  faBookOpen,
   faTable,
   faSquareRootAlt,
   faCube,
@@ -57,6 +58,11 @@ const HistoryPanel = React.lazy(() =>
     default: module.HistoryPanel,
   })),
 );
+const BibliographySidebarPanel = React.lazy(() =>
+  import("../bibliography/BibliographySidebarPanel").then((module) => ({
+    default: module.BibliographySidebarPanel,
+  })),
+);
 
 // --- Types ---
 export type SidebarSection =
@@ -64,6 +70,7 @@ export type SidebarSection =
   | "git"
   | "history"
   | "database"
+  | "bibliography"
   | "settings"
   | "symbols"
   | "gallery"
@@ -81,6 +88,7 @@ export type ViewType =
   | "gallery"
   | "settings"
   | "database"
+  | "bibliography-workspace"
   | "package-browser"
   | "ai-assistant";
 
@@ -358,6 +366,24 @@ export const Sidebar = React.memo<SidebarProps>(
                 />
               </ActionIcon>
             </Tooltip>
+            <Tooltip
+              label={t("sidebar.bibliography", {
+                defaultValue: "Bibliography",
+              })}
+              position="right"
+            >
+              <ActionIcon
+                size="sm"
+                variant={getVariant("bibliography")}
+                color={getColor("bibliography")}
+                onClick={() => onToggleSection("bibliography")}
+              >
+                <FontAwesomeIcon
+                  icon={faBookOpen}
+                  style={{ width: 20, height: 20 }}
+                />
+              </ActionIcon>
+            </Tooltip>
             <Tooltip label={t("sidebar.structure")} position="right">
               <ActionIcon
                 size="sm"
@@ -550,6 +576,14 @@ export const Sidebar = React.memo<SidebarProps>(
                     onNavigate={(view) => onNavigate(view as ViewType)}
                     onExportDtex={onExportDtex}
                     onExportToTex={onExportToTex}
+                  />
+                )}
+
+                {activeSection === "bibliography" && (
+                  <BibliographySidebarPanel
+                    activeFilePath={activeFilePath}
+                    activeFileContent={activeFileContent}
+                    onOpenWorkspace={() => onNavigate("bibliography-workspace")}
                   />
                 )}
 
