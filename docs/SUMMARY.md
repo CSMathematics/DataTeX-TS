@@ -23,5 +23,6 @@
 - [Technical Implementation](developer-guide/technical-implementation.md)
 - [Bibliography Management Plan](bibliography-management-plan.md)
 - [Package Studio Implementation Plan](package-studio-plan.md)
+- [Package Studio Wizard Inventory](package-studio-wizard-inventory.md)
 - [Graphics Package Studio Implementation Plan](graphics-package-studio-plan.md)
 - [Contributing](developer-guide/contributing.md)

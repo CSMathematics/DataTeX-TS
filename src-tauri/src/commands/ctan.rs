@@ -187,3 +187,89 @@ pub fn get_package_by_id(id: String) -> Option<CTANPackage> {
         .position(|idx| idx.id_lower == id_lower)
         .map(|i| db.packages[i].clone())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn package_lookup_is_case_insensitive() {
+        let package = get_package_by_id("GeOmEtRy".to_string()).expect("geometry package");
+
+        assert_eq!(package.id, "geometry");
+        assert!(!package.name.trim().is_empty());
+        assert!(!package.caption.trim().is_empty());
+    }
+
+    #[test]
+    fn package_search_matches_id_name_or_caption_case_insensitively() {
+        let response = get_packages(Some("GEOMETRY".to_string()), None, Some(20), Some(0));
+
+        assert!(response.total > 0);
+        assert!(response
+            .packages
+            .iter()
+            .any(|package| package.id == "geometry"));
+        assert!(response.packages.len() <= 20);
+    }
+
+    #[test]
+    fn package_pagination_preserves_total_and_changes_window() {
+        let first_page = get_packages(None, None, Some(5), Some(0));
+        let second_page = get_packages(None, None, Some(5), Some(5));
+
+        assert_eq!(first_page.total, second_page.total);
+        assert!(first_page.total > first_page.packages.len());
+        assert_eq!(first_page.packages.len(), 5);
+        assert_eq!(second_page.packages.len(), 5);
+
+        let first_ids: HashSet<_> = first_page
+            .packages
+            .iter()
+            .map(|package| package.id.as_str())
+            .collect();
+        assert!(second_page
+            .packages
+            .iter()
+            .all(|package| !first_ids.contains(package.id.as_str())));
+    }
+
+    #[test]
+    fn topics_are_unique_sorted_and_include_known_graphics_topic() {
+        let topics = get_all_topics();
+
+        assert!(topics.iter().any(|topic| topic.key == "graphics"));
+        assert!(topics.windows(2).all(|pair| pair[0].key <= pair[1].key));
+
+        let unique_count = topics
+            .iter()
+            .map(|topic| topic.key.as_str())
+            .collect::<HashSet<_>>()
+            .len();
+        assert_eq!(topics.len(), unique_count);
+    }
+
+    #[test]
+    fn topic_filter_limits_results_to_matching_topic() {
+        let graphics = get_packages(None, Some("graphics".to_string()), Some(25), Some(0));
+        let all = get_packages(None, None, Some(25), Some(0));
+
+        assert!(graphics.total > 0);
+        assert!(graphics.total < all.total);
+        assert!(graphics.packages.len() <= 25);
+
+        let db = get_db();
+        for package in graphics.packages {
+            let full = db
+                .packages
+                .iter()
+                .find(|candidate| candidate.id == package.id)
+                .expect("full package from filtered result");
+            assert!(full
+                .topics
+                .as_ref()
+                .is_some_and(|topics| topics.iter().any(|topic| topic.key == "graphics")));
+        }
+    }
+}

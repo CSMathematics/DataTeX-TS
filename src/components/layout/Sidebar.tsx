@@ -63,6 +63,11 @@ const BibliographySidebarPanel = React.lazy(() =>
     default: module.BibliographySidebarPanel,
   })),
 );
+const PackageStudioSidebarPanel = React.lazy(() =>
+  import("../packages/PackageStudioSidebarPanel").then((module) => ({
+    default: module.PackageStudioSidebarPanel,
+  })),
+);
 
 // --- Types ---
 export type SidebarSection =
@@ -71,6 +76,7 @@ export type SidebarSection =
   | "history"
   | "database"
   | "bibliography"
+  | "packages"
   | "settings"
   | "symbols"
   | "gallery"
@@ -89,6 +95,7 @@ export type ViewType =
   | "settings"
   | "database"
   | "bibliography-workspace"
+  | "package-studio"
   | "package-browser"
   | "ai-assistant";
 
@@ -130,6 +137,8 @@ interface SidebarProps {
   onInsertSymbol?: (code: string) => void;
   activePackageId?: string;
   onSelectPackage?: (id: string) => void;
+  activePackageStudioBuilderId?: string | null;
+  onOpenPackageStudioBuilder?: (builderId?: string) => void;
 
   outlineSource?: string;
   onScrollToLine?: (line: number) => void;
@@ -278,6 +287,8 @@ export const Sidebar = React.memo<SidebarProps>(
     onInsertSymbol,
     activePackageId,
     onSelectPackage,
+    activePackageStudioBuilderId,
+    onOpenPackageStudioBuilder,
     outlineSource,
     onScrollToLine,
     projectPath,
@@ -380,6 +391,24 @@ export const Sidebar = React.memo<SidebarProps>(
               >
                 <FontAwesomeIcon
                   icon={faBookOpen}
+                  style={{ width: 20, height: 20 }}
+                />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip
+              label={t("sidebar.packages", {
+                defaultValue: "Packages",
+              })}
+              position="right"
+            >
+              <ActionIcon
+                size="sm"
+                variant={getVariant("packages")}
+                color={getColor("packages")}
+                onClick={() => onToggleSection("packages")}
+              >
+                <FontAwesomeIcon
+                  icon={faBoxOpen}
                   style={{ width: 20, height: 20 }}
                 />
               </ActionIcon>
@@ -584,6 +613,20 @@ export const Sidebar = React.memo<SidebarProps>(
                     activeFilePath={activeFilePath}
                     activeFileContent={activeFileContent}
                     onOpenWorkspace={() => onNavigate("bibliography-workspace")}
+                  />
+                )}
+
+                {activeSection === "packages" && (
+                  <PackageStudioSidebarPanel
+                    activeBuilderId={activePackageStudioBuilderId}
+                    onOpenWorkspace={(builderId) => {
+                      if (onOpenPackageStudioBuilder) {
+                        onOpenPackageStudioBuilder(builderId);
+                      } else {
+                        onNavigate("package-studio");
+                      }
+                    }}
+                    onOpenLegacyBrowser={() => onNavigate("package-browser")}
                   />
                 )}
 

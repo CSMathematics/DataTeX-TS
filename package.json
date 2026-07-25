@@ -7,6 +7,7 @@
     "dev": "./node_modules/.bin/vite",
     "build": "tsc && vite build",
     "test:latex-highlighting": "node scripts/test-latex-highlighting.mjs",
+    "test:package-studio": "node scripts/test-package-studio.mjs",
     "preview": "vite preview",
     "tauri": "__NV_DISABLE_EXPLICIT_SYNC=1 pnpm exec tauri",
     "tauri:debug": "RUST_BACKTRACE=full DATATEX_DEBUG=1 DATATEX_PDF_DEBUG=1 __NV_DISABLE_EXPLICIT_SYNC=1 pnpm exec tauri dev",

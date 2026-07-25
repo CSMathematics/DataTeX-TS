@@ -15,6 +15,7 @@ mod diagnostics;
 mod git;
 mod history;
 mod lsp;
+mod package_studio;
 mod pdf_renderer;
 mod search;
 mod texlab_downloader;
@@ -6650,6 +6651,34 @@ pub fn run() {
             commands::ctan::get_packages,
             commands::ctan::get_all_topics,
             commands::ctan::get_package_by_id,
+            // Package Studio Commands
+            package_studio::package_studio_analyze_latex_cmd,
+            package_studio::package_studio_generate_code_highlighting_cmd,
+            package_studio::package_studio_generate_code_highlighting_snippet_cmd,
+            package_studio::package_studio_generate_enumitem_cmd,
+            package_studio::package_studio_generate_fancyhdr_cmd,
+            package_studio::package_studio_generate_geometry_cmd,
+            package_studio::package_studio_generate_graphicx_cmd,
+            package_studio::package_studio_generate_math_cmd,
+            package_studio::package_studio_generate_siunitx_cmd,
+            package_studio::package_studio_generate_table_cmd,
+            package_studio::package_studio_generate_xcolor_cmd,
+            package_studio::package_studio_import_code_highlighting_cmd,
+            package_studio::package_studio_import_enumitem_cmd,
+            package_studio::package_studio_import_fancyhdr_cmd,
+            package_studio::package_studio_import_geometry_cmd,
+            package_studio::package_studio_import_graphicx_cmd,
+            package_studio::package_studio_import_math_cmd,
+            package_studio::package_studio_import_siunitx_cmd,
+            package_studio::package_studio_import_xcolor_cmd,
+            package_studio::package_studio_list_math_imports_cmd,
+            package_studio::package_studio_list_builders_cmd,
+            package_studio::package_studio_list_builder_options_cmd,
+            package_studio::package_studio_plan_add_package_cmd,
+            package_studio::package_studio_plan_apply_builder_configuration_cmd,
+            package_studio::package_studio_plan_generated_block_cmd,
+            package_studio::package_studio_plan_move_package_cmd,
+            package_studio::package_studio_plan_remove_package_cmd,
             // Preamble Types CRUD
             get_preamble_types_cmd,
             create_preamble_type_cmd,

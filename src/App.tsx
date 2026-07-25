@@ -65,6 +65,16 @@ import { templates, getTemplateById } from "./services/templateService";
 import type { DtexFile, DtexDatabaseInfo } from "./types/dtex";
 import { useDtexAutoSave } from "./hooks/useDtexAutoSave";
 import { DtexService } from "./services/dtexService";
+import {
+  applyPackageTextEdits,
+  planApplyBuilderConfiguration,
+  planMovePackage,
+  planRemovePackage,
+  type BuilderConfigurationDraft,
+  type PackageDiagnostic,
+  type PackageEditPlan,
+  type PackageStudioEditReview,
+} from "./services/packageStudioService";
 
 import {
   applyLatexSyntaxThemeOverrides,
@@ -151,6 +161,11 @@ const BibliographyWorkspace = lazy(() =>
     default: module.BibliographyWorkspace,
   })),
 );
+const PackageStudioWorkspace = lazy(() =>
+  import("./components/packages/PackageStudioWorkspace").then((module) => ({
+    default: module.PackageStudioWorkspace,
+  })),
+);
 const ResourceInspector = lazy(() =>
   import("./components/database/ResourceInspector").then((module) => ({
     default: module.ResourceInspector,
@@ -196,6 +211,11 @@ const ViewLoadingFallback = () => (
     </Text>
   </Box>
 );
+
+type PendingPackageStudioEditReview = PackageStudioEditReview & {
+  tabId: string;
+  noEditColor: "blue" | "yellow";
+};
 
 // --- CSS Variables Resolver ---
 const resolver: CSSVariablesResolver = (theme) => ({
@@ -263,6 +283,10 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeView, setActiveView] = useState<ViewType>("editor");
   const [activePackageId, setActivePackageId] = useState<string>("amsmath");
+  const [activePackageStudioBuilderId, setActivePackageStudioBuilderId] =
+    useState<string | null>(null);
+  const [pendingPackageStudioEditReview, setPendingPackageStudioEditReview] =
+    useState<PendingPackageStudioEditReview | null>(null);
 
   // --- Resizing State (from custom hook) ---
   const {
@@ -642,6 +666,15 @@ export default function App() {
     };
   }, [workspaceRoot]);
 
+  const syncActiveEditorContent = useCallback(() => {
+    if (activeView !== "editor" || !activeTabId || !editorRef.current) return;
+    try {
+      updateTabContent(activeTabId, editorRef.current.getValue());
+    } catch (e) {
+      /* ignore */
+    }
+  }, [activeTabId, activeView, updateTabContent]);
+
   const handleToggleSidebar = useCallback(
     (section: SidebarSection) => {
       if (section === "settings") {
@@ -654,11 +687,15 @@ export default function App() {
           setShowDatabasePanel(true);
         } else if (section === "bibliography") {
           setActiveView("bibliography-workspace");
+        } else if (section === "packages") {
+          syncActiveEditorContent();
+          setActiveView("package-studio");
         } else {
           setActiveView((currentView) =>
             currentView === "settings" ||
             currentView === "database" ||
-            currentView === "bibliography-workspace"
+            currentView === "bibliography-workspace" ||
+            currentView === "package-studio"
               ? "editor"
               : currentView,
           );
@@ -673,23 +710,36 @@ export default function App() {
         }
       }
     },
-    [activeActivity],
+    [activeActivity, syncActiveEditorContent],
   );
 
-  const handleNavigateView = useCallback((view: ViewType) => {
-    setActiveView(view);
+  const handleNavigateView = useCallback(
+    (view: ViewType) => {
+      if (view === "package-studio") {
+        syncActiveEditorContent();
+      }
 
-    if (view === "database") {
-      setActiveActivity("database");
-      setShowDatabasePanel(true);
-      return;
-    }
+      setActiveView(view);
 
-    if (view === "bibliography-workspace") {
-      setActiveActivity("bibliography");
-      setIsSidebarOpen(true);
-    }
-  }, []);
+      if (view === "database") {
+        setActiveActivity("database");
+        setShowDatabasePanel(true);
+        return;
+      }
+
+      if (view === "bibliography-workspace") {
+        setActiveActivity("bibliography");
+        setIsSidebarOpen(true);
+        return;
+      }
+
+      if (view === "package-studio") {
+        setActiveActivity("packages");
+        setIsSidebarOpen(true);
+      }
+    },
+    [syncActiveEditorContent],
+  );
 
   const handleExitBibliographyWorkspace = useCallback(() => {
     handleNavigateView("database");
@@ -1014,6 +1064,17 @@ export default function App() {
     () => setActiveView("package-browser"),
     [],
   );
+
+  const handleOpenPackageStudioBuilder = useCallback(
+    (builderId?: string) => {
+      syncActiveEditorContent();
+      if (builderId) setActivePackageStudioBuilderId(builderId);
+      setActiveActivity("packages");
+      setActiveView("package-studio");
+      setIsSidebarOpen(true);
+    },
+    [syncActiveEditorContent],
+  );
   const handleOpenExamGenerator = useCallback(() => {}, []);
 
   useEffect(() => {
@@ -1092,6 +1153,336 @@ export default function App() {
       editorRef.current.focus();
     }
   }, []);
+
+  const handleInsertFromPackageStudio = useCallback(
+    (code: string) => {
+      setActiveView("editor");
+      window.setTimeout(() => handleInsertSnippet(code), 80);
+    },
+    [handleInsertSnippet],
+  );
+
+  const getPackageStudioEditorContext = useCallback(
+    (message: string) => {
+      const tabsState = useTabsStore.getState();
+      const tab = tabsState.tabs.find(
+        (item) => item.id === tabsState.activeTabId,
+      );
+
+      if (!tab || tab.type !== "editor") {
+        notifications.show({
+          title: "Package Studio",
+          message,
+          color: "yellow",
+        });
+        return null;
+      }
+
+      const source =
+        activeView === "editor" &&
+        tab.id === tabsState.activeTabId &&
+        editorRef.current
+          ? editorRef.current.getValue()
+          : tab.content || "";
+
+      return { source, tabId: tab.id };
+    },
+    [activeView],
+  );
+
+  const applyPackageStudioPlanToEditor = useCallback(
+    (
+      plan: PackageEditPlan,
+      source: string,
+      tabId: string,
+      noEditColor: "blue" | "yellow" = "blue",
+    ) => {
+      if (plan.edits.length === 0) {
+        notifications.show({
+          title: plan.title,
+          message: plan.summary,
+          color: noEditColor,
+        });
+        if (activeView !== "package-studio") setActiveView("editor");
+        return false;
+      }
+
+      setActiveTab(tabId);
+      const keepPackageStudioOpen = activeView === "package-studio";
+      if (keepPackageStudioOpen) {
+        const nextContent = applyPackageTextEdits(source, plan.edits);
+        updateTabContent(tabId, nextContent);
+        markDirty(tabId, true);
+      } else {
+        setActiveView("editor");
+
+        window.setTimeout(() => {
+          const editor = editorRef.current;
+          if (!editor || editor.getValue() !== source) {
+            const nextContent = applyPackageTextEdits(source, plan.edits);
+            updateTabContent(tabId, nextContent);
+            markDirty(tabId, true);
+            if (editor) {
+              editor.setValue(nextContent);
+              editor.focus();
+            }
+            return;
+          }
+
+          editor.executeEdits(
+            "package-studio",
+            plan.edits.map((edit) => ({
+              range: {
+                startLineNumber: edit.range.start.line,
+                startColumn: edit.range.start.column,
+                endLineNumber: edit.range.end.line,
+                endColumn: edit.range.end.column,
+              },
+              text: edit.replacement,
+              forceMoveMarkers: true,
+            })),
+          );
+          const nextContent = editor.getValue();
+          updateTabContent(tabId, nextContent);
+          markDirty(tabId, true);
+          editor.focus();
+        }, 80);
+      }
+
+      notifications.show({
+        title: plan.title,
+        message: plan.summary,
+        color: "green",
+      });
+
+      return true;
+    },
+    [activeView, markDirty, setActiveTab, updateTabContent],
+  );
+
+  const reviewPackageStudioPlan = useCallback(
+    (
+      plan: PackageEditPlan,
+      source: string,
+      tabId: string,
+      targetFilePath: string,
+      noEditColor: "blue" | "yellow" = "blue",
+    ) => {
+      if (plan.edits.length === 0) {
+        applyPackageStudioPlanToEditor(plan, source, tabId, noEditColor);
+        return;
+      }
+
+      setPendingPackageStudioEditReview({
+        plan,
+        source,
+        tabId,
+        targetFilePath,
+        noEditColor,
+      });
+      setActiveView("package-studio");
+      notifications.show({
+        title: "Package Studio",
+        message: "Review the source changes before applying them.",
+        color: "blue",
+      });
+    },
+    [applyPackageStudioPlanToEditor],
+  );
+
+  const handleDismissPendingPackageStudioEditReview = useCallback(() => {
+    setPendingPackageStudioEditReview(null);
+  }, []);
+
+  const handleApplyPendingPackageStudioEditReview = useCallback(() => {
+    if (!pendingPackageStudioEditReview) return;
+
+    const tabsState = useTabsStore.getState();
+    const targetTab = tabsState.tabs.find(
+      (tab) => tab.id === pendingPackageStudioEditReview.tabId,
+    );
+
+    if (!targetTab || targetTab.type !== "editor") {
+      notifications.show({
+        title: "Package Studio",
+        message: "The target editor tab is no longer open.",
+        color: "red",
+      });
+      setPendingPackageStudioEditReview(null);
+      return;
+    }
+
+    const currentSource =
+      tabsState.activeTabId === pendingPackageStudioEditReview.tabId &&
+      activeView === "editor" &&
+      editorRef.current
+        ? editorRef.current.getValue()
+        : targetTab.content || "";
+
+    if (currentSource !== pendingPackageStudioEditReview.source) {
+      notifications.show({
+        title: "Package Studio",
+        message:
+          "The document changed after the review was created. Generate the package change again.",
+        color: "yellow",
+      });
+      setPendingPackageStudioEditReview(null);
+      return;
+    }
+
+    applyPackageStudioPlanToEditor(
+      pendingPackageStudioEditReview.plan,
+      pendingPackageStudioEditReview.source,
+      pendingPackageStudioEditReview.tabId,
+      pendingPackageStudioEditReview.noEditColor,
+    );
+    setPendingPackageStudioEditReview(null);
+  }, [
+    activeView,
+    applyPackageStudioPlanToEditor,
+    pendingPackageStudioEditReview,
+  ]);
+
+  const handleReviewPackageStudioEditPlan = useCallback(
+    (plan: PackageEditPlan, source: string, targetFilePath: string) => {
+      if (!activeTab || activeTab.type !== "editor") {
+        notifications.show({
+          title: "Package Studio",
+          message: "Open an editor tab before reviewing this package change.",
+          color: "yellow",
+        });
+        return;
+      }
+
+      reviewPackageStudioPlan(
+        plan,
+        source,
+        activeTab.id,
+        targetFilePath,
+        "blue",
+      );
+    },
+    [activeTab, reviewPackageStudioPlan],
+  );
+
+  const handleFixPackageDiagnosticFromPackageStudio = useCallback(
+    async (diagnostic: PackageDiagnostic) => {
+      const context = getPackageStudioEditorContext(
+        "Open a LaTeX document before fixing a package diagnostic.",
+      );
+      if (!context) return;
+
+      try {
+        let plan: PackageEditPlan | null = null;
+
+        if (
+          diagnostic.code === "package-conflict-color-xcolor" ||
+          diagnostic.code === "obsolete-package-epsfig" ||
+          diagnostic.code === "package-conflict-subfigure-subcaption"
+        ) {
+          if (!diagnostic.packageId) return;
+          plan = await planRemovePackage({
+            source: context.source,
+            revision: Date.now(),
+            packageId: diagnostic.packageId,
+          });
+        } else if (diagnostic.code === "package-order-hyperref-late") {
+          plan = await planMovePackage({
+            source: context.source,
+            revision: Date.now(),
+            packageId: "hyperref",
+            target: "latePreamble",
+          });
+        } else if (
+          diagnostic.code === "package-order-cleveref-after-hyperref"
+        ) {
+          plan = await planMovePackage({
+            source: context.source,
+            revision: Date.now(),
+            packageId: "cleveref",
+            target: "afterPackage",
+            afterPackageId: "hyperref",
+          });
+        }
+
+        if (!plan) {
+          notifications.show({
+            title: "Package Studio",
+            message: "No automatic fix is available for this diagnostic yet.",
+            color: "blue",
+          });
+          return;
+        }
+
+        reviewPackageStudioPlan(
+          plan,
+          context.source,
+          context.tabId,
+          context.tabId,
+          plan.diagnostics.some(
+            (item) => item.severity === "warning" || item.severity === "error",
+          )
+            ? "yellow"
+            : "blue",
+        );
+      } catch (caught) {
+        console.error("Failed to create package diagnostic fix plan:", caught);
+        notifications.show({
+          title: "Package Studio",
+          message: String(caught),
+          color: "red",
+        });
+      }
+    },
+    [getPackageStudioEditorContext, reviewPackageStudioPlan],
+  );
+
+  const handleApplyBuilderConfigurationFromPackageStudio = useCallback(
+    async (configuration: BuilderConfigurationDraft) => {
+      const context = getPackageStudioEditorContext(
+        "Open a LaTeX document before changing a package configuration.",
+      );
+      if (!context) return;
+
+      try {
+        const plan = await planApplyBuilderConfiguration({
+          ...configuration,
+          source: context.source,
+          revision: Date.now(),
+        });
+
+        reviewPackageStudioPlan(
+          plan,
+          context.source,
+          context.tabId,
+          context.tabId,
+          plan.diagnostics.some(
+            (diagnostic) =>
+              diagnostic.severity === "warning" ||
+              diagnostic.severity === "error",
+          )
+            ? "yellow"
+            : "blue",
+        );
+      } catch (caught) {
+        console.error("Failed to apply builder configuration plan:", caught);
+        notifications.show({
+          title: "Package Studio",
+          message: String(caught),
+          color: "red",
+        });
+      }
+    },
+    [getPackageStudioEditorContext, reviewPackageStudioPlan],
+  );
+
+  const handleRevealPackageStudioSourceLine = useCallback(
+    (line: number) => {
+      setActiveView("editor");
+      window.setTimeout(() => handleRevealLine(line), 80);
+    },
+    [handleRevealLine],
+  );
 
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: any) => {
@@ -1822,6 +2213,8 @@ export default function App() {
                 onInsertSymbol={handleInsertSnippet}
                 activePackageId={activePackageId}
                 onSelectPackage={setActivePackageId}
+                activePackageStudioBuilderId={activePackageStudioBuilderId}
+                onOpenPackageStudioBuilder={handleOpenPackageStudioBuilder}
                 outlineSource={outlineSource}
                 onScrollToLine={handleRevealLine}
                 // Git & History
@@ -1886,6 +2279,38 @@ export default function App() {
                   <Suspense fallback={<ViewLoadingFallback />}>
                     <BibliographyWorkspace
                       onClose={handleExitBibliographyWorkspace}
+                    />
+                  </Suspense>
+                ) : activeView === "package-studio" ? (
+                  <Suspense fallback={<ViewLoadingFallback />}>
+                    <PackageStudioWorkspace
+                      activeBuilderId={activePackageStudioBuilderId}
+                      onSelectBuilder={setActivePackageStudioBuilderId}
+                      onBackToEditor={() => setActiveView("editor")}
+                      onInsertCode={handleInsertFromPackageStudio}
+                      onFixDiagnostic={
+                        handleFixPackageDiagnosticFromPackageStudio
+                      }
+                      onApplyBuilderConfiguration={
+                        handleApplyBuilderConfigurationFromPackageStudio
+                      }
+                      onReviewEditPlan={handleReviewPackageStudioEditPlan}
+                      onRevealSourceLine={handleRevealPackageStudioSourceLine}
+                      pendingEditReview={pendingPackageStudioEditReview}
+                      onApplyPendingEditPlan={
+                        handleApplyPendingPackageStudioEditReview
+                      }
+                      onDismissPendingEditPlan={
+                        handleDismissPendingPackageStudioEditReview
+                      }
+                      activeFilePath={
+                        activeTab?.type === "editor" ? activeTab.id : undefined
+                      }
+                      activeFileContent={
+                        activeTab?.type === "editor"
+                          ? activeTab.content
+                          : undefined
+                      }
                     />
                   </Suspense>
                 ) : /* Default: EDITOR AREA with optional Database Panel */

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "lastUpdated": "2026-07-20",
+  "source": "Current TypeScript wizard generators before Package Studio migration",
+  "fixtures": [
+    {
+      "id": "preamble-default-article",
+      "file": "preamble-default-article.tex",
+      "generator": "generateFullPreamble",
+      "sourceFile": "src/components/wizards/preamble/generators/preambleGenerators.ts",
+      "category": "preamble",
+      "notes": "Default PreambleWizard state with no custom colors/lists and code highlighting disabled."
+    },
+    {
+      "id": "geometry-default",
+      "file": "geometry-default.tex",
+      "generator": "generateGeometry",
+      "sourceFile": "src/components/wizards/preamble/generators/preambleGenerators.ts",
+      "category": "geometry",
+      "notes": "Default enabled geometry package settings."
+    },
+    {
+      "id": "geometry-advanced-layout",
+      "file": "geometry-advanced-layout.tex",
+      "generator": "generateGeometry",
+      "sourceFile": "src/components/wizards/preamble/generators/preambleGenerators.ts",
+      "category": "geometry",
+      "notes": "Representative non-default layout settings for later Rust parity tests."
+    },
+    {
+      "id": "code-listings-default",
+      "file": "code-listings-default.tex",
+      "generator": "generateCodeHighlighting",
+      "sourceFile": "src/components/wizards/preamble/generators/preambleGenerators.ts",
+      "category": "code-highlighting",
+      "notes": "Default listings settings and default code color conversion."
+    },
+    {
+      "id": "code-minted-default",
+      "file": "code-minted-default.tex",
+      "generator": "generateCodeHighlighting",
+      "sourceFile": "src/components/wizards/preamble/generators/preambleGenerators.ts",
+      "category": "code-highlighting",
+      "notes": "Default minted settings. Requires shell-escape diagnostics in Package Studio."
+    }
+  ]
+}
