@@ -37,11 +37,24 @@ const rustSiunitxBuilderSource = await source(
 const rustMathBuilderSource = await source(
   "src-tauri/src/package_studio/builders/math.rs",
 );
+const stoicheiaLoaderSource = await source(
+  "src/features/stoicheia/bridge/loadFrontend.ts",
+);
+const stoicheiaDocumentBridgeSource = await source(
+  "src/features/stoicheia/bridge/documentBridge.ts",
+);
+const stoicheiaAdapterSource = await source(
+  "src/features/stoicheia/bridge/StoicheiaPackageStudioAdapter.tsx",
+);
+const stoicheiaHeaderSource = await source(
+  "src/features/stoicheia/components/AppHeader.tsx",
+);
+const tabsStoreSource = await source("src/stores/useTabsStore.ts");
 
 test("Package Studio sidebar builder selection stays open and preserves editor content", () => {
   assertIncludes(
     appSource,
-    'if (activeView !== "editor" || !activeTabId || !editorRef.current) return;',
+    "!viewKeepsEditorMounted(activeView)",
     "active editor sync guard",
   );
   assertIncludes(
@@ -91,6 +104,736 @@ test("Package Studio uses the left sidebar as the only builder selector", () => 
     workspaceSource,
     "filteredBuilders.map((builder)",
     "central Package Studio workspace",
+  );
+});
+
+test("Graphics Studio stays behind a conditional lazy frontend boundary", () => {
+  assertNotIncludes(
+    appSource,
+    "features/stoicheia",
+    "DataTeX application shell",
+  );
+  assertNotIncludes(
+    sidebarSource,
+    "features/stoicheia",
+    "Package Studio sidebar",
+  );
+  assertNotIncludes(
+    serviceSource,
+    "features/stoicheia",
+    "Package Studio service",
+  );
+  assertIncludes(
+    workspaceSource,
+    "const LazyStoicheiaPackageStudio = React.lazy",
+    "Package Studio graphics lazy component",
+  );
+  assertIncludes(
+    workspaceSource,
+    'activeBuilder?.id === "graphics-studio"',
+    "Package Studio graphics full-bleed gate",
+  );
+  assertIncludes(
+    workspaceSource,
+    "<LazyStoicheiaPackageStudio",
+    "Package Studio graphics mount",
+  );
+  assertIncludes(
+    workspaceSource,
+    "hostDocument={stoicheiaHostDocument}",
+    "Package Studio active-document bridge",
+  );
+  assertIncludes(
+    workspaceSource,
+    "activeFileContent === undefined",
+    "Package Studio empty-document guard",
+  );
+  assertIncludes(
+    workspaceSource,
+    'sessionId: `${stoicheiaWorkspaceSessionId}:tikzpicture:${target.ordinal}:${graphicsSessionMode.focus.baselineSha256}`',
+    "Package Studio target- and source-scoped document session",
+  );
+  assertIncludes(
+    stoicheiaLoaderSource,
+    'import("./StoicheiaPackageStudioAdapter")',
+    "Stoicheia dynamic frontend entry",
+  );
+  assertNotIncludes(
+    workspaceSource,
+    "void loadStoicheiaFrontend()",
+    "Package Studio preload-only effect",
+  );
+  assertNotIncludes(
+    workspaceSource,
+    'from "../../features/stoicheia/App"',
+    "Package Studio workspace",
+  );
+});
+
+test("Graphics Studio bypasses the normal hero, context, and scrolling builder shell", () => {
+  const graphicsBranch = workspaceSource.indexOf(
+    'activeBuilder?.id === "graphics-studio"',
+  );
+  const normalScrollShell = workspaceSource.indexOf(
+    'className="package-studio-main-scroll"',
+  );
+  const graphicsMount = workspaceSource.indexOf("<LazyStoicheiaPackageStudio");
+
+  assert.ok(graphicsBranch >= 0, "graphics full-bleed branch is missing");
+  assert.ok(graphicsMount > graphicsBranch, "graphics mount must be inside its branch");
+  assert.ok(
+    normalScrollShell > graphicsMount,
+    "normal scroll shell must follow the full-bleed graphics branch",
+  );
+});
+
+test("Graphics Studio routes full-document changes through Rust and DataTeX review", () => {
+  assertIncludes(
+    serviceSource,
+    "export interface GraphicsDocumentEditRequest",
+    "Graphics document edit service contract",
+  );
+  assertIncludes(
+    serviceSource,
+    '"package_studio_plan_graphics_document_edit_cmd"',
+    "Graphics document edit service command",
+  );
+  assertIncludes(
+    rustPackageStudioSource,
+    "pub struct GraphicsDocumentEditRequest",
+    "Rust Graphics document request",
+  );
+  assertIncludes(
+    rustPackageStudioSource,
+    "pub fn plan_graphics_document_edit",
+    "Rust Graphics document planner",
+  );
+  assertIncludes(
+    rustLibSource,
+    "package_studio::package_studio_plan_graphics_document_edit_cmd",
+    "Graphics document command registration",
+  );
+  assertIncludes(
+    workspaceSource,
+    "onRequestApply={handleGraphicsRequestApply}",
+    "Stoicheia Apply host callback",
+  );
+  assertIncludes(
+    workspaceSource,
+    "data-graphics-edit-review",
+    "Graphics in-window review surface",
+  );
+  assertIncludes(
+    workspaceSource,
+    "graphicsPayloadMatchesDocument",
+    "Graphics async session guard",
+  );
+  assertIncludes(
+    workspaceSource,
+    "onRequestSave={",
+    "Graphics reviewed host-save bridge",
+  );
+  assertIncludes(
+    workspaceSource,
+    "handleGraphicsRequestSave",
+    "Graphics explicit Save callback",
+  );
+  assertIncludes(
+    appSource,
+    'tab.type === "editor" && tab.id === targetFilePath',
+    "Package Studio target-tab binding",
+  );
+  assertIncludes(
+    appSource,
+    "if (currentSource !== source)",
+    "Package Studio pre-review stale-source guard",
+  );
+  assertIncludes(
+    appSource,
+    "return applied;",
+    "Package Studio confirmed Apply result",
+  );
+});
+
+test("Graphics Studio discovers and applies a range-safe tikzpicture target", () => {
+  assertIncludes(
+    appSource,
+    "const toUtf8Byte = (editorPosition: unknown) =>",
+    "Package Studio Monaco focus capture",
+  );
+  assertIncludes(
+    appSource,
+    "stringIndexToUtf8ByteOffset(source, utf16Offset)",
+    "Package Studio UTF-8 focus conversion call",
+  );
+  assertIncludes(
+    serviceSource,
+    "new TextEncoder().encode(source.slice(0, safeIndex)).length",
+    "Package Studio UTF-8 focus conversion implementation",
+  );
+  assertIncludes(
+    appSource,
+    "activeFileFocus={packageStudioSourceFocus}",
+    "Package Studio source-focus bridge",
+  );
+  assertNotIncludes(
+    appSource,
+    "features/stoicheia",
+    "DataTeX focus capture",
+  );
+
+  assertIncludes(
+    serviceSource,
+    '"package_studio_discover_graphics_tikzpictures_cmd"',
+    "Graphics target discovery service command",
+  );
+  assertIncludes(
+    serviceSource,
+    '"package_studio_prepare_graphics_tikzpicture_cmd"',
+    "Graphics target preparation service command",
+  );
+  assertIncludes(
+    serviceSource,
+    '"package_studio_plan_graphics_tikzpicture_edit_cmd"',
+    "Graphics range-edit planning service command",
+  );
+
+  assertIncludes(
+    rustLibSource,
+    "package_studio::package_studio_discover_graphics_tikzpictures_cmd",
+    "Graphics target discovery command registration",
+  );
+  assertIncludes(
+    rustLibSource,
+    "package_studio::package_studio_prepare_graphics_tikzpicture_cmd",
+    "Graphics target preparation command registration",
+  );
+  assertIncludes(
+    rustLibSource,
+    "package_studio::package_studio_plan_graphics_tikzpicture_edit_cmd",
+    "Graphics range-edit command registration",
+  );
+
+  assertIncludes(
+    workspaceSource,
+    "data-graphics-target-selector",
+    "Graphics in-window target selector",
+  );
+  assertIncludes(
+    workspaceSource,
+    "data-graphics-target-mode={graphicsSessionMode.kind}",
+    "Graphics selected-target mode bar",
+  );
+  assertIncludes(
+    workspaceSource,
+    '"Range-safe"',
+    "Graphics range-safe target label",
+  );
+  assertIncludes(
+    workspaceSource,
+    "selectGraphicsTikzpictureFromFocus",
+    "Graphics cursor/selection target resolution",
+  );
+  assertIncludes(
+    workspaceSource,
+    "await planGraphicsTikzpictureEdit({",
+    "Graphics range-safe edit planner",
+  );
+
+  const applyHandler = workspaceSource.indexOf(
+    "const handleApplyPendingReview = useCallback",
+  );
+  const validate = workspaceSource.indexOf(
+    "pendingGraphicsApply.lifecycle.validate()",
+    applyHandler,
+  );
+  const hostApply = workspaceSource.indexOf(
+    "onApplyPendingEditPlan?.()",
+    validate,
+  );
+  const commit = workspaceSource.indexOf(
+    "pendingGraphicsApply.lifecycle.commit(appliedSource)",
+    hostApply,
+  );
+
+  assert.ok(applyHandler >= 0, "Graphics confirmed Apply handler is missing");
+  assert.ok(
+    validate > applyHandler,
+    "Graphics lifecycle validation must be inside the confirmed Apply handler",
+  );
+  assert.ok(
+    hostApply > validate,
+    "Graphics lifecycle must validate before the host Apply",
+  );
+  assert.ok(
+    commit > hostApply,
+    "Graphics lifecycle must commit only after the host Apply succeeds",
+  );
+  assertIncludes(
+    workspaceSource,
+    "onRequestSave={",
+    "Graphics reviewed host-save bridge",
+  );
+});
+
+test("Graphics Studio saves only after review, Apply, and bridge commit", () => {
+  assertIncludes(
+    serviceSource,
+    "export interface PackageStudioHostSaveRequest",
+    "DataTeX host-save request contract",
+  );
+  assertIncludes(
+    workspaceSource,
+    'void handleGraphicsRequestAction("save", payload, lifecycle)',
+    "Graphics Save review intent",
+  );
+  assertIncludes(
+    workspaceSource,
+    "onSaveHostDocument({",
+    "Graphics narrow DataTeX persistence callback",
+  );
+  assertIncludes(
+    appSource,
+    "const handleSavePackageStudioDocument = useCallback",
+    "DataTeX Package Studio Save handler",
+  );
+  assertIncludes(
+    appSource,
+    "onSaveHostDocument={",
+    "DataTeX Package Studio Save wiring",
+  );
+  assertIncludes(
+    appSource,
+    "onSaveFile={handleSaveFromActiveSurface}",
+    "DataTeX global toolbar Save routing",
+  );
+  assertIncludes(
+    appSource,
+    "onRegisterGraphicsSaveRequest={",
+    "Graphics Save request registration",
+  );
+
+  const applyHandlerStart = workspaceSource.indexOf(
+    "const handleApplyPendingReview = useCallback",
+  );
+  const applyHandlerEnd = workspaceSource.indexOf(
+    "const handleDismissPendingReview = useCallback",
+    applyHandlerStart,
+  );
+  const applyHandlerSource = workspaceSource.slice(
+    applyHandlerStart,
+    applyHandlerEnd,
+  );
+  const validate = applyHandlerSource.indexOf(
+    "pendingGraphicsApply.lifecycle.validate()",
+  );
+  const hostApply = applyHandlerSource.indexOf(
+    "onApplyPendingEditPlan?.()",
+    validate,
+  );
+  const commit = applyHandlerSource.indexOf(
+    "pendingGraphicsApply.lifecycle.commit(appliedSource)",
+    hostApply,
+  );
+  const saveIntent = applyHandlerSource.indexOf(
+    'pendingGraphicsApply.intent === "save"',
+    commit,
+  );
+  const hostSave = applyHandlerSource.indexOf(
+    "saveCommittedGraphicsDocument(",
+    saveIntent,
+  );
+
+  assert.ok(applyHandlerStart >= 0, "Graphics confirmed Apply handler is missing");
+  assert.ok(validate >= 0, "Graphics Save must validate the frozen lifecycle");
+  assert.ok(hostApply > validate, "Graphics Save must Apply after validation");
+  assert.ok(commit > hostApply, "Graphics Save must commit after host Apply");
+  assert.ok(saveIntent > commit, "Graphics Save intent must be checked after commit");
+  assert.ok(hostSave > saveIntent, "DataTeX Save must run only after commit");
+  assertIncludes(
+    applyHandlerSource,
+    "return committed;",
+    "Graphics Apply/Save committed result",
+  );
+
+  const hostSaveHandlerStart = appSource.indexOf(
+    "const handleSavePackageStudioDocument = useCallback",
+  );
+  const hostSaveHandlerEnd = appSource.indexOf(
+    "// --- Compilation Hook ---",
+    hostSaveHandlerStart,
+  );
+  const hostSaveHandlerSource = appSource.slice(
+    hostSaveHandlerStart,
+    hostSaveHandlerEnd,
+  );
+  assert.ok(
+    hostSaveHandlerStart >= 0 && hostSaveHandlerEnd > hostSaveHandlerStart,
+    "DataTeX host-save handler scope is missing",
+  );
+  assertIncludes(
+    hostSaveHandlerSource,
+    "tab.id === request.documentId",
+    "DataTeX Save document identity guard",
+  );
+  assertIncludes(
+    hostSaveHandlerSource,
+    "tab.id === request.targetFilePath",
+    "DataTeX Save path identity guard",
+  );
+  assertIncludes(
+    hostSaveHandlerSource,
+    '(targetTab.content ?? "") !== request.source',
+    "DataTeX Save exact-source guard",
+  );
+  assertIncludes(
+    hostSaveHandlerSource,
+    "persistTabSource(",
+    "DataTeX reviewed-source persistence",
+  );
+  assertIncludes(
+    appSource,
+    "fileSaveQueueRef.current.get(filePath)",
+    "per-file ordered Save queue",
+  );
+  assertIncludes(
+    appSource,
+    "return targetStillExists;",
+    "post-write target identity result",
+  );
+  assertIncludes(
+    hostSaveHandlerSource,
+    "latestEditorSourceRef.current",
+    "post-Save newer-editor-source guard",
+  );
+  assertIncludes(
+    stoicheiaDocumentBridgeSource,
+    "useEditorStore.getState().source === payload.nextSource",
+    "reviewed local-draft lifecycle guard",
+  );
+  assertNotIncludes(
+    workspaceSource,
+    "writeTextFile",
+    "Graphics workspace direct filesystem access",
+  );
+  assertNotIncludes(
+    stoicheiaAdapterSource,
+    "writeTextFile",
+    "Stoicheia adapter direct filesystem access",
+  );
+  assertNotIncludes(
+    stoicheiaHeaderSource,
+    "writeTextFile",
+    "Stoicheia embedded header direct filesystem access",
+  );
+});
+
+test("Graphics Studio Save As and exact SVG export stay host-owned and revision-safe", () => {
+  assertIncludes(
+    serviceSource,
+    "export interface PackageStudioHostSaveAsPickRequest",
+    "Save As destination-pick contract",
+  );
+  assertIncludes(
+    serviceSource,
+    "export interface PackageStudioHostSaveAsRequest",
+    "Save As persistence contract",
+  );
+  assertIncludes(
+    serviceSource,
+    "export interface PackageStudioHostSvgExportRequest",
+    "SVG export contract",
+  );
+  assertIncludes(
+    workspaceSource,
+    "onRequestSaveAs={",
+    "embedded Save As host bridge",
+  );
+  assertIncludes(
+    workspaceSource,
+    "onRequestExportSvg={",
+    "embedded SVG export host bridge",
+  );
+
+  const saveAsHandlerStart = workspaceSource.indexOf(
+    "const handleGraphicsRequestSaveAs = useCallback",
+  );
+  const chooseDestination = workspaceSource.indexOf(
+    "await onChooseHostSaveAsTarget({",
+    saveAsHandlerStart,
+  );
+  const requestReview = workspaceSource.indexOf(
+    'await handleGraphicsRequestAction(\n          "saveAs"',
+    chooseDestination,
+  );
+  assert.ok(saveAsHandlerStart >= 0, "Graphics Save As handler is missing");
+  assert.ok(
+    chooseDestination > saveAsHandlerStart,
+    "Save As must choose its host destination inside the handler",
+  );
+  assert.ok(
+    requestReview > chooseDestination,
+    "Save As must freeze the selected destination before creating review",
+  );
+  assertIncludes(
+    workspaceSource,
+    "pendingGraphicsApply.saveAsTargetFilePath",
+    "review-owned Save As target",
+  );
+  assertIncludes(
+    stoicheiaDocumentBridgeSource,
+    "validateCommitted:",
+    "post-commit local-draft guard",
+  );
+  assertIncludes(
+    workspaceSource,
+    "pendingGraphicsApply.lifecycle.validateCommitted(appliedSource)",
+    "Save As post-commit draft revalidation",
+  );
+  assertIncludes(
+    workspaceSource,
+    "saveAsCommittedGraphicsDocument(",
+    "post-commit Save As persistence",
+  );
+  assertIncludes(
+    appSource,
+    "const handleSaveAsPackageStudioDocument = useCallback",
+    "DataTeX Save As persistence handler",
+  );
+  assertIncludes(
+    appSource,
+    "retargetEditorTab(",
+    "atomic post-write tab retarget",
+  );
+  assertIncludes(
+    tabsStoreSource,
+    "(sourceTab.content ?? \"\") !== expectedSource",
+    "atomic tab-retarget stale-source guard",
+  );
+  assertIncludes(
+    tabsStoreSource,
+    "destinationCollision",
+    "atomic tab-retarget collision guard",
+  );
+  assertIncludes(
+    appSource,
+    "onSaveAs={handleSaveAsFromActiveSurface}",
+    "global Save As routing",
+  );
+
+  assertIncludes(
+    stoicheiaHeaderSource,
+    "compiledSource === source",
+    "exact compiled-source SVG gate",
+  );
+  assertIncludes(
+    stoicheiaDocumentBridgeSource,
+    "sanitizeExactSvg(svgSource)",
+    "SVG sanitizer boundary",
+  );
+  assertIncludes(
+    stoicheiaDocumentBridgeSource,
+    "fingerprintDocumentSource(currentSvg) === payload.svgRevision",
+    "SVG render revision guard",
+  );
+  assertIncludes(
+    appSource,
+    "const handleExportPackageStudioSvg = useCallback",
+    "DataTeX-owned SVG exporter",
+  );
+  const svgHostHandlerStart = appSource.indexOf(
+    "const handleExportPackageStudioSvg = useCallback",
+  );
+  const svgDialog = appSource.indexOf(
+    'title: "Export exact SVG"',
+    svgHostHandlerStart,
+  );
+  const svgPostDialogValidation = appSource.indexOf(
+    "if (!sourceDocumentExists() || !request.validate())",
+    svgDialog,
+  );
+  const svgWrite = appSource.indexOf("await writeTextFile(", svgDialog);
+  assert.ok(svgDialog > svgHostHandlerStart, "host SVG dialog is missing");
+  assert.ok(
+    svgPostDialogValidation > svgDialog,
+    "SVG freshness must be revalidated after the host dialog",
+  );
+  assert.ok(
+    svgWrite > svgPostDialogValidation,
+    "SVG write must happen only after post-dialog validation",
+  );
+  assertNotIncludes(
+    workspaceSource,
+    "writeTextFile",
+    "Graphics workspace direct file export",
+  );
+  assertNotIncludes(
+    stoicheiaAdapterSource,
+    "exportSvgFile",
+    "embedded adapter standalone SVG exporter",
+  );
+});
+
+test("Graphics Studio creates a new drawing and inserts it through Rust-owned review", () => {
+  assertIncludes(
+    serviceSource,
+    "export interface GraphicsNewDrawingTemplateRequest",
+    "Graphics new-drawing template service contract",
+  );
+  assertIncludes(
+    serviceSource,
+    "export interface GraphicsDrawingInsertRequest",
+    "Graphics drawing-insert service contract",
+  );
+  assertIncludes(
+    serviceSource,
+    "export function prepareGraphicsNewDrawing",
+    "Graphics new-drawing template service",
+  );
+  assertIncludes(
+    serviceSource,
+    '"package_studio_prepare_graphics_new_drawing_cmd"',
+    "Graphics new-drawing template invoke",
+  );
+  assertIncludes(
+    serviceSource,
+    "export function planGraphicsDrawingInsert",
+    "Graphics drawing-insert planning service",
+  );
+  assertIncludes(
+    serviceSource,
+    '"package_studio_plan_graphics_drawing_insert_cmd"',
+    "Graphics drawing-insert planner invoke",
+  );
+
+  assertIncludes(
+    rustPackageStudioSource,
+    "pub struct GraphicsNewDrawingTemplateRequest",
+    "Rust Graphics new-drawing template request",
+  );
+  assertIncludes(
+    rustPackageStudioSource,
+    "pub struct GraphicsDrawingInsertRequest",
+    "Rust Graphics drawing-insert request",
+  );
+  assertIncludes(
+    rustPackageStudioSource,
+    "pub fn prepare_graphics_new_drawing",
+    "Rust Graphics new-drawing template planner",
+  );
+  assertIncludes(
+    rustPackageStudioSource,
+    "pub fn plan_graphics_drawing_insert",
+    "Rust Graphics drawing-insert planner",
+  );
+  assertIncludes(
+    rustLibSource,
+    "package_studio::package_studio_prepare_graphics_new_drawing_cmd",
+    "Graphics new-drawing template command registration",
+  );
+  assertIncludes(
+    rustLibSource,
+    "package_studio::package_studio_plan_graphics_drawing_insert_cmd",
+    "Graphics drawing-insert command registration",
+  );
+
+  assertIncludes(
+    stoicheiaDocumentBridgeSource,
+    'Readonly<{ kind: "newDrawing" }>',
+    "Stoicheia new-drawing session target",
+  );
+  assertIncludes(
+    workspaceSource,
+    'target: { kind: "newDrawing" }',
+    "Graphics new-drawing host target",
+  );
+  assertIncludes(
+    workspaceSource,
+    "data-new-drawing-setup",
+    "Graphics in-window new-drawing setup",
+  );
+  assertIncludes(
+    workspaceSource,
+    "await prepareGraphicsNewDrawing({",
+    "Graphics Rust-owned scratch template preparation",
+  );
+
+  const applyHandlerStart = workspaceSource.indexOf(
+    "const handleGraphicsRequestAction = useCallback",
+  );
+  const applyHandlerEnd = workspaceSource.indexOf(
+    "const handleGraphicsRequestApply = useCallback",
+    applyHandlerStart,
+  );
+  const applyHandlerSource = workspaceSource.slice(
+    applyHandlerStart,
+    applyHandlerEnd,
+  );
+  const newDrawingPlan = applyHandlerSource.indexOf(
+    "await planGraphicsDrawingInsert({",
+  );
+  const reviewedPlan = applyHandlerSource.indexOf(
+    "const reviewCreated = onReviewEditPlan(",
+    newDrawingPlan,
+  );
+
+  assert.ok(
+    applyHandlerStart >= 0 && applyHandlerEnd > applyHandlerStart,
+    "Graphics Apply handler scope is missing",
+  );
+  assertIncludes(
+    applyHandlerSource,
+    'payload.target.kind === "newDrawing"',
+    "Graphics new-drawing Apply branch",
+  );
+  assert.ok(
+    newDrawingPlan >= 0,
+    "Graphics new drawing must use the Rust drawing-insert planner",
+  );
+  assert.ok(
+    reviewedPlan > newDrawingPlan,
+    "Graphics drawing insertion must enter DataTeX review after Rust planning",
+  );
+  assertIncludes(
+    applyHandlerSource,
+    "setPendingGraphicsApply(nextPending)",
+    "Graphics reviewed insertion lifecycle",
+  );
+  assertNotIncludes(
+    applyHandlerSource,
+    "handleInsertFromPackageStudio",
+    "Graphics new-drawing Apply handler",
+  );
+  assertNotIncludes(
+    applyHandlerSource,
+    "onInsertCode",
+    "Graphics new-drawing Apply handler",
+  );
+
+  const graphicsBranchStart = workspaceSource.indexOf(
+    '{activeBuilder?.id === "graphics-studio" ? (',
+  );
+  const graphicsBranchEnd = workspaceSource.indexOf(
+    'className="package-studio-main-scroll"',
+    graphicsBranchStart,
+  );
+  const graphicsBranchSource = workspaceSource.slice(
+    graphicsBranchStart,
+    graphicsBranchEnd,
+  );
+  assert.ok(
+    graphicsBranchStart >= 0 && graphicsBranchEnd > graphicsBranchStart,
+    "Graphics full-bleed render branch is missing",
+  );
+  assertNotIncludes(
+    graphicsBranchSource,
+    "onInsertCode",
+    "Graphics full-bleed new-drawing UI",
+  );
+  assertNotIncludes(
+    graphicsBranchSource,
+    "handleInsertFromPackageStudio",
+    "Graphics full-bleed new-drawing UI",
   );
 });
 

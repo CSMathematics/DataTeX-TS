@@ -66,6 +66,108 @@ export interface PackageStudioEditReview {
   targetFilePath?: string;
 }
 
+export interface PackageStudioHostSaveRequest {
+  documentId: string;
+  targetFilePath: string;
+  source: string;
+}
+
+export interface PackageStudioHostSaveAsPickRequest {
+  documentId: string;
+  sourceFilePath: string;
+  source: string;
+  suggestedFileName: string;
+}
+
+export type PackageStudioHostSaveAsPickResult =
+  | Readonly<{ status: "selected"; targetFilePath: string }>
+  | Readonly<{ status: "cancelled" }>
+  | Readonly<{ status: "failed"; message: string }>;
+
+export interface PackageStudioHostSaveAsRequest {
+  documentId: string;
+  sourceFilePath: string;
+  targetFilePath: string;
+  source: string;
+  /** Prevents a completed write from retargeting over a newer local draft. */
+  validate: () => boolean;
+}
+
+export interface PackageStudioHostSvgExportRequest {
+  documentId: string;
+  sourceFilePath: string;
+  svgSource: string;
+  suggestedFileName: string;
+  /** Revalidates the frozen render immediately before the host writes it. */
+  validate: () => boolean;
+}
+
+export type PackageStudioHostFileActionResult =
+  | Readonly<{ status: "saved"; filePath: string }>
+  | Readonly<{ status: "savedDetached"; filePath: string }>
+  | Readonly<{ status: "cancelled" }>
+  | Readonly<{ status: "failed"; message: string }>;
+
+/**
+ * Exact editor focus captured from the same Monaco model snapshot that is
+ * handed to Package Studio. Offsets are UTF-8 bytes so Rust can compare them
+ * directly with its source ranges.
+ */
+export interface PackageStudioSourceFocus {
+  documentId: string;
+  source: string;
+  cursorByte: number;
+  selectionStartByte: number;
+  selectionEndByte: number;
+}
+
+export function stringIndexToUtf8ByteOffset(
+  source: string,
+  stringIndex: number,
+): number {
+  const safeIndex = Math.max(0, Math.min(source.length, stringIndex));
+  return new TextEncoder().encode(source.slice(0, safeIndex)).length;
+}
+
+export function selectGraphicsTikzpictureFromFocus(
+  targets: readonly GraphicsTikzpictureTargetDescriptor[],
+  focus: PackageStudioSourceFocus | null | undefined,
+  documentId: string,
+  source: string,
+): GraphicsTikzpictureTargetDescriptor | null {
+  if (
+    !focus ||
+    focus.documentId !== documentId ||
+    focus.source !== source
+  ) {
+    return null;
+  }
+
+  const selectionStart = Math.min(
+    focus.selectionStartByte,
+    focus.selectionEndByte,
+  );
+  const selectionEnd = Math.max(
+    focus.selectionStartByte,
+    focus.selectionEndByte,
+  );
+  if (selectionEnd > selectionStart) {
+    const selected = targets.filter(
+      (target) =>
+        target.baselineRange.start.byte <= selectionStart &&
+        selectionEnd <= target.baselineRange.end.byte,
+    );
+    if (selected.length === 1) return selected[0];
+  }
+
+  const underCursor = targets.filter(
+    (target) =>
+      target.baselineRange.start.byte <= focus.cursorByte &&
+      focus.cursorByte < target.baselineRange.end.byte,
+  );
+  return underCursor.length === 1 ? underCursor[0] : null;
+}
+
 export function applyPackageTextEdits(
   source: string,
   edits: TextEdit[],
@@ -131,6 +233,112 @@ export interface GeneratedBlockRequest {
   revision: number;
   blockId: string;
   code: string;
+}
+
+export interface GraphicsDocumentEditRequest {
+  schemaVersion: 1;
+  revision: number;
+  documentId: string;
+  targetFilePath: string;
+  baselineSource: string;
+  replacementSource: string;
+  baselineSha256: string;
+}
+
+export type GraphicsTikzpictureTarget =
+  | { kind: "cursor"; byte: number }
+  | { kind: "range"; startByte: number; endByte: number }
+  | { kind: "ordinal"; ordinal: number };
+
+export interface GraphicsTikzpictureEditRequest
+  extends GraphicsDocumentEditRequest {
+  target: GraphicsTikzpictureTarget;
+}
+
+export type GraphicsTikzpictureDiscoveryRequest = GraphicsDocumentEditRequest;
+
+export interface GraphicsTikzpictureTargetDescriptor {
+  ordinal: number;
+  baselineRange: SourceRange;
+  replacementRange: SourceRange | null;
+  sourceSha256: string;
+  label: string;
+  preview: string;
+  changed: boolean;
+}
+
+export interface GraphicsTikzpictureDiscovery {
+  schemaVersion: 1;
+  revision: number;
+  documentId: string;
+  targetFilePath: string;
+  baselineSha256: string;
+  targets: GraphicsTikzpictureTargetDescriptor[];
+  outsideChanges: boolean;
+  structurallyCompatible: boolean;
+  structuralError: string | null;
+}
+
+export interface GraphicsTikzpictureFocusRequest {
+  schemaVersion: 1;
+  revision: number;
+  documentId: string;
+  targetFilePath: string;
+  baselineSource: string;
+  baselineSha256: string;
+  target: GraphicsTikzpictureTarget;
+}
+
+export interface GraphicsTikzpictureFocus {
+  schemaVersion: 1;
+  revision: number;
+  documentId: string;
+  targetFilePath: string;
+  baselineSha256: string;
+  workingSource: string;
+  workingSha256: string;
+  target: GraphicsTikzpictureTargetDescriptor;
+}
+
+export interface GraphicsNewDrawingTemplateRequest {
+  schemaVersion: 1;
+  revision: number;
+}
+
+export interface GraphicsNewDrawingTemplate {
+  schemaVersion: 1;
+  revision: number;
+  source: string;
+  sourceSha256: string;
+}
+
+export type GraphicsDrawingInsertionTarget =
+  | { kind: "cursor"; byte: number }
+  | { kind: "beforeEndDocument" }
+  | { kind: "selection"; startByte: number; endByte: number };
+
+export type GraphicsDrawingWrapper =
+  | { kind: "inline" }
+  | {
+      kind: "figure";
+      placement?: string | null;
+      centering: boolean;
+      caption?: string | null;
+      label?: string | null;
+    };
+
+export interface GraphicsDrawingInsertRequest {
+  schemaVersion: 1;
+  revision: number;
+  documentId: string;
+  targetFilePath: string;
+  baselineSource: string;
+  drawingSource: string;
+  baselineSha256: string;
+  target: GraphicsDrawingInsertionTarget;
+  wrapper?: GraphicsDrawingWrapper;
+  requiredPackages?: string[];
+  requiredTikzLibraries?: string[];
 }
 
 export interface ManagedGeneratedBlock {
@@ -538,6 +746,77 @@ export function planApplyBuilderConfiguration(
 ): Promise<PackageEditPlan> {
   return invoke<PackageEditPlan>(
     "package_studio_plan_apply_builder_configuration_cmd",
+    { request },
+  );
+}
+
+export async function calculateSourceSha256(source: string): Promise<string> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) {
+    throw new Error(
+      "Secure source fingerprinting is unavailable in this WebView.",
+    );
+  }
+
+  const digest = await subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(source),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+export function planGraphicsDocumentEdit(
+  request: GraphicsDocumentEditRequest,
+): Promise<PackageEditPlan> {
+  return invoke<PackageEditPlan>(
+    "package_studio_plan_graphics_document_edit_cmd",
+    { request },
+  );
+}
+
+export function discoverGraphicsTikzpictures(
+  request: GraphicsTikzpictureDiscoveryRequest,
+): Promise<GraphicsTikzpictureDiscovery> {
+  return invoke<GraphicsTikzpictureDiscovery>(
+    "package_studio_discover_graphics_tikzpictures_cmd",
+    { request },
+  );
+}
+
+export function prepareGraphicsTikzpicture(
+  request: GraphicsTikzpictureFocusRequest,
+): Promise<GraphicsTikzpictureFocus> {
+  return invoke<GraphicsTikzpictureFocus>(
+    "package_studio_prepare_graphics_tikzpicture_cmd",
+    { request },
+  );
+}
+
+export function planGraphicsTikzpictureEdit(
+  request: GraphicsTikzpictureEditRequest,
+): Promise<PackageEditPlan> {
+  return invoke<PackageEditPlan>(
+    "package_studio_plan_graphics_tikzpicture_edit_cmd",
+    { request },
+  );
+}
+
+export function prepareGraphicsNewDrawing(
+  request: GraphicsNewDrawingTemplateRequest,
+): Promise<GraphicsNewDrawingTemplate> {
+  return invoke<GraphicsNewDrawingTemplate>(
+    "package_studio_prepare_graphics_new_drawing_cmd",
+    { request },
+  );
+}
+
+export function planGraphicsDrawingInsert(
+  request: GraphicsDrawingInsertRequest,
+): Promise<PackageEditPlan> {
+  return invoke<PackageEditPlan>(
+    "package_studio_plan_graphics_drawing_insert_cmd",
     { request },
   );
 }

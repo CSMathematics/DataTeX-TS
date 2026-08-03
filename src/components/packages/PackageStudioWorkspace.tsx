@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import {
@@ -57,6 +63,8 @@ import {
 import { useTranslation } from "react-i18next";
 import {
   analyzeLatexPackages,
+  calculateSourceSha256,
+  discoverGraphicsTikzpictures,
   generateCodeHighlighting,
   generateCodeHighlightingSnippet,
   generateEnumitem,
@@ -77,6 +85,12 @@ import {
   listMathImports,
   listBuilderOptions,
   listPackageBuilders,
+  planGraphicsDocumentEdit,
+  planGraphicsDrawingInsert,
+  planGraphicsTikzpictureEdit,
+  prepareGraphicsNewDrawing,
+  prepareGraphicsTikzpicture,
+  selectGraphicsTikzpictureFromFocus,
   type BuilderOutput,
   type BuilderConfigurationDraft,
   type BuilderCategory,
@@ -100,9 +114,37 @@ import {
   type PackageDiagnostic,
   type PackageEditPlan,
   type PackageStudioEditReview,
+  type PackageStudioHostFileActionResult,
+  type PackageStudioHostSaveAsPickRequest,
+  type PackageStudioHostSaveAsPickResult,
+  type PackageStudioHostSaveAsRequest,
+  type PackageStudioHostSaveRequest,
+  type PackageStudioHostSvgExportRequest,
+  type PackageStudioSourceFocus,
+  type GraphicsTikzpictureDiscovery,
+  type GraphicsTikzpictureFocus,
+  type GraphicsTikzpictureTargetDescriptor,
+  type GraphicsDrawingInsertionTarget,
+  type GraphicsDrawingWrapper,
+  type GraphicsNewDrawingTemplate,
   type XcolorBuilderRequest,
+  applyPackageTextEdits,
   utf8ByteOffsetToStringIndex,
 } from "../../services/packageStudioService";
+import { loadStoicheiaFrontend } from "../../features/stoicheia/bridge/loadFrontend";
+import type {
+  StoicheiaApplyPayload,
+  StoicheiaApplyLifecycle,
+  StoicheiaHostDocument,
+  StoicheiaSvgExportLifecycle,
+  StoicheiaSvgExportPayload,
+} from "../../features/stoicheia/bridge/documentBridge";
+import type { AppLanguage } from "../../features/stoicheia/i18n";
+import type {
+  LatexCompiler,
+  LatexEnginePaths,
+} from "../../features/stoicheia/store";
+import type { AppTheme } from "../../features/stoicheia/theme";
 import { LANGUAGES_DB } from "../wizards/preamble/LanguageDb";
 
 interface PackageStudioWorkspaceProps {
@@ -117,13 +159,73 @@ interface PackageStudioWorkspaceProps {
     plan: PackageEditPlan,
     source: string,
     targetFilePath: string,
-  ) => void;
+  ) => boolean;
   pendingEditReview?: PackageStudioEditReview | null;
-  onApplyPendingEditPlan?: () => void;
+  onApplyPendingEditPlan?: () => boolean;
   onDismissPendingEditPlan?: () => void;
+  onSaveHostDocument?: (
+    request: Readonly<PackageStudioHostSaveRequest>,
+  ) => Promise<boolean>;
+  onChooseHostSaveAsTarget?: (
+    request: Readonly<PackageStudioHostSaveAsPickRequest>,
+  ) => Promise<PackageStudioHostSaveAsPickResult>;
+  onSaveAsHostDocument?: (
+    request: Readonly<PackageStudioHostSaveAsRequest>,
+  ) => Promise<PackageStudioHostFileActionResult>;
+  onExportHostSvg?: (
+    request: Readonly<PackageStudioHostSvgExportRequest>,
+  ) => Promise<PackageStudioHostFileActionResult>;
+  onRegisterGraphicsSaveRequest?: (
+    requestSave: (() => void) | null,
+  ) => void;
+  onRegisterGraphicsSaveAsRequest?: (
+    requestSaveAs: (() => void) | null,
+  ) => void;
   activeFilePath?: string;
   activeFileContent?: string;
+  activeFileFocus?: PackageStudioSourceFocus | null;
+  hostTheme?: AppTheme;
+  hostLanguage?: string;
+  hostLatexCompiler?: LatexCompiler;
+  hostLatexEnginePaths?: LatexEnginePaths;
+  hostDvisvgmPath?: string;
+  onOpenHostSettings?: () => void;
 }
+
+type PendingGraphicsApply = {
+  payload: Readonly<StoicheiaApplyPayload>;
+  plan: PackageEditPlan;
+  intent: "apply" | "save" | "saveAs";
+  saveAsTargetFilePath?: string;
+  lifecycle: Readonly<StoicheiaApplyLifecycle>;
+};
+
+type GraphicsDocumentActionRequest = {
+  intent: "apply" | "save" | "saveAs";
+  saveAsTargetFilePath?: string;
+  payload: Readonly<StoicheiaApplyPayload>;
+  lifecycle: Readonly<StoicheiaApplyLifecycle>;
+};
+
+type GraphicsStudioSessionMode =
+  | Readonly<{
+      kind: "fullDocument";
+      baselineSha256: string;
+    }>
+  | Readonly<{
+      kind: "tikzpicture";
+      focus: GraphicsTikzpictureFocus;
+    }>
+  | Readonly<{
+      kind: "newDrawing";
+      draftId: string;
+      template: GraphicsNewDrawingTemplate;
+    }>;
+
+type GraphicsSelectionPreference =
+  | Readonly<{ path: string; kind: "fullDocument" }>
+  | Readonly<{ path: string; kind: "tikzpicture"; ordinal: number }>
+  | Readonly<{ path: string; kind: "newDrawing" }>;
 
 type CategoryMeta = {
   label: string;
@@ -155,6 +257,118 @@ const SUPPORT_LABELS: Record<BuilderSupportLevel, string> = {
 };
 
 const AUTO_OPTION_VALUE = "__datatex_auto__";
+let stoicheiaWorkspaceSessionSequence = 0;
+let stoicheiaNewDrawingSequence = 0;
+
+const nextStoicheiaWorkspaceSessionId = () =>
+  `package-studio-${++stoicheiaWorkspaceSessionSequence}`;
+const nextStoicheiaNewDrawingId = () =>
+  `new-drawing-${++stoicheiaNewDrawingSequence}`;
+
+const graphicsPayloadMatchesDocument = (
+  payload: Readonly<StoicheiaApplyPayload>,
+  document: StoicheiaHostDocument | null,
+) =>
+  Boolean(
+    document &&
+      payload.sessionId === document.sessionId &&
+      payload.documentId === document.id &&
+      payload.filePath === document.path &&
+      payload.baselineSource === document.source &&
+      payload.sourceRevision.trim() &&
+      payload.target.kind === (document.target?.kind ?? "fullDocument") &&
+      (payload.target.kind !== "tikzpicture" ||
+        (document.target?.kind === "tikzpicture" &&
+          payload.target.ordinal === document.target.ordinal)),
+  );
+
+const graphicsTargetsMatch = (
+  left: StoicheiaApplyPayload["target"],
+  right: StoicheiaApplyPayload["target"],
+) =>
+  left.kind === right.kind &&
+  (left.kind !== "tikzpicture" ||
+    (right.kind === "tikzpicture" && left.ordinal === right.ordinal));
+
+const graphicsPayloadsMatch = (
+  left: Readonly<StoicheiaApplyPayload>,
+  right: Readonly<StoicheiaApplyPayload>,
+) =>
+  left.sessionId === right.sessionId &&
+  left.documentId === right.documentId &&
+  left.filePath === right.filePath &&
+  left.baselineSource === right.baselineSource &&
+  left.sourceRevision === right.sourceRevision &&
+  left.nextSource === right.nextSource &&
+  graphicsTargetsMatch(left.target, right.target);
+
+const graphicsPayloadMatchesTargetIdentity = (
+  payload: Readonly<StoicheiaApplyPayload>,
+  document: StoicheiaHostDocument | null,
+) =>
+  Boolean(
+    document &&
+      payload.sessionId === document.sessionId &&
+      payload.documentId === document.id &&
+      payload.filePath === document.path &&
+      graphicsTargetsMatch(
+        payload.target,
+        document.target ?? { kind: "fullDocument" },
+      ),
+  );
+
+const graphicsSvgPayloadMatchesTargetIdentity = (
+  payload: Readonly<StoicheiaSvgExportPayload>,
+  document: StoicheiaHostDocument | null,
+) =>
+  Boolean(
+    document &&
+      payload.sessionId === document.sessionId &&
+      payload.documentId === document.id &&
+      payload.filePath === document.path &&
+      payload.target.kind === (document.target?.kind ?? "fullDocument") &&
+      (payload.target.kind !== "tikzpicture" ||
+        (document.target?.kind === "tikzpicture" &&
+          payload.target.ordinal === document.target.ordinal)),
+  );
+
+const suggestGraphicsSaveAsFileName = (filePath: string) => {
+  const filename = filePath.split(/[/\\]/).pop()?.trim() || "drawing.tex";
+  const extensionMatch = filename.match(/\.(tex|sty|cls)$/i);
+  if (!extensionMatch) return `${filename}-copy.tex`;
+  const extension = extensionMatch[0];
+  return `${filename.slice(0, -extension.length)}-copy${extension}`;
+};
+
+const STOICHEIA_LANGUAGES = new Set<AppLanguage>([
+  "en",
+  "el",
+  "fr",
+  "it",
+  "de",
+  "ru",
+  "es",
+  "pt",
+  "pl",
+  "tr",
+  "nl",
+  "zh",
+  "ja",
+  "ar",
+]);
+
+const normalizeStoicheiaLanguage = (language?: string): AppLanguage => {
+  const normalized = language?.trim().toLowerCase().split(/[-_]/)[0];
+  return STOICHEIA_LANGUAGES.has(normalized as AppLanguage)
+    ? (normalized as AppLanguage)
+    : "en";
+};
+
+const LazyStoicheiaPackageStudio = React.lazy(() =>
+  loadStoicheiaFrontend().then((module) => ({
+    default: module.StoicheiaPackageStudioAdapter,
+  })),
+);
 
 const inputValue = (
   event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -1034,16 +1248,156 @@ export const PackageStudioWorkspace: React.FC<PackageStudioWorkspaceProps> = ({
   pendingEditReview,
   onApplyPendingEditPlan,
   onDismissPendingEditPlan,
+  onSaveHostDocument,
+  onChooseHostSaveAsTarget,
+  onSaveAsHostDocument,
+  onExportHostSvg,
+  onRegisterGraphicsSaveRequest,
+  onRegisterGraphicsSaveAsRequest,
   activeFilePath,
   activeFileContent,
+  activeFileFocus,
+  hostTheme = "dark",
+  hostLanguage,
+  hostLatexCompiler = "pdflatex",
+  hostLatexEnginePaths = {
+    lualatex: "lualatex",
+    pdflatex: "pdflatex",
+    xelatex: "xelatex",
+  },
+  hostDvisvgmPath = "dvisvgm",
+  onOpenHostSettings,
 }) => {
   const { t } = useTranslation();
+  const [stoicheiaWorkspaceSessionId] = useState(
+    nextStoicheiaWorkspaceSessionId,
+  );
+  const [graphicsDiscovery, setGraphicsDiscovery] =
+    useState<GraphicsTikzpictureDiscovery | null>(null);
+  const [graphicsBaselineSha256, setGraphicsBaselineSha256] = useState<
+    string | null
+  >(null);
+  const [graphicsSessionMode, setGraphicsSessionMode] =
+    useState<GraphicsStudioSessionMode | null>(null);
+  const [graphicsTargetLoading, setGraphicsTargetLoading] = useState(false);
+  const [graphicsTargetError, setGraphicsTargetError] = useState<string | null>(
+    null,
+  );
+  const [confirmGraphicsTargetChange, setConfirmGraphicsTargetChange] =
+    useState(false);
+  const [newDrawingSetupOpen, setNewDrawingSetupOpen] = useState(false);
+  const [newDrawingSettingsOpen, setNewDrawingSettingsOpen] = useState(false);
+  const [newDrawingInsertionTarget, setNewDrawingInsertionTarget] =
+    useState<GraphicsDrawingInsertionTarget>({
+      kind: "beforeEndDocument",
+    });
+  const [newDrawingWrapperKind, setNewDrawingWrapperKind] = useState<
+    "inline" | "figure"
+  >("inline");
+  const [newDrawingFigurePlacement, setNewDrawingFigurePlacement] =
+    useState("htbp");
+  const [newDrawingFigureCentering, setNewDrawingFigureCentering] =
+    useState(true);
+  const [newDrawingFigureCaption, setNewDrawingFigureCaption] = useState("");
+  const [newDrawingFigureLabel, setNewDrawingFigureLabel] = useState("");
+  const graphicsSelectionPreferenceRef =
+    useRef<GraphicsSelectionPreference | null>(null);
+  const graphicsTargetRequestRef = useRef(0);
+  const graphicsNewDrawingOptionsRevisionRef = useRef(0);
+  const graphicsNewDrawingTargetRef = useRef(newDrawingInsertionTarget);
+  const graphicsNewDrawingWrapperRef = useRef<GraphicsDrawingWrapper>({
+    kind: "inline",
+  });
+  graphicsNewDrawingTargetRef.current = newDrawingInsertionTarget;
+  graphicsNewDrawingWrapperRef.current =
+    newDrawingWrapperKind === "figure"
+      ? {
+          kind: "figure",
+          placement: newDrawingFigurePlacement,
+          centering: newDrawingFigureCentering,
+          caption: newDrawingFigureCaption,
+          label: newDrawingFigureLabel,
+        }
+      : { kind: "inline" };
+  const stoicheiaHostDocument = useMemo<StoicheiaHostDocument | null>(() => {
+    if (
+      !activeFilePath ||
+      activeFileContent === undefined ||
+      !graphicsSessionMode
+    ) {
+      return null;
+    }
+
+    if (graphicsSessionMode.kind === "tikzpicture") {
+      const target = graphicsSessionMode.focus.target;
+      return {
+        sessionId: `${stoicheiaWorkspaceSessionId}:tikzpicture:${target.ordinal}:${graphicsSessionMode.focus.baselineSha256}`,
+        id: activeFilePath,
+        path: activeFilePath,
+        source: activeFileContent,
+        workingSource: graphicsSessionMode.focus.workingSource,
+        target: { kind: "tikzpicture", ordinal: target.ordinal },
+      };
+    }
+
+    if (graphicsSessionMode.kind === "newDrawing") {
+      return {
+        sessionId: `${stoicheiaWorkspaceSessionId}:${graphicsSessionMode.draftId}:${graphicsBaselineSha256}:${graphicsSessionMode.template.sourceSha256}`,
+        id: activeFilePath,
+        path: activeFilePath,
+        source: activeFileContent,
+        workingSource: graphicsSessionMode.template.source,
+        target: { kind: "newDrawing" },
+      };
+    }
+
+    return {
+      sessionId: `${stoicheiaWorkspaceSessionId}:full:${graphicsSessionMode.baselineSha256}`,
+      id: activeFilePath,
+      path: activeFilePath,
+      source: activeFileContent,
+      target: { kind: "fullDocument" },
+    };
+  }, [
+    activeFileContent,
+    activeFilePath,
+    graphicsBaselineSha256,
+    graphicsSessionMode,
+    stoicheiaWorkspaceSessionId,
+  ]);
   const [builders, setBuilders] = useState<BuilderDescriptor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<LatexPackageAnalysis | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [pendingGraphicsApply, setPendingGraphicsApply] =
+    useState<PendingGraphicsApply | null>(null);
+  const [graphicsPlanLoading, setGraphicsPlanLoading] = useState(false);
+  const [graphicsHostSaveLoading, setGraphicsHostSaveLoading] =
+    useState(false);
+  const [graphicsHostSaveAsPickerLoading, setGraphicsHostSaveAsPickerLoading] =
+    useState(false);
+  const [graphicsHostSvgExportLoading, setGraphicsHostSvgExportLoading] =
+    useState(false);
+  const [graphicsPlanError, setGraphicsPlanError] = useState<string | null>(
+    null,
+  );
+  const graphicsHostDocumentRef = useRef(stoicheiaHostDocument);
+  const graphicsBuilderIdRef = useRef<string | null>(null);
+  const graphicsPlanInFlightRef = useRef(false);
+  const queuedGraphicsActionRef =
+    useRef<GraphicsDocumentActionRequest | null>(null);
+  const graphicsActionRunnerRef =
+    useRef<((request: GraphicsDocumentActionRequest) => void) | null>(null);
+  const pendingGraphicsApplyRef = useRef<PendingGraphicsApply | null>(null);
+  const graphicsHostSaveInFlightRef = useRef(0);
+  const graphicsHostSaveAsPickerInFlightRef = useRef(false);
+  const graphicsHostSvgExportInFlightRef = useRef(false);
+  const workspaceMountedRef = useRef(true);
+
+  graphicsHostDocumentRef.current = stoicheiaHostDocument;
+  pendingGraphicsApplyRef.current = pendingGraphicsApply;
 
   useEffect(() => {
     let mounted = true;
@@ -1114,6 +1468,1061 @@ export const PackageStudioWorkspace: React.FC<PackageStudioWorkspaceProps> = ({
     builders.find((builder) => builder.id === activeBuilderId) ??
     builders[0] ??
     null;
+  graphicsBuilderIdRef.current = activeBuilder?.id ?? null;
+
+  const exactGraphicsEditorFocus =
+    activeFilePath &&
+    activeFileContent !== undefined &&
+    activeFileFocus?.documentId === activeFilePath &&
+    activeFileFocus.source === activeFileContent
+      ? activeFileFocus
+      : null;
+  const graphicsInsertionChoices = useMemo(() => {
+    const choices: Array<{ value: string; label: string }> = [];
+    if (exactGraphicsEditorFocus) {
+      const selectionStart = Math.min(
+        exactGraphicsEditorFocus.selectionStartByte,
+        exactGraphicsEditorFocus.selectionEndByte,
+      );
+      const selectionEnd = Math.max(
+        exactGraphicsEditorFocus.selectionStartByte,
+        exactGraphicsEditorFocus.selectionEndByte,
+      );
+      if (selectionEnd > selectionStart) {
+        choices.push({
+          value: "selection",
+          label: "Replace captured body selection",
+        });
+      }
+
+      const cursorInsideDrawing = graphicsDiscovery?.targets.some(
+        (target) =>
+          target.baselineRange.start.byte <=
+            exactGraphicsEditorFocus.cursorByte &&
+          exactGraphicsEditorFocus.cursorByte <
+            target.baselineRange.end.byte,
+      );
+      if (!cursorInsideDrawing) {
+        choices.push({
+          value: "cursor",
+          label: "At captured body cursor",
+        });
+      }
+    }
+    choices.push({
+      value: "beforeEndDocument",
+      label: "Before \\\\end{document}",
+    });
+    return choices;
+  }, [exactGraphicsEditorFocus, graphicsDiscovery?.targets]);
+
+  useEffect(() => {
+    if (activeBuilder?.id !== "graphics-studio") return;
+
+    const documentId = activeFilePath;
+    const source = activeFileContent;
+    const requestId = ++graphicsTargetRequestRef.current;
+    queuedGraphicsActionRef.current = null;
+    if (pendingGraphicsApplyRef.current) {
+      onDismissPendingEditPlan?.();
+      pendingGraphicsApplyRef.current = null;
+      setPendingGraphicsApply(null);
+    }
+    setGraphicsPlanError(null);
+    setGraphicsHostSaveLoading(false);
+    setGraphicsHostSaveAsPickerLoading(false);
+    setGraphicsHostSvgExportLoading(false);
+    setGraphicsDiscovery(null);
+    setGraphicsBaselineSha256(null);
+    setGraphicsSessionMode(null);
+    setGraphicsTargetError(null);
+    setConfirmGraphicsTargetChange(false);
+    setNewDrawingSetupOpen(false);
+    setNewDrawingSettingsOpen(false);
+
+    if (!documentId || source === undefined) {
+      setGraphicsTargetLoading(false);
+      return;
+    }
+
+    setGraphicsTargetLoading(true);
+
+    const discoverAndPrepare = async () => {
+      try {
+        const baselineSha256 = await calculateSourceSha256(source);
+        if (graphicsTargetRequestRef.current !== requestId) return;
+        setGraphicsBaselineSha256(baselineSha256);
+        const discovery = await discoverGraphicsTikzpictures({
+          schemaVersion: 1,
+          revision: Date.now(),
+          documentId,
+          targetFilePath: documentId,
+          baselineSource: source,
+          replacementSource: source,
+          baselineSha256,
+        });
+        if (graphicsTargetRequestRef.current !== requestId) return;
+        setGraphicsDiscovery(discovery);
+
+        const preference = graphicsSelectionPreferenceRef.current;
+        if (
+          preference?.path === documentId &&
+          preference.kind === "fullDocument"
+        ) {
+          setGraphicsSessionMode({
+            kind: "fullDocument",
+            baselineSha256: discovery.baselineSha256,
+          });
+          return;
+        }
+        if (
+          preference?.path === documentId &&
+          preference.kind === "newDrawing"
+        ) {
+          const template = await prepareGraphicsNewDrawing({
+            schemaVersion: 1,
+            revision: Date.now(),
+          });
+          if (graphicsTargetRequestRef.current !== requestId) return;
+          setGraphicsSessionMode({
+            kind: "newDrawing",
+            draftId: nextStoicheiaNewDrawingId(),
+            template,
+          });
+          return;
+        }
+
+        const preferredTarget =
+          preference?.path === documentId &&
+          preference.kind === "tikzpicture"
+            ? discovery.targets.find(
+                (target) => target.ordinal === preference.ordinal,
+              ) ?? null
+            : null;
+        const focusedTarget = selectGraphicsTikzpictureFromFocus(
+          discovery.targets,
+          activeFileFocus,
+          documentId,
+          source,
+        );
+        const target =
+          preferredTarget ??
+          focusedTarget ??
+          (discovery.targets.length === 1 ? discovery.targets[0] : null);
+        if (!target) return;
+
+        const focus = await prepareGraphicsTikzpicture({
+          schemaVersion: 1,
+          revision: Date.now(),
+          documentId,
+          targetFilePath: documentId,
+          baselineSource: source,
+          baselineSha256: discovery.baselineSha256,
+          target: { kind: "ordinal", ordinal: target.ordinal },
+        });
+        if (graphicsTargetRequestRef.current !== requestId) return;
+        graphicsSelectionPreferenceRef.current = {
+          path: documentId,
+          kind: "tikzpicture",
+          ordinal: focus.target.ordinal,
+        };
+        setGraphicsSessionMode({ kind: "tikzpicture", focus });
+      } catch (caught) {
+        if (graphicsTargetRequestRef.current === requestId) {
+          setGraphicsTargetError(String(caught));
+        }
+      } finally {
+        if (graphicsTargetRequestRef.current === requestId) {
+          setGraphicsTargetLoading(false);
+        }
+      }
+    };
+
+    void discoverAndPrepare();
+    return () => {
+      if (graphicsTargetRequestRef.current === requestId) {
+        graphicsTargetRequestRef.current += 1;
+      }
+    };
+  }, [
+    activeBuilder?.id,
+    activeFileContent,
+    activeFileFocus,
+    activeFilePath,
+    onDismissPendingEditPlan,
+  ]);
+
+  const handleSelectGraphicsTarget = useCallback(
+    async (target: GraphicsTikzpictureTargetDescriptor) => {
+      if (
+        !activeFilePath ||
+        activeFileContent === undefined ||
+        !graphicsDiscovery
+      ) {
+        return;
+      }
+
+      const requestId = ++graphicsTargetRequestRef.current;
+      queuedGraphicsActionRef.current = null;
+      setGraphicsTargetLoading(true);
+      setGraphicsTargetError(null);
+      setConfirmGraphicsTargetChange(false);
+      try {
+        const focus = await prepareGraphicsTikzpicture({
+          schemaVersion: 1,
+          revision: Date.now(),
+          documentId: activeFilePath,
+          targetFilePath: activeFilePath,
+          baselineSource: activeFileContent,
+          baselineSha256: graphicsDiscovery.baselineSha256,
+          target: { kind: "ordinal", ordinal: target.ordinal },
+        });
+        if (graphicsTargetRequestRef.current !== requestId) return;
+        graphicsSelectionPreferenceRef.current = {
+          path: activeFilePath,
+          kind: "tikzpicture",
+          ordinal: focus.target.ordinal,
+        };
+        setGraphicsSessionMode({ kind: "tikzpicture", focus });
+      } catch (caught) {
+        if (graphicsTargetRequestRef.current === requestId) {
+          setGraphicsTargetError(String(caught));
+        }
+      } finally {
+        if (graphicsTargetRequestRef.current === requestId) {
+          setGraphicsTargetLoading(false);
+        }
+      }
+    },
+    [activeFileContent, activeFilePath, graphicsDiscovery],
+  );
+
+  const handleSelectFullGraphicsDocument = useCallback(() => {
+    const baselineSha256 =
+      graphicsDiscovery?.baselineSha256 ?? graphicsBaselineSha256;
+    if (!activeFilePath || !baselineSha256) return;
+    graphicsTargetRequestRef.current += 1;
+    queuedGraphicsActionRef.current = null;
+    graphicsSelectionPreferenceRef.current = {
+      path: activeFilePath,
+      kind: "fullDocument",
+    };
+    setGraphicsTargetError(null);
+    setConfirmGraphicsTargetChange(false);
+    setGraphicsTargetLoading(false);
+    setGraphicsSessionMode({
+      kind: "fullDocument",
+      baselineSha256,
+    });
+  }, [
+    activeFilePath,
+    graphicsBaselineSha256,
+    graphicsDiscovery,
+  ]);
+
+  const invalidateNewDrawingReview = useCallback(() => {
+    graphicsNewDrawingOptionsRevisionRef.current += 1;
+    queuedGraphicsActionRef.current = null;
+    if (pendingGraphicsApply?.payload.target.kind === "newDrawing") {
+      onDismissPendingEditPlan?.();
+      pendingGraphicsApplyRef.current = null;
+      setPendingGraphicsApply(null);
+      setGraphicsPlanError(null);
+    }
+  }, [onDismissPendingEditPlan, pendingGraphicsApply]);
+
+  const handleOpenNewDrawingSetup = useCallback(() => {
+    if (!activeFilePath || activeFileContent === undefined) return;
+
+    const focus = exactGraphicsEditorFocus;
+    const selectionStart = focus
+      ? Math.min(focus.selectionStartByte, focus.selectionEndByte)
+      : 0;
+    const selectionEnd = focus
+      ? Math.max(focus.selectionStartByte, focus.selectionEndByte)
+      : 0;
+    if (focus && selectionEnd > selectionStart) {
+      setNewDrawingInsertionTarget({
+        kind: "selection",
+        startByte: selectionStart,
+        endByte: selectionEnd,
+      });
+    } else {
+      setNewDrawingInsertionTarget({ kind: "beforeEndDocument" });
+    }
+    setNewDrawingSetupOpen(true);
+    setGraphicsTargetError(null);
+  }, [
+    activeFileContent,
+    activeFilePath,
+    exactGraphicsEditorFocus,
+  ]);
+
+  const handleNewDrawingInsertionKindChange = useCallback(
+    (value: string | null) => {
+      if (!value) return;
+      const focus = exactGraphicsEditorFocus;
+      let target: GraphicsDrawingInsertionTarget;
+      if (value === "selection" && focus) {
+        target = {
+          kind: "selection",
+          startByte: Math.min(
+            focus.selectionStartByte,
+            focus.selectionEndByte,
+          ),
+          endByte: Math.max(
+            focus.selectionStartByte,
+            focus.selectionEndByte,
+          ),
+        };
+      } else if (value === "cursor" && focus) {
+        target = { kind: "cursor", byte: focus.cursorByte };
+      } else {
+        target = { kind: "beforeEndDocument" };
+      }
+      invalidateNewDrawingReview();
+      setNewDrawingInsertionTarget(target);
+    },
+    [exactGraphicsEditorFocus, invalidateNewDrawingReview],
+  );
+
+  const handleStartNewDrawing = useCallback(async () => {
+    if (
+      !activeFilePath ||
+      activeFileContent === undefined ||
+      !graphicsBaselineSha256
+    ) {
+      setGraphicsTargetError(
+        "Open a LaTeX destination before creating a new drawing.",
+      );
+      return;
+    }
+
+    const requestId = ++graphicsTargetRequestRef.current;
+    queuedGraphicsActionRef.current = null;
+    setGraphicsTargetLoading(true);
+    setGraphicsTargetError(null);
+    try {
+      const template = await prepareGraphicsNewDrawing({
+        schemaVersion: 1,
+        revision: Date.now(),
+      });
+      if (graphicsTargetRequestRef.current !== requestId) return;
+      graphicsSelectionPreferenceRef.current = {
+        path: activeFilePath,
+        kind: "newDrawing",
+      };
+      setNewDrawingSetupOpen(false);
+      setNewDrawingSettingsOpen(false);
+      setGraphicsSessionMode({
+        kind: "newDrawing",
+        draftId: nextStoicheiaNewDrawingId(),
+        template,
+      });
+    } catch (caught) {
+      if (graphicsTargetRequestRef.current === requestId) {
+        setGraphicsTargetError(String(caught));
+      }
+    } finally {
+      if (graphicsTargetRequestRef.current === requestId) {
+        setGraphicsTargetLoading(false);
+      }
+    }
+  }, [
+    activeFileContent,
+    activeFilePath,
+    graphicsBaselineSha256,
+  ]);
+
+  const handleConfirmGraphicsTargetChange = useCallback(() => {
+    graphicsTargetRequestRef.current += 1;
+    queuedGraphicsActionRef.current = null;
+    graphicsSelectionPreferenceRef.current = null;
+    if (pendingGraphicsApply) onDismissPendingEditPlan?.();
+    pendingGraphicsApplyRef.current = null;
+    setPendingGraphicsApply(null);
+    setGraphicsPlanError(null);
+    setGraphicsSessionMode(null);
+    setNewDrawingSetupOpen(false);
+    setNewDrawingSettingsOpen(false);
+    setConfirmGraphicsTargetChange(false);
+  }, [
+    onDismissPendingEditPlan,
+    pendingGraphicsApply,
+  ]);
+
+  useEffect(() => {
+    workspaceMountedRef.current = true;
+    return () => {
+      workspaceMountedRef.current = false;
+      queuedGraphicsActionRef.current = null;
+      graphicsActionRunnerRef.current = null;
+      pendingGraphicsApplyRef.current = null;
+    };
+  }, []);
+
+  const saveCommittedGraphicsDocument = useCallback(
+    async (
+      payload: Readonly<StoicheiaApplyPayload>,
+      committedSource: string,
+    ) => {
+      if (!onSaveHostDocument) {
+        setGraphicsPlanError(
+          "The DataTeX document save service is not available.",
+        );
+        return false;
+      }
+      graphicsHostSaveInFlightRef.current += 1;
+      setGraphicsHostSaveLoading(true);
+      setGraphicsPlanError(null);
+      try {
+        const saved = await onSaveHostDocument({
+          documentId: payload.documentId,
+          targetFilePath: payload.filePath,
+          source: committedSource,
+        });
+        if (
+          saved &&
+          workspaceMountedRef.current &&
+          graphicsPayloadMatchesTargetIdentity(
+            payload,
+            graphicsHostDocumentRef.current,
+          )
+        ) {
+          setGraphicsPlanError(null);
+        } else if (
+          !saved &&
+          workspaceMountedRef.current &&
+          graphicsPayloadMatchesTargetIdentity(
+            payload,
+            graphicsHostDocumentRef.current,
+          )
+        ) {
+          setGraphicsPlanError(
+            "DataTeX could not save the reviewed document. The applied changes remain open and unsaved.",
+          );
+        }
+        return saved;
+      } catch (caught) {
+        if (
+          workspaceMountedRef.current &&
+          graphicsPayloadMatchesTargetIdentity(
+            payload,
+            graphicsHostDocumentRef.current,
+          )
+        ) {
+          setGraphicsPlanError(
+            `DataTeX could not save the reviewed document: ${String(caught)}`,
+          );
+        }
+        return false;
+      } finally {
+        graphicsHostSaveInFlightRef.current = Math.max(
+          0,
+          graphicsHostSaveInFlightRef.current - 1,
+        );
+        if (
+          graphicsHostSaveInFlightRef.current === 0 &&
+          workspaceMountedRef.current
+        ) {
+          setGraphicsHostSaveLoading(false);
+        }
+      }
+    },
+    [onSaveHostDocument],
+  );
+
+  const saveAsCommittedGraphicsDocument = useCallback(
+    async (
+      payload: Readonly<StoicheiaApplyPayload>,
+      committedSource: string,
+      targetFilePath: string,
+      validatePersistedDraft: () => boolean,
+    ) => {
+      if (!onSaveAsHostDocument) {
+        setGraphicsPlanError(
+          "The DataTeX Save As service is not available.",
+        );
+        return false;
+      }
+
+      graphicsHostSaveInFlightRef.current += 1;
+      setGraphicsHostSaveLoading(true);
+      setGraphicsPlanError(null);
+      try {
+        const result = await onSaveAsHostDocument({
+          documentId: payload.documentId,
+          sourceFilePath: payload.filePath,
+          targetFilePath,
+          source: committedSource,
+          validate: validatePersistedDraft,
+        });
+        const saved =
+          result.status === "saved" || result.status === "savedDetached";
+        if (
+          !saved &&
+          result.status !== "cancelled" &&
+          workspaceMountedRef.current &&
+          graphicsPayloadMatchesTargetIdentity(
+            payload,
+            graphicsHostDocumentRef.current,
+          )
+        ) {
+          setGraphicsPlanError(
+            result.status === "failed"
+              ? result.message
+              : "DataTeX could not save the reviewed document to the selected destination.",
+          );
+        }
+        return saved;
+      } catch (caught) {
+        if (
+          workspaceMountedRef.current &&
+          graphicsPayloadMatchesTargetIdentity(
+            payload,
+            graphicsHostDocumentRef.current,
+          )
+        ) {
+          setGraphicsPlanError(
+            `DataTeX Save As failed: ${String(caught)}`,
+          );
+        }
+        return false;
+      } finally {
+        graphicsHostSaveInFlightRef.current = Math.max(
+          0,
+          graphicsHostSaveInFlightRef.current - 1,
+        );
+        if (
+          graphicsHostSaveInFlightRef.current === 0 &&
+          workspaceMountedRef.current
+        ) {
+          setGraphicsHostSaveLoading(false);
+        }
+      }
+    },
+    [onSaveAsHostDocument],
+  );
+
+  const handleGraphicsRequestExportSvg = useCallback(
+    async (
+      payload: Readonly<StoicheiaSvgExportPayload>,
+      lifecycle: Readonly<StoicheiaSvgExportLifecycle>,
+    ) => {
+      if (graphicsHostSvgExportInFlightRef.current) return;
+      if (!onExportHostSvg) {
+        setGraphicsPlanError("The DataTeX SVG export service is not available.");
+        return;
+      }
+
+      const validateRequest = () =>
+        workspaceMountedRef.current &&
+        graphicsBuilderIdRef.current === "graphics-studio" &&
+        graphicsSvgPayloadMatchesTargetIdentity(
+          payload,
+          graphicsHostDocumentRef.current,
+        ) &&
+        lifecycle.validate();
+      if (!validateRequest()) {
+        setGraphicsPlanError(
+          "The SVG preview changed before export. Compile the current drawing and try again.",
+        );
+        return;
+      }
+
+      graphicsHostSvgExportInFlightRef.current = true;
+      setGraphicsHostSvgExportLoading(true);
+      setGraphicsPlanError(null);
+      try {
+        const result = await onExportHostSvg({
+          documentId: payload.documentId,
+          sourceFilePath: payload.filePath,
+          svgSource: payload.svgSource,
+          suggestedFileName: payload.suggestedFileName,
+          validate: validateRequest,
+        });
+        if (
+          result.status === "failed" &&
+          workspaceMountedRef.current &&
+          graphicsSvgPayloadMatchesTargetIdentity(
+            payload,
+            graphicsHostDocumentRef.current,
+          )
+        ) {
+          setGraphicsPlanError(result.message);
+        }
+      } catch (caught) {
+        if (
+          workspaceMountedRef.current &&
+          graphicsSvgPayloadMatchesTargetIdentity(
+            payload,
+            graphicsHostDocumentRef.current,
+          )
+        ) {
+          setGraphicsPlanError(`DataTeX SVG export failed: ${String(caught)}`);
+        }
+      } finally {
+        graphicsHostSvgExportInFlightRef.current = false;
+        if (workspaceMountedRef.current) {
+          setGraphicsHostSvgExportLoading(false);
+        }
+      }
+    },
+    [onExportHostSvg],
+  );
+
+  const handleGraphicsRequestAction = useCallback(
+    async (
+      intent: "apply" | "save" | "saveAs",
+      payload: Readonly<StoicheiaApplyPayload>,
+      lifecycle: Readonly<StoicheiaApplyLifecycle>,
+      saveAsTargetFilePath?: string,
+    ) => {
+      if (intent === "saveAs" && !saveAsTargetFilePath) {
+        setGraphicsPlanError("Choose a Save As destination before review.");
+        return;
+      }
+      const request: GraphicsDocumentActionRequest = {
+        intent,
+        payload,
+        lifecycle,
+        ...(intent === "saveAs" ? { saveAsTargetFilePath } : {}),
+      };
+      const existingPending = pendingGraphicsApplyRef.current;
+      if (existingPending) {
+        if (graphicsPayloadsMatch(existingPending.payload, payload)) {
+          // Apply never downgrades an already requested persistence action.
+          // Between Save and Save As, the user's latest explicit action wins.
+          if (
+            intent !== "apply" &&
+            (existingPending.intent !== intent ||
+              existingPending.saveAsTargetFilePath !==
+                request.saveAsTargetFilePath)
+          ) {
+            const upgradedPending = {
+              ...existingPending,
+              intent,
+              saveAsTargetFilePath:
+                intent === "saveAs" ? saveAsTargetFilePath : undefined,
+            };
+            pendingGraphicsApplyRef.current = upgradedPending;
+            setPendingGraphicsApply(upgradedPending);
+          }
+          return;
+        }
+        onDismissPendingEditPlan?.();
+        pendingGraphicsApplyRef.current = null;
+        setPendingGraphicsApply(null);
+      }
+      if (graphicsPlanInFlightRef.current) {
+        const queuedRequest = queuedGraphicsActionRef.current;
+        if (
+          intent === "apply" &&
+          queuedRequest &&
+          queuedRequest.intent !== "apply" &&
+          graphicsPayloadsMatch(queuedRequest.payload, payload)
+        ) {
+          return;
+        }
+        queuedGraphicsActionRef.current = request;
+        return;
+      }
+
+      const currentDocument = graphicsHostDocumentRef.current;
+      const newDrawingOptionsRevision =
+        graphicsNewDrawingOptionsRevisionRef.current;
+      const newDrawingTarget = { ...graphicsNewDrawingTargetRef.current };
+      const currentWrapper = graphicsNewDrawingWrapperRef.current;
+      const newDrawingWrapper: GraphicsDrawingWrapper =
+        currentWrapper.kind === "figure"
+          ? { ...currentWrapper }
+          : { kind: "inline" };
+      if (
+        graphicsBuilderIdRef.current !== "graphics-studio" ||
+        !graphicsPayloadMatchesDocument(payload, currentDocument)
+      ) {
+        setGraphicsPlanError(
+          "The active document changed. Reopen Graphics Studio before applying.",
+        );
+        return;
+      }
+      if (!onReviewEditPlan) {
+        setGraphicsPlanError(
+          "The DataTeX source review service is not available.",
+        );
+        return;
+      }
+
+      graphicsPlanInFlightRef.current = true;
+      setGraphicsPlanLoading(true);
+      setGraphicsPlanError(null);
+
+      try {
+        const baselineSha256 = await calculateSourceSha256(
+          payload.baselineSource,
+        );
+        const plan =
+          payload.target.kind === "newDrawing"
+            ? await planGraphicsDrawingInsert({
+                schemaVersion: 1,
+                revision: Date.now(),
+                documentId: payload.documentId,
+                targetFilePath: payload.filePath,
+                baselineSource: payload.baselineSource,
+                drawingSource: payload.nextSource,
+                baselineSha256,
+                target: newDrawingTarget,
+                wrapper: newDrawingWrapper,
+                requiredPackages: ["tikz"],
+                requiredTikzLibraries: [],
+              })
+            : payload.target.kind === "tikzpicture"
+            ? await planGraphicsTikzpictureEdit({
+                schemaVersion: 1,
+                revision: Date.now(),
+                documentId: payload.documentId,
+                targetFilePath: payload.filePath,
+                baselineSource: payload.baselineSource,
+                replacementSource: payload.nextSource,
+                baselineSha256,
+                target: {
+                  kind: "ordinal",
+                  ordinal: payload.target.ordinal,
+                },
+              })
+            : await planGraphicsDocumentEdit({
+                schemaVersion: 1,
+                revision: Date.now(),
+                documentId: payload.documentId,
+                targetFilePath: payload.filePath,
+                baselineSource: payload.baselineSource,
+                replacementSource: payload.nextSource,
+                baselineSha256,
+              });
+
+        if (
+          !workspaceMountedRef.current ||
+          graphicsBuilderIdRef.current !== "graphics-studio" ||
+          !graphicsPayloadMatchesDocument(
+            payload,
+            graphicsHostDocumentRef.current,
+          ) ||
+          !lifecycle.validate() ||
+          (payload.target.kind === "newDrawing" &&
+            graphicsNewDrawingOptionsRevisionRef.current !==
+              newDrawingOptionsRevision)
+        ) {
+          return;
+        }
+
+        if (plan.edits.length === 0) {
+          if (intent === "save") {
+            await saveCommittedGraphicsDocument(
+              payload,
+              payload.baselineSource,
+            );
+          } else if (intent === "saveAs" && saveAsTargetFilePath) {
+            await saveAsCommittedGraphicsDocument(
+              payload,
+              payload.baselineSource,
+              saveAsTargetFilePath,
+              lifecycle.validate,
+            );
+          } else {
+            onReviewEditPlan(
+              plan,
+              payload.baselineSource,
+              payload.filePath,
+            );
+          }
+          pendingGraphicsApplyRef.current = null;
+          setPendingGraphicsApply(null);
+          return;
+        }
+
+        const reviewCreated = onReviewEditPlan(
+          plan,
+          payload.baselineSource,
+          payload.filePath,
+        );
+        if (!reviewCreated) {
+          setGraphicsPlanError(
+            "The target document changed before the review was created.",
+          );
+          return;
+        }
+
+        const nextPending = {
+          payload,
+          plan,
+          lifecycle,
+          intent,
+          saveAsTargetFilePath:
+            intent === "saveAs" ? saveAsTargetFilePath : undefined,
+        };
+        pendingGraphicsApplyRef.current = nextPending;
+        setPendingGraphicsApply(nextPending);
+      } catch (caught) {
+        if (
+          workspaceMountedRef.current &&
+          graphicsBuilderIdRef.current === "graphics-studio" &&
+          graphicsPayloadMatchesDocument(
+            payload,
+            graphicsHostDocumentRef.current,
+          ) &&
+          lifecycle.validate()
+        ) {
+          console.error(
+            "Failed to create Graphics Studio document edit plan:",
+            caught,
+          );
+          setGraphicsPlanError(String(caught));
+        }
+      } finally {
+        graphicsPlanInFlightRef.current = false;
+        if (workspaceMountedRef.current) setGraphicsPlanLoading(false);
+        const queuedRequest = queuedGraphicsActionRef.current;
+        queuedGraphicsActionRef.current = null;
+        if (queuedRequest && workspaceMountedRef.current) {
+          queueMicrotask(() =>
+            graphicsActionRunnerRef.current?.(queuedRequest),
+          );
+        }
+      }
+    },
+    [
+      onDismissPendingEditPlan,
+      onReviewEditPlan,
+      saveAsCommittedGraphicsDocument,
+      saveCommittedGraphicsDocument,
+    ],
+  );
+
+  graphicsActionRunnerRef.current = (request) => {
+    void handleGraphicsRequestAction(
+      request.intent,
+      request.payload,
+      request.lifecycle,
+      request.saveAsTargetFilePath,
+    );
+  };
+
+  const handleGraphicsRequestApply = useCallback(
+    (
+      payload: Readonly<StoicheiaApplyPayload>,
+      lifecycle: Readonly<StoicheiaApplyLifecycle>,
+    ) => {
+      void handleGraphicsRequestAction("apply", payload, lifecycle);
+    },
+    [handleGraphicsRequestAction],
+  );
+
+  const handleGraphicsRequestSave = useCallback(
+    (
+      payload: Readonly<StoicheiaApplyPayload>,
+      lifecycle: Readonly<StoicheiaApplyLifecycle>,
+    ) => {
+      void handleGraphicsRequestAction("save", payload, lifecycle);
+    },
+    [handleGraphicsRequestAction],
+  );
+
+  const handleGraphicsRequestSaveAs = useCallback(
+    async (
+      payload: Readonly<StoicheiaApplyPayload>,
+      lifecycle: Readonly<StoicheiaApplyLifecycle>,
+    ) => {
+      if (graphicsHostSaveAsPickerInFlightRef.current) return;
+      if (!onChooseHostSaveAsTarget || !onSaveAsHostDocument) {
+        setGraphicsPlanError("The DataTeX Save As service is not available.");
+        return;
+      }
+      const validateRequest = () =>
+        workspaceMountedRef.current &&
+        graphicsBuilderIdRef.current === "graphics-studio" &&
+        graphicsPayloadMatchesDocument(
+          payload,
+          graphicsHostDocumentRef.current,
+        ) &&
+        lifecycle.validate();
+      if (!validateRequest()) {
+        setGraphicsPlanError(
+          "The active document changed before Save As. Reopen the drawing and try again.",
+        );
+        return;
+      }
+
+      graphicsHostSaveAsPickerInFlightRef.current = true;
+      setGraphicsHostSaveAsPickerLoading(true);
+      setGraphicsPlanError(null);
+      try {
+        const result = await onChooseHostSaveAsTarget({
+          documentId: payload.documentId,
+          sourceFilePath: payload.filePath,
+          source: payload.baselineSource,
+          suggestedFileName: suggestGraphicsSaveAsFileName(payload.filePath),
+        });
+        if (result.status === "cancelled") return;
+        if (result.status === "failed") {
+          if (validateRequest()) setGraphicsPlanError(result.message);
+          return;
+        }
+        if (!validateRequest()) {
+          setGraphicsPlanError(
+            "The document or drawing changed while Save As was open. Nothing was written.",
+          );
+          return;
+        }
+        await handleGraphicsRequestAction(
+          "saveAs",
+          payload,
+          lifecycle,
+          result.targetFilePath,
+        );
+      } catch (caught) {
+        if (validateRequest()) {
+          setGraphicsPlanError(`DataTeX Save As failed: ${String(caught)}`);
+        }
+      } finally {
+        graphicsHostSaveAsPickerInFlightRef.current = false;
+        if (workspaceMountedRef.current) {
+          setGraphicsHostSaveAsPickerLoading(false);
+        }
+      }
+    },
+    [
+      handleGraphicsRequestAction,
+      onChooseHostSaveAsTarget,
+      onSaveAsHostDocument,
+    ],
+  );
+
+  const graphicsReviewMatchesPending =
+    Boolean(
+      pendingGraphicsApply &&
+        pendingEditReview &&
+        pendingEditReview.plan === pendingGraphicsApply.plan &&
+        pendingEditReview.targetFilePath ===
+          pendingGraphicsApply.payload.filePath &&
+        graphicsPayloadMatchesDocument(
+          pendingGraphicsApply.payload,
+          stoicheiaHostDocument,
+        ),
+    );
+  const activeGraphicsReview = graphicsReviewMatchesPending
+    ? pendingEditReview
+    : null;
+
+  const handleApplyPendingReview = useCallback(() => {
+    if (
+      !pendingGraphicsApply ||
+      pendingGraphicsApplyRef.current !== pendingGraphicsApply ||
+      !graphicsReviewMatchesPending ||
+      !pendingGraphicsApply.lifecycle.validate()
+    ) {
+      setGraphicsPlanError(
+        "The Graphics Studio session changed before Apply was confirmed.",
+      );
+      onDismissPendingEditPlan?.();
+      pendingGraphicsApplyRef.current = null;
+      setPendingGraphicsApply(null);
+      return false;
+    }
+
+    const applied = onApplyPendingEditPlan?.() ?? false;
+    if (!applied) {
+      return applied;
+    }
+
+    const appliedSource = applyPackageTextEdits(
+      pendingGraphicsApply.payload.baselineSource,
+      pendingGraphicsApply.plan.edits,
+    );
+    const committed =
+      pendingGraphicsApply.lifecycle.commit(appliedSource);
+    if (!committed) {
+      setGraphicsPlanError(
+        "The Graphics Studio session changed before Apply was confirmed.",
+      );
+    } else {
+      setGraphicsPlanError(null);
+      if (pendingGraphicsApply.payload.target.kind === "newDrawing") {
+        graphicsSelectionPreferenceRef.current = null;
+        setGraphicsSessionMode(null);
+        setNewDrawingSettingsOpen(false);
+        setNewDrawingSetupOpen(false);
+      }
+      if (pendingGraphicsApply.intent === "save") {
+        void saveCommittedGraphicsDocument(
+          pendingGraphicsApply.payload,
+          appliedSource,
+        );
+      } else if (
+        pendingGraphicsApply.intent === "saveAs" &&
+        pendingGraphicsApply.saveAsTargetFilePath
+      ) {
+        void saveAsCommittedGraphicsDocument(
+          pendingGraphicsApply.payload,
+          appliedSource,
+          pendingGraphicsApply.saveAsTargetFilePath,
+          () =>
+            pendingGraphicsApply.lifecycle.validateCommitted(appliedSource),
+        );
+      }
+    }
+    pendingGraphicsApplyRef.current = null;
+    setPendingGraphicsApply(null);
+    return committed;
+  }, [
+    graphicsReviewMatchesPending,
+    onDismissPendingEditPlan,
+    onApplyPendingEditPlan,
+    pendingGraphicsApply,
+    saveAsCommittedGraphicsDocument,
+    saveCommittedGraphicsDocument,
+  ]);
+
+  const handleDismissPendingReview = useCallback(() => {
+    onDismissPendingEditPlan?.();
+    pendingGraphicsApplyRef.current = null;
+    setPendingGraphicsApply(null);
+    setGraphicsPlanError(null);
+  }, [onDismissPendingEditPlan]);
+
+  const handleGraphicsBack = useCallback(() => {
+    if (pendingGraphicsApply) onDismissPendingEditPlan?.();
+    pendingGraphicsApplyRef.current = null;
+    setPendingGraphicsApply(null);
+    setGraphicsPlanError(null);
+    onBackToEditor();
+  }, [
+    onBackToEditor,
+    onDismissPendingEditPlan,
+    pendingGraphicsApply,
+  ]);
+
+  useEffect(() => {
+    if (!pendingGraphicsApply) return;
+    if (
+      activeBuilder?.id === "graphics-studio" &&
+      graphicsPayloadMatchesDocument(
+        pendingGraphicsApply.payload,
+        stoicheiaHostDocument,
+      )
+    ) {
+      return;
+    }
+
+    onDismissPendingEditPlan?.();
+    pendingGraphicsApplyRef.current = null;
+    setPendingGraphicsApply(null);
+    setGraphicsPlanError(null);
+  }, [
+    activeBuilder?.id,
+    onDismissPendingEditPlan,
+    pendingGraphicsApply,
+    stoicheiaHostDocument,
+  ]);
 
   return (
     <Box
@@ -1166,7 +2575,11 @@ export const PackageStudioWorkspace: React.FC<PackageStudioWorkspaceProps> = ({
             variant="light"
             color="gray"
             leftSection={<FontAwesomeIcon icon={faArrowLeft} />}
-            onClick={onBackToEditor}
+            onClick={
+              activeBuilder?.id === "graphics-studio"
+                ? handleGraphicsBack
+                : onBackToEditor
+            }
           >
             {t("packageStudio.backToEditor", {
               defaultValue: "Editor",
@@ -1175,10 +2588,632 @@ export const PackageStudioWorkspace: React.FC<PackageStudioWorkspaceProps> = ({
         </Group>
       </Group>
 
-      <Box
-        p="md"
-        style={{ flex: 1, minHeight: 0, overflow: "hidden" }}
-      >
+      {activeBuilder?.id === "graphics-studio" ? (
+        <Box
+          style={{
+            flex: 1,
+            minWidth: 0,
+            minHeight: 0,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <Box
+            style={{
+              flex: 1,
+              minWidth: 0,
+              minHeight: 0,
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            {graphicsSessionMode && stoicheiaHostDocument ? (
+              <>
+                <Box
+                  px="sm"
+                  py={7}
+                  data-graphics-target-mode={graphicsSessionMode.kind}
+                  style={{
+                    flexShrink: 0,
+                    borderBottom: "1px solid var(--app-border-color)",
+                    background: "var(--app-panel-bg)",
+                  }}
+                >
+                  <Group justify="space-between" gap="sm" wrap="nowrap">
+                    <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
+                      <Badge
+                        color={
+                          graphicsSessionMode.kind === "tikzpicture"
+                            ? "teal"
+                            : graphicsSessionMode.kind === "newDrawing"
+                              ? "blue"
+                              : "orange"
+                        }
+                        variant="light"
+                      >
+                        {graphicsSessionMode.kind === "tikzpicture"
+                          ? "Range-safe"
+                          : graphicsSessionMode.kind === "newDrawing"
+                            ? "New drawing"
+                            : "Whole document"}
+                      </Badge>
+                      <Text size="xs" fw={600} truncate>
+                        {graphicsSessionMode.kind === "tikzpicture"
+                          ? graphicsSessionMode.focus.target.label
+                          : graphicsSessionMode.kind === "newDrawing"
+                            ? `Not inserted · ${activeFilePath}`
+                            : "Advanced full-document editing"}
+                      </Text>
+                      {graphicsSessionMode.kind === "tikzpicture" && (
+                        <Text size="xs" c="dimmed" truncate>
+                          Only this environment will be applied.
+                        </Text>
+                      )}
+                      {graphicsSessionMode.kind === "newDrawing" && (
+                        <Text size="xs" c="dimmed" truncate>
+                          Review inserts one environment and missing
+                          dependencies.
+                        </Text>
+                      )}
+                    </Group>
+                    <Group gap={4} wrap="nowrap">
+                      {graphicsSessionMode.kind === "newDrawing" && (
+                        <Button
+                          size="compact-xs"
+                          variant={
+                            newDrawingSettingsOpen ? "light" : "subtle"
+                          }
+                          onClick={() =>
+                            setNewDrawingSettingsOpen((current) => !current)
+                          }
+                        >
+                          Insertion options
+                        </Button>
+                      )}
+                      <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        color="gray"
+                        onClick={() => setConfirmGraphicsTargetChange(true)}
+                      >
+                        Change target
+                      </Button>
+                    </Group>
+                  </Group>
+                  {graphicsSessionMode.kind === "newDrawing" &&
+                    newDrawingSettingsOpen && (
+                      <Group
+                        mt={8}
+                        gap="xs"
+                        align="flex-end"
+                        data-new-drawing-insertion-settings
+                      >
+                        <Select
+                          size="xs"
+                          label="Insert"
+                          data={graphicsInsertionChoices}
+                          value={newDrawingInsertionTarget.kind}
+                          onChange={handleNewDrawingInsertionKindChange}
+                          allowDeselect={false}
+                          style={{ minWidth: 220 }}
+                        />
+                        <Select
+                          size="xs"
+                          label="Container"
+                          data={[
+                            { value: "inline", label: "Inline TikZ" },
+                            { value: "figure", label: "Figure environment" },
+                          ]}
+                          value={newDrawingWrapperKind}
+                          onChange={(value) => {
+                            if (value !== "inline" && value !== "figure") {
+                              return;
+                            }
+                            invalidateNewDrawingReview();
+                            setNewDrawingWrapperKind(value);
+                          }}
+                          allowDeselect={false}
+                          style={{ minWidth: 170 }}
+                        />
+                        {newDrawingWrapperKind === "figure" && (
+                          <>
+                            <TextInput
+                              size="xs"
+                              label="Placement"
+                              value={newDrawingFigurePlacement}
+                              onChange={(event) => {
+                                const value = inputValue(event);
+                                invalidateNewDrawingReview();
+                                setNewDrawingFigurePlacement(value);
+                              }}
+                              w={92}
+                            />
+                            <TextInput
+                              size="xs"
+                              label="Caption"
+                              value={newDrawingFigureCaption}
+                              onChange={(event) => {
+                                const value = inputValue(event);
+                                invalidateNewDrawingReview();
+                                setNewDrawingFigureCaption(value);
+                              }}
+                              style={{ flex: "1 1 150px" }}
+                            />
+                            <TextInput
+                              size="xs"
+                              label="Label"
+                              value={newDrawingFigureLabel}
+                              onChange={(event) => {
+                                const value = inputValue(event);
+                                invalidateNewDrawingReview();
+                                setNewDrawingFigureLabel(value);
+                              }}
+                              style={{ flex: "1 1 130px" }}
+                            />
+                            <Switch
+                              size="xs"
+                              label="Center"
+                              checked={newDrawingFigureCentering}
+                              onChange={(event) => {
+                                const checked = inputChecked(event);
+                                invalidateNewDrawingReview();
+                                setNewDrawingFigureCentering(checked);
+                              }}
+                              mb={5}
+                            />
+                          </>
+                        )}
+                      </Group>
+                    )}
+                  {confirmGraphicsTargetChange && (
+                    <Group
+                      mt={6}
+                      gap="xs"
+                      justify="flex-end"
+                      data-graphics-target-change-confirmation
+                    >
+                      <Text size="xs" c="dimmed">
+                        Changing target discards the current local Graphics
+                        Studio draft.
+                      </Text>
+                      <Button
+                        size="compact-xs"
+                        variant="default"
+                        onClick={() => setConfirmGraphicsTargetChange(false)}
+                      >
+                        Keep editing
+                      </Button>
+                      <Button
+                        size="compact-xs"
+                        color="red"
+                        variant="light"
+                        onClick={handleConfirmGraphicsTargetChange}
+                      >
+                        Discard and choose
+                      </Button>
+                    </Group>
+                  )}
+                </Box>
+                <Box style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+                  <React.Suspense
+                    fallback={
+                      <Group h="100%" justify="center">
+                        <Loader size="sm" />
+                      </Group>
+                    }
+                  >
+                    <LazyStoicheiaPackageStudio
+                      theme={hostTheme}
+                      language={normalizeStoicheiaLanguage(hostLanguage)}
+                      latexCompiler={hostLatexCompiler}
+                      latexEnginePaths={hostLatexEnginePaths}
+                      dvisvgmPath={hostDvisvgmPath}
+                      hostDocument={stoicheiaHostDocument}
+                      onBack={handleGraphicsBack}
+                      onRequestApply={handleGraphicsRequestApply}
+                      onRequestSave={
+                        onSaveHostDocument
+                          ? handleGraphicsRequestSave
+                          : undefined
+                      }
+                      onRequestSaveAs={
+                        onChooseHostSaveAsTarget && onSaveAsHostDocument
+                          ? handleGraphicsRequestSaveAs
+                          : undefined
+                      }
+                      onRequestExportSvg={
+                        onExportHostSvg
+                          ? handleGraphicsRequestExportSvg
+                          : undefined
+                      }
+                      onRegisterHostSaveRequest={
+                        onRegisterGraphicsSaveRequest
+                      }
+                      onRegisterHostSaveAsRequest={
+                        onRegisterGraphicsSaveAsRequest
+                      }
+                      onOpenHostSettings={onOpenHostSettings}
+                    />
+                  </React.Suspense>
+                </Box>
+              </>
+            ) : (
+              <Box
+                p="xl"
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: "auto",
+                  scrollbarGutter: "stable",
+                }}
+                data-graphics-target-selector
+              >
+                <Stack maw={920} mx="auto" gap="md">
+                  <Box>
+                    <Title order={3}>Choose a drawing</Title>
+                    <Text size="sm" c="dimmed">
+                      Graphics Studio isolates one real{" "}
+                      <code>tikzpicture</code> so canvas tools cannot modify a
+                      different figure or surrounding LaTeX.
+                    </Text>
+                  </Box>
+
+                  {graphicsTargetError && (
+                    <Alert
+                      color="red"
+                      variant="light"
+                      icon={
+                        <FontAwesomeIcon icon={faExclamationTriangle} />
+                      }
+                    >
+                      {graphicsTargetError}
+                    </Alert>
+                  )}
+
+                  {newDrawingSetupOpen ? (
+                    <Paper
+                      withBorder
+                      p="lg"
+                      radius="md"
+                      data-new-drawing-setup
+                    >
+                      <Stack gap="md">
+                        <Group justify="space-between" gap="md">
+                          <Box>
+                            <Text fw={700}>Create a new TikZ drawing</Text>
+                            <Text size="xs" c="dimmed">
+                              Start on a clean live canvas, then review its
+                              insertion into {activeFilePath}.
+                            </Text>
+                          </Box>
+                          <Badge color="blue" variant="light">
+                            Scratch canvas
+                          </Badge>
+                        </Group>
+                        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                          <Select
+                            label="Insertion point"
+                            description="Captured before Package Studio opened"
+                            data={graphicsInsertionChoices}
+                            value={newDrawingInsertionTarget.kind}
+                            onChange={handleNewDrawingInsertionKindChange}
+                            allowDeselect={false}
+                          />
+                          <Select
+                            label="Container"
+                            description="Insert plain TikZ or a floating figure"
+                            data={[
+                              { value: "inline", label: "Inline TikZ" },
+                              {
+                                value: "figure",
+                                label: "Figure environment",
+                              },
+                            ]}
+                            value={newDrawingWrapperKind}
+                            onChange={(value) => {
+                              if (
+                                value !== "inline" &&
+                                value !== "figure"
+                              ) {
+                                return;
+                              }
+                              setNewDrawingWrapperKind(value);
+                            }}
+                            allowDeselect={false}
+                          />
+                        </SimpleGrid>
+                        {newDrawingWrapperKind === "figure" && (
+                          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+                            <TextInput
+                              label="Placement"
+                              description="LaTeX float placement"
+                              value={newDrawingFigurePlacement}
+                              onChange={(event) =>
+                                setNewDrawingFigurePlacement(inputValue(event))
+                              }
+                            />
+                            <TextInput
+                              label="Caption"
+                              description="Optional"
+                              value={newDrawingFigureCaption}
+                              onChange={(event) =>
+                                setNewDrawingFigureCaption(inputValue(event))
+                              }
+                            />
+                            <TextInput
+                              label="Label"
+                              description="For example fig:triangle"
+                              value={newDrawingFigureLabel}
+                              onChange={(event) =>
+                                setNewDrawingFigureLabel(inputValue(event))
+                              }
+                            />
+                          </SimpleGrid>
+                        )}
+                        {newDrawingWrapperKind === "figure" && (
+                          <Switch
+                            label="Center drawing inside the figure"
+                            checked={newDrawingFigureCentering}
+                            onChange={(event) =>
+                              setNewDrawingFigureCentering(
+                                inputChecked(event),
+                              )
+                            }
+                          />
+                        )}
+                        <Group justify="flex-end">
+                          <Button
+                            variant="default"
+                            onClick={() => setNewDrawingSetupOpen(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            leftSection={<FontAwesomeIcon icon={faPlus} />}
+                            onClick={() => void handleStartNewDrawing()}
+                          >
+                            Create blank drawing
+                          </Button>
+                        </Group>
+                      </Stack>
+                    </Paper>
+                  ) : graphicsTargetLoading ? (
+                    <Paper withBorder p="xl">
+                      <Group justify="center" gap="sm">
+                        <Loader size="sm" />
+                        <Text size="sm" c="dimmed">
+                          Inspecting TikZ environments with the Rust parser…
+                        </Text>
+                      </Group>
+                    </Paper>
+                  ) : !activeFilePath || activeFileContent === undefined ? (
+                    <Alert color="yellow" variant="light">
+                      Open a LaTeX editor tab before starting Graphics Studio.
+                    </Alert>
+                  ) : graphicsDiscovery?.targets.length ? (
+                    <>
+                      <Paper
+                        withBorder
+                        p="md"
+                        radius="md"
+                        style={{
+                          borderColor:
+                            "color-mix(in srgb, var(--app-accent-color), transparent 55%)",
+                        }}
+                      >
+                        <Group justify="space-between" gap="md">
+                          <Box>
+                            <Text fw={700}>Create a new drawing</Text>
+                            <Text size="xs" c="dimmed">
+                              Build it on a clean canvas and insert only the
+                              generated TikZ into this document.
+                            </Text>
+                          </Box>
+                          <Button
+                            size="xs"
+                            leftSection={<FontAwesomeIcon icon={faPlus} />}
+                            onClick={handleOpenNewDrawingSetup}
+                          >
+                            New drawing
+                          </Button>
+                        </Group>
+                      </Paper>
+                      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+                        {graphicsDiscovery.targets.map((target) => (
+                          <Card
+                            key={`${target.ordinal}:${target.sourceSha256}`}
+                            withBorder
+                            padding="md"
+                            radius="md"
+                          >
+                            <Stack gap="xs">
+                              <Group justify="space-between" wrap="nowrap">
+                                <Text fw={700} size="sm">
+                                  {target.label}
+                                </Text>
+                                <Badge variant="outline" color="gray">
+                                  #{target.ordinal + 1}
+                                </Badge>
+                              </Group>
+                              <Text
+                                size="xs"
+                                c="dimmed"
+                                ff="monospace"
+                                lineClamp={2}
+                              >
+                                {target.preview}
+                              </Text>
+                              <Button
+                                size="xs"
+                                variant="light"
+                                onClick={() =>
+                                  void handleSelectGraphicsTarget(target)
+                                }
+                              >
+                                Edit this drawing
+                              </Button>
+                            </Stack>
+                          </Card>
+                        ))}
+                      </SimpleGrid>
+                      <Paper withBorder p="sm" radius="md">
+                        <Group justify="space-between" gap="md">
+                          <Box>
+                            <Text size="sm" fw={600}>
+                              Advanced: whole document
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              Allows preamble and multi-figure edits, but the
+                              review may replace the complete source.
+                            </Text>
+                          </Box>
+                          <Button
+                            size="xs"
+                            variant="default"
+                            onClick={handleSelectFullGraphicsDocument}
+                          >
+                            Edit whole document
+                          </Button>
+                        </Group>
+                      </Paper>
+                    </>
+                  ) : graphicsDiscovery ? (
+                    <Paper withBorder p="lg" radius="md">
+                      <Stack gap="sm">
+                        <Text fw={700}>No TikZ drawing was found</Text>
+                        <Text size="sm" c="dimmed">
+                          Start with a clean canvas. Graphics Studio will insert
+                          one reviewed <code>tikzpicture</code> and any missing
+                          dependencies without replacing the complete file.
+                        </Text>
+                        <Group>
+                          <Button
+                            size="xs"
+                            leftSection={<FontAwesomeIcon icon={faPlus} />}
+                            onClick={handleOpenNewDrawingSetup}
+                          >
+                            Create new drawing
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="default"
+                            onClick={handleSelectFullGraphicsDocument}
+                          >
+                            Advanced whole-document mode
+                          </Button>
+                        </Group>
+                      </Stack>
+                    </Paper>
+                  ) : graphicsBaselineSha256 ? (
+                    <Paper withBorder p="lg" radius="md">
+                      <Stack gap="sm">
+                        <Text fw={700}>
+                          Target discovery could not be completed
+                        </Text>
+                        <Text size="sm" c="dimmed">
+                          You can repair malformed TikZ source in explicit
+                          whole-document mode. All changes still require the
+                          normal DataTeX review.
+                        </Text>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          style={{ alignSelf: "flex-start" }}
+                          onClick={handleSelectFullGraphicsDocument}
+                        >
+                          Open whole-document mode
+                        </Button>
+                      </Stack>
+                    </Paper>
+                  ) : null}
+                </Stack>
+              </Box>
+            )}
+          </Box>
+
+          {(graphicsPlanLoading ||
+            graphicsHostSaveLoading ||
+            graphicsHostSaveAsPickerLoading ||
+            graphicsHostSvgExportLoading ||
+            graphicsPlanError) && (
+            <Box
+              px="sm"
+              py="xs"
+              style={{
+                flexShrink: 0,
+                borderTop: "1px solid var(--app-border-color)",
+                background: "var(--app-panel-bg)",
+              }}
+            >
+              {graphicsPlanLoading ||
+              graphicsHostSaveLoading ||
+              graphicsHostSaveAsPickerLoading ||
+              graphicsHostSvgExportLoading ? (
+                <Group gap="xs">
+                  <Loader size="xs" />
+                  <Text size="xs" c="dimmed">
+                    {graphicsHostSaveAsPickerLoading
+                      ? "Choosing a DataTeX Save As destination…"
+                      : graphicsHostSvgExportLoading
+                        ? "Exporting the exact compiled SVG through DataTeX…"
+                        : graphicsHostSaveLoading
+                          ? "Saving the reviewed document through DataTeX…"
+                          : "Preparing a revision-safe source review…"}
+                  </Text>
+                </Group>
+              ) : (
+                <Alert
+                  color="red"
+                  variant="light"
+                  py={6}
+                  icon={<FontAwesomeIcon icon={faExclamationTriangle} />}
+                >
+                  {graphicsPlanError}
+                </Alert>
+              )}
+            </Box>
+          )}
+
+          {activeGraphicsReview && (
+            <Box
+              p="sm"
+              style={{
+                flex: "0 1 44%",
+                minHeight: 0,
+                overflow: "auto",
+                borderTop: "1px solid var(--app-border-color)",
+                background: "var(--app-bg)",
+                scrollbarGutter: "stable",
+              }}
+              data-graphics-edit-review
+            >
+              <PackageEditReviewPanel
+                review={activeGraphicsReview}
+                onApply={handleApplyPendingReview}
+                onDismiss={handleDismissPendingReview}
+                destinationFilePath={
+                  pendingGraphicsApply?.intent === "saveAs"
+                    ? pendingGraphicsApply.saveAsTargetFilePath
+                    : undefined
+                }
+                applyLabel={
+                  pendingGraphicsApply?.intent === "save"
+                    ? "Apply & save"
+                    : pendingGraphicsApply?.intent === "saveAs"
+                      ? "Apply & save as"
+                    : undefined
+                }
+              />
+            </Box>
+          )}
+        </Box>
+      ) : (
+        <Box
+          p="md"
+          style={{ flex: 1, minHeight: 0, overflow: "hidden" }}
+        >
         <Box
           style={{
             flex: 1,
@@ -1383,7 +3418,8 @@ export const PackageStudioWorkspace: React.FC<PackageStudioWorkspaceProps> = ({
             )}
           </Box>
         </Box>
-      </Box>
+        </Box>
+      )}
     </Box>
   );
 };
@@ -3801,7 +5837,7 @@ const MathBuilderPanel: React.FC<{
     plan: PackageEditPlan,
     source: string,
     targetFilePath: string,
-  ) => void;
+  ) => boolean;
   onApplyBuilderConfiguration: (configuration: BuilderConfigurationDraft) => void;
 }> = ({
   activeFilePath,
@@ -9600,7 +11636,7 @@ const XcolorBuilderPanel: React.FC<{
   );
 };
 
-const PREVIEW_TEXT_LIMIT = 900;
+const PREVIEW_TEXT_LIMIT = 1800;
 
 const clipPreviewText = (text: string) =>
   text.length > PREVIEW_TEXT_LIMIT
@@ -9614,7 +11650,58 @@ const getEditPreviewText = (
 ) => {
   const start = utf8ByteOffsetToStringIndex(source, startByte);
   const end = utf8ByteOffsetToStringIndex(source, endByte);
-  return clipPreviewText(source.slice(start, end));
+  return source.slice(start, end);
+};
+
+const buildFocusedDiffPreview = (currentText: string, nextText: string) => {
+  const currentLines = currentText ? currentText.split("\n") : [];
+  const nextLines = nextText ? nextText.split("\n") : [];
+  let commonPrefix = 0;
+  while (
+    commonPrefix < currentLines.length &&
+    commonPrefix < nextLines.length &&
+    currentLines[commonPrefix] === nextLines[commonPrefix]
+  ) {
+    commonPrefix += 1;
+  }
+
+  let commonSuffix = 0;
+  while (
+    commonSuffix < currentLines.length - commonPrefix &&
+    commonSuffix < nextLines.length - commonPrefix &&
+    currentLines[currentLines.length - commonSuffix - 1] ===
+      nextLines[nextLines.length - commonSuffix - 1]
+  ) {
+    commonSuffix += 1;
+  }
+
+  const contextLines = 2;
+  const start = Math.max(0, commonPrefix - contextLines);
+  const currentEnd = Math.min(
+    currentLines.length,
+    currentLines.length - commonSuffix + contextLines,
+  );
+  const nextEnd = Math.min(
+    nextLines.length,
+    nextLines.length - commonSuffix + contextLines,
+  );
+
+  const focus = (lines: string[], end: number) => {
+    const focused = lines.slice(start, end);
+    if (start > 0) {
+      focused.unshift(`… ${start} unchanged lines above …`);
+    }
+    const hiddenBelow = lines.length - end;
+    if (hiddenBelow > 0) {
+      focused.push(`… ${hiddenBelow} unchanged lines below …`);
+    }
+    return clipPreviewText(focused.join("\n"));
+  };
+
+  return {
+    currentText: focus(currentLines, currentEnd),
+    nextText: focus(nextLines, nextEnd),
+  };
 };
 
 type InlineDiffRow = {
@@ -9805,13 +11892,25 @@ const PackageEditReviewPanel: React.FC<{
   onApply?: () => void;
   onDismiss?: () => void;
   onRevealSourceLine?: (line: number) => void;
-}> = ({ review, onApply, onDismiss, onRevealSourceLine }) => {
+  applyLabel?: string;
+  destinationFilePath?: string;
+}> = ({
+  review,
+  onApply,
+  onDismiss,
+  onRevealSourceLine,
+  applyLabel,
+  destinationFilePath,
+}) => {
   const { t } = useTranslation();
   const fileName = review.targetFilePath
     ? review.targetFilePath.split(/[/\\]/).pop() || review.targetFilePath
     : t("packageStudio.editReview.activeDocument", {
         defaultValue: "active document",
       });
+  const destinationFileName = destinationFilePath
+    ? destinationFilePath.split(/[/\\]/).pop() || destinationFilePath
+    : null;
   const visibleEdits = review.plan.edits.slice(0, 4);
   const remainingEdits = Math.max(
     0,
@@ -9849,6 +11948,16 @@ const PackageEditReviewPanel: React.FC<{
                 <Badge size="xs" variant="light" color="blue">
                   {fileName}
                 </Badge>
+                {destinationFileName && (
+                  <Badge
+                    size="xs"
+                    variant="light"
+                    color="teal"
+                    title={destinationFilePath}
+                  >
+                    Save as → {destinationFileName}
+                  </Badge>
+                )}
                 <Badge size="xs" variant="light" color="gray">
                   {review.plan.edits.length}{" "}
                   {t("packageStudio.editReview.edits", {
@@ -9897,9 +12006,10 @@ const PackageEditReviewPanel: React.FC<{
               onClick={onApply}
               disabled={!onApply || review.plan.edits.length === 0}
             >
-              {t("packageStudio.editReview.apply", {
-                defaultValue: "Apply changes",
-              })}
+              {applyLabel ??
+                t("packageStudio.editReview.apply", {
+                  defaultValue: "Apply changes",
+                })}
             </Button>
           </Group>
         </Group>
@@ -9929,12 +12039,15 @@ const PackageEditReviewPanel: React.FC<{
         ) : (
           <Stack gap="xs">
             {visibleEdits.map((edit, index) => {
-              const currentText = getEditPreviewText(
+              const currentRangeText = getEditPreviewText(
                 review.source,
                 edit.range.start.byte,
                 edit.range.end.byte,
               );
-              const nextText = clipPreviewText(edit.replacement);
+              const { currentText, nextText } = buildFocusedDiffPreview(
+                currentRangeText,
+                edit.replacement,
+              );
               const isInsertion = edit.range.start.byte === edit.range.end.byte;
 
               return (

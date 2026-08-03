@@ -1,0 +1,13 @@
+\documentclass[tikz,border=2mm]{standalone}
+\usepackage{tkz-euclide}
+\begin{document}
+\begin{tikzpicture}
+  \tkzDefPoint(0,0){A}
+  \tkzDefPoint(4,0){B}
+  \tkzDefPoint(2,3){C}
+  \tkzDrawPolygon(A,B,C)
+  \tkzDrawPoints(A,B,C)
+  \tkzLabelPoints(A,B)
+  \tkzLabelPoints[above](C)
+\end{tikzpicture}
+\end{document}

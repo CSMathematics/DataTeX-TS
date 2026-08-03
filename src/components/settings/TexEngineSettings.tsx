@@ -74,6 +74,15 @@ export const TexEngineSettings: React.FC<TexEngineSettingsProps> = ({
           onChange={(e) => handleChange("lualatexPath", e.currentTarget.value)}
         />
       </Group>
+      <Group grow align="flex-start">
+        <TextInput
+          label={t("settings.tex.dvisvgmPath.label")}
+          description={t("settings.tex.dvisvgmPath.description")}
+          placeholder="dvisvgm"
+          value={settings.dvisvgmPath}
+          onChange={(e) => handleChange("dvisvgmPath", e.currentTarget.value)}
+        />
+      </Group>
 
       <TextInput
         label={t("settings.tex.outputDirectory.label")}

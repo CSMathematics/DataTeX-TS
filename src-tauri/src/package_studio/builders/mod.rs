@@ -844,6 +844,27 @@ pub fn list_builders() -> Vec<BuilderDescriptor> {
             description: "Generate SI numbers, units, quantities, ranges, lists, and setup."
                 .to_string(),
         },
+        BuilderDescriptor {
+            schema_version: 1,
+            id: "graphics-studio".to_string(),
+            display_name: "Graphics Studio".to_string(),
+            category: BuilderCategory::Graphics,
+            package_ids: vec!["tikz".to_string(), "tkz-euclide".to_string()],
+            output_targets: vec![
+                BuilderOutputTarget::Body,
+                BuilderOutputTarget::FullDocument,
+            ],
+            support_level: BuilderSupportLevel::NativeEditable,
+            capabilities: BuilderCapability {
+                supports_preview: true,
+                supports_import: true,
+                supports_presets: false,
+                requires_exact_compile: false,
+            },
+            description:
+                "Interactive TikZ and tkz-euclide construction editing with instant and exact previews."
+                    .to_string(),
+        },
     ]
 }
 
@@ -869,6 +890,9 @@ mod registry_tests {
         assert!(builders.iter().any(|builder| builder.id == "fancyhdr"));
         assert!(builders.iter().any(|builder| builder.id == "enumitem"));
         assert!(builders.iter().any(|builder| builder.id == "graphicx"));
+        assert!(builders
+            .iter()
+            .any(|builder| builder.id == "graphics-studio"));
         assert!(builders.iter().any(|builder| builder.id == "tables"));
         assert!(builders.iter().any(|builder| builder.id == "math"));
         assert!(builders.iter().any(|builder| builder.id == "siunitx"));
@@ -919,6 +943,35 @@ mod registry_tests {
             graphicx.output_targets,
             vec![BuilderOutputTarget::Preamble, BuilderOutputTarget::Body]
         );
+
+        let graphics_studio = builders
+            .iter()
+            .find(|builder| builder.id == "graphics-studio")
+            .expect("graphics-studio descriptor");
+        assert_eq!(graphics_studio.category, BuilderCategory::Graphics);
+        assert_eq!(graphics_studio.package_ids, vec!["tikz", "tkz-euclide"]);
+        assert_eq!(
+            graphics_studio.output_targets,
+            vec![BuilderOutputTarget::Body, BuilderOutputTarget::FullDocument]
+        );
+        assert_eq!(
+            graphics_studio.support_level,
+            BuilderSupportLevel::NativeEditable
+        );
+        assert!(graphics_studio.capabilities.supports_preview);
+        assert!(graphics_studio.capabilities.supports_import);
+        assert!(!graphics_studio.capabilities.supports_presets);
+        assert!(!graphics_studio.capabilities.requires_exact_compile);
+        let serialized =
+            serde_json::to_value(graphics_studio).expect("descriptor should serialize");
+        assert_eq!(serialized["category"], "graphics");
+        assert_eq!(serialized["outputTargets"][0], "body");
+        assert_eq!(serialized["outputTargets"][1], "fullDocument");
+        assert_eq!(serialized["supportLevel"], "nativeEditable");
+        assert_eq!(serialized["capabilities"]["supportsPreview"], true);
+        assert_eq!(serialized["capabilities"]["supportsImport"], true);
+        assert_eq!(serialized["capabilities"]["supportsPresets"], false);
+        assert_eq!(serialized["capabilities"]["requiresExactCompile"], false);
 
         let tables = builders
             .iter()

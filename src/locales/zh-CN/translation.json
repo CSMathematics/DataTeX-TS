@@ -106,6 +106,7 @@
       "pdflatexPath": { "label": "pdfLaTeX 路径" },
       "xelatexPath": { "label": "XeLaTeX 路径" },
       "lualatexPath": { "label": "LuaLaTeX 路径" },
+      "dvisvgmPath": { "label": "dvisvgm 路径", "description": "Graphics Studio 使用它生成精确 SVG 预览。请输入可执行文件名或绝对路径。" },
       "outputDirectory": {
         "label": "输出目录",
         "description": "辅助文件目录 (相对于文档)。"

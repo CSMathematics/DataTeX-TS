@@ -925,6 +925,19 @@ host and generate validated Rust-owned output.
 - [ ] Share Package Studio navigation, presets, diagnostics, and safe insertion.
 - [ ] Keep the graphics canvas implementation modular and lazy-loaded.
 
+Current graphics integration progress: the copy-first workbench and host-owned
+document/file bridge are in place. Exact previews now reuse DataTeX's single
+`CompilationManager`; unique frontend jobs cancel on supersede/unmount and the
+verified Linux runner reaps LaTeX/`dvisvgm` process groups on stop or timeout.
+DataTeX now centrally configures/discovers `dvisvgm`, executes the canonical
+resolved binary, and invalidates exact-preview cache entries when either tool
+identity changes. Native release-OS process-tree/exact-preview smoke tests and
+concurrent instant-preview responsiveness are the next hardening gate. The
+portable smoke harness passes on Linux and now runs before each native
+Windows/Linux/Intel-Mac/Apple-Silicon build and draft-release upload. The
+release workflow conflict is resolved with the matching `tauri-action@v0`
+contract; the cross-OS gate closes when all four jobs are green.
+
 Done when: graphics tools feel native to Package Studio while retaining their
 own high-performance workbench.
 

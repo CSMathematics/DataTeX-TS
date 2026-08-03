@@ -108,6 +108,7 @@
       "pdflatexPath": { "label": "Chemin pdfLaTeX" },
       "xelatexPath": { "label": "Chemin XeLaTeX" },
       "lualatexPath": { "label": "Chemin LuaLaTeX" },
+      "dvisvgmPath": { "label": "Chemin dvisvgm", "description": "Utilisé par Graphics Studio pour les aperçus SVG exacts. Saisissez un nom d’exécutable ou un chemin absolu." },
       "outputDirectory": {
         "label": "Répertoire de Sortie",
         "description": "Répertoire pour les fichiers auxiliaires (relatif au document)."

@@ -113,6 +113,7 @@
       "pdflatexPath": { "label": "Διαδρομή pdfLaTeX" },
       "xelatexPath": { "label": "Διαδρομή XeLaTeX" },
       "lualatexPath": { "label": "Διαδρομή LuaLaTeX" },
+      "dvisvgmPath": { "label": "Διαδρομή dvisvgm", "description": "Χρησιμοποιείται από το Graphics Studio για ακριβή προεπισκόπηση SVG. Δώστε όνομα εκτελέσιμου ή απόλυτη διαδρομή." },
       "outputDirectory": {
         "label": "Φάκελος Εξόδου",
         "description": "Φάκελος για βοηθητικά αρχεία (σχετικά με το έγγραφο)."

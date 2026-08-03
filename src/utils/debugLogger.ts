@@ -62,11 +62,6 @@ export const installGlobalDebugHandlers = () => {
   if (globalHandlersInstalled) return;
   globalHandlersInstalled = true;
 
-  debugLog("info", "APP", "frontend-start", {
-    href: window.location.href,
-    visibility: document.visibilityState,
-  });
-
   window.addEventListener("error", (event) => {
     debugLog("error", "APP", "window-error", {
       message: event.message,
@@ -80,12 +75,6 @@ export const installGlobalDebugHandlers = () => {
   window.addEventListener("unhandledrejection", (event) => {
     debugLog("error", "APP", "unhandled-promise-rejection", {
       reason: event.reason,
-    });
-  });
-
-  window.addEventListener("pagehide", (event) => {
-    debugLog("warn", "APP", "page-hide", {
-      persisted: event.persisted,
     });
   });
 };

@@ -1533,9 +1533,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
                   <GitGraph
                     commits={commits}
                     activeCommitId={repoInfo?.head_commit || null}
-                    onSelectCommit={(commit) => {
-                      console.log("Selected commit", commit);
-                    }}
+                    onSelectCommit={(_commit) => {}}
                     onCheckoutCommit={handleCheckoutCommit}
                     onCherryPick={handleCherryPick}
                     onRevertCommit={handleRevertCommit}

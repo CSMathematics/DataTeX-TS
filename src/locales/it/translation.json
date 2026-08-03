@@ -108,6 +108,7 @@
       "pdflatexPath": { "label": "Percorso pdfLaTeX" },
       "xelatexPath": { "label": "Percorso XeLaTeX" },
       "lualatexPath": { "label": "Percorso LuaLaTeX" },
+      "dvisvgmPath": { "label": "Percorso dvisvgm", "description": "Usato da Graphics Studio per anteprime SVG esatte. Inserisci il nome dell’eseguibile o un percorso assoluto." },
       "outputDirectory": {
         "label": "Cartella di Output",
         "description": "Cartella per i file ausiliari (relativa al documento)."

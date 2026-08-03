@@ -6423,7 +6423,6 @@ pub fn run() {
             )),
         })
         .setup(|app| {
-            diagnostics::terminal_log("INFO", "BOOT", "tauri-setup-start", None);
             pdf_renderer::configure_resource_dir(app.path().resource_dir().ok());
             let proj_dirs = ProjectDirs::from("", "", "datatex");
             let data_dir = if let Some(proj_dirs) = proj_dirs {
@@ -6478,24 +6477,7 @@ pub fn run() {
                     }
                 }
             });
-
-            diagnostics::terminal_log("INFO", "BOOT", "tauri-setup-complete", None);
             Ok(())
-        })
-        .on_window_event(|window, event| match event {
-            tauri::WindowEvent::CloseRequested { .. } => diagnostics::terminal_log(
-                "WARN",
-                "WINDOW",
-                "close-requested",
-                Some(&format!("label={}", window.label())),
-            ),
-            tauri::WindowEvent::Destroyed => diagnostics::terminal_log(
-                "WARN",
-                "WINDOW",
-                "destroyed",
-                Some(&format!("label={}", window.label())),
-            ),
-            _ => {}
         })
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -6677,8 +6659,16 @@ pub fn run() {
             package_studio::package_studio_plan_add_package_cmd,
             package_studio::package_studio_plan_apply_builder_configuration_cmd,
             package_studio::package_studio_plan_generated_block_cmd,
+            package_studio::package_studio_plan_graphics_document_edit_cmd,
+            package_studio::package_studio_plan_graphics_tikzpicture_edit_cmd,
+            package_studio::package_studio_discover_graphics_tikzpictures_cmd,
+            package_studio::package_studio_prepare_graphics_tikzpicture_cmd,
+            package_studio::package_studio_prepare_graphics_new_drawing_cmd,
+            package_studio::package_studio_plan_graphics_drawing_insert_cmd,
             package_studio::package_studio_plan_move_package_cmd,
             package_studio::package_studio_plan_remove_package_cmd,
+            package_studio::stoicheia::compile_latex,
+            package_studio::stoicheia::parse_tikz,
             // Preamble Types CRUD
             get_preamble_types_cmd,
             create_preamble_type_cmd,
