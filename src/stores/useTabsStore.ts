@@ -54,6 +54,12 @@ interface TabsState {
   updateTabContent: (id: string, content: string) => void;
   markDirty: (id: string, isDirty: boolean) => void;
   renameTab: (oldId: string, newId: string, newTitle: string) => void;
+  retargetEditorTab: (
+    oldId: string,
+    newId: string,
+    newTitle: string,
+    expectedSource: string,
+  ) => boolean;
 
   // DTEX-specific actions
   updateTabMetadata: (
@@ -192,6 +198,45 @@ export const useTabsStore = create<TabsState>()(
         ),
         activeTabId: activeTabId === oldId ? newId : activeTabId,
       }));
+    },
+
+    // Atomic Save As transition. It refuses stale sources and duplicate tab
+    // identities so a successful disk write cannot silently retarget the
+    // wrong editor document.
+    retargetEditorTab: (oldId, newId, newTitle, expectedSource) => {
+      let retargeted = false;
+      set((state) => {
+        const sourceTab = state.tabs.find((tab) => tab.id === oldId);
+        const destinationCollision = state.tabs.some(
+          (tab) => tab.id === newId && tab.id !== oldId,
+        );
+        if (
+          !sourceTab ||
+          sourceTab.type !== "editor" ||
+          (sourceTab.content ?? "") !== expectedSource ||
+          destinationCollision
+        ) {
+          return state;
+        }
+
+        retargeted = true;
+        return {
+          tabs: state.tabs.map((tab) =>
+            tab.id === oldId
+              ? {
+                  ...tab,
+                  id: newId,
+                  title: newTitle,
+                  content: expectedSource,
+                  isDirty: false,
+                }
+              : tab,
+          ),
+          activeTabId:
+            state.activeTabId === oldId ? newId : state.activeTabId,
+        };
+      });
+      return retargeted;
     },
 
     // Update tab metadata (for .dtex files)

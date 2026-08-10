@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { debugLog } from "../utils/debugLogger";
 
 const PDF_SOURCE_EXTENSION = /\.(?:tex|sty|cls|bib|dtx|ins)$/i;
 const PDF_MIN_STABLE_AGE_MS = 120;
@@ -157,11 +156,6 @@ export function usePdfState({
 
       const pdfPath = expectedPdfPath;
       const isSamePathRefresh = loadedPdfRef.current?.path === pdfPath;
-      debugLog("info", "PDF_SOURCE", "load-start", {
-        path: pdfPath,
-        refreshVersion: pdfRefreshTrigger,
-        samePathRefresh: isSamePathRefresh,
-      });
       setPdfLoadStatus({
         path: pdfPath,
         version: pdfRefreshTrigger,
@@ -180,7 +174,7 @@ export function usePdfState({
         let pdfData: Uint8Array | null = null;
         let readError: unknown;
 
-        for (const [attemptIndex, delay] of retryDelays.entries()) {
+        for (const delay of retryDelays) {
           if (delay > 0) {
             await new Promise((resolve) => setTimeout(resolve, delay));
           }
@@ -215,12 +209,6 @@ export function usePdfState({
             break;
           } catch (error) {
             readError = error;
-            debugLog("debug", "PDF_SOURCE", "snapshot-retry", {
-              path: pdfPath,
-              attempt: attemptIndex + 1,
-              delayMs: delay,
-              error,
-            });
           }
         }
 
@@ -234,20 +222,9 @@ export function usePdfState({
         }
 
         setLoadedPdf({ path: pdfPath, url: nextBlobUrl });
-        debugLog("info", "PDF_SOURCE", "load-complete", {
-          path: pdfPath,
-          bytes: pdfData.byteLength,
-          refreshVersion: pdfRefreshTrigger,
-        });
       } catch (e) {
         // Missing PDFs are expected before the first compilation. Reading
         // directly avoids a separate `exists` IPC round-trip on every load.
-        console.debug("PDF is not available yet:", e);
-        debugLog("warn", "PDF_SOURCE", "load-unavailable", {
-          path: pdfPath,
-          refreshVersion: pdfRefreshTrigger,
-          error: e,
-        });
         // A transient post-compile read failure must not destroy a still valid
         // canvas. New paths have no stale document to preserve.
         if (!cancelled && !isSamePathRefresh) setLoadedPdf(null);

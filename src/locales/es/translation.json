@@ -108,6 +108,7 @@
       "pdflatexPath": { "label": "Ruta pdfLaTeX" },
       "xelatexPath": { "label": "Ruta XeLaTeX" },
       "lualatexPath": { "label": "Ruta LuaLaTeX" },
+      "dvisvgmPath": { "label": "Ruta dvisvgm", "description": "Graphics Studio lo usa para vistas SVG exactas. Introduzca el nombre del ejecutable o una ruta absoluta." },
       "outputDirectory": {
         "label": "Directorio de Salida",
         "description": "Directorio para archivos auxiliares (relativo al documento)."

@@ -70,6 +70,7 @@ export interface TexEngineSettings {
   pdflatexPath: string;
   xelatexPath: string;
   lualatexPath: string;
+  dvisvgmPath: string;
   outputDirectory: string;
   shellEscape: boolean;
   synctex: boolean;
@@ -181,6 +182,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     pdflatexPath: "pdflatex",
     xelatexPath: "xelatex",
     lualatexPath: "lualatex",
+    dvisvgmPath: "dvisvgm",
     outputDirectory: "build",
     shellEscape: false,
     synctex: true,
@@ -636,6 +638,10 @@ export const useSettingsStore = create<SettingsState>()(
         const mergedSettings = {
           ...DEFAULT_SETTINGS,
           ...loadedSettings,
+          texEngine: {
+            ...DEFAULT_SETTINGS.texEngine,
+            ...(loadedSettings.texEngine || {}),
+          },
           latexSyntaxHighlighting: sanitizeLatexSyntaxHighlightingSettings(
             loadedSettings.latexSyntaxHighlighting,
           ),

@@ -108,6 +108,7 @@
       "pdflatexPath": { "label": "pdfLaTeX Pfad" },
       "xelatexPath": { "label": "XeLaTeX Pfad" },
       "lualatexPath": { "label": "LuaLaTeX Pfad" },
+      "dvisvgmPath": { "label": "dvisvgm-Pfad", "description": "Wird von Graphics Studio für exakte SVG-Vorschauen verwendet. Programmname oder absoluten Pfad eingeben." },
       "outputDirectory": {
         "label": "Ausgabeverzeichnis",
         "description": "Verzeichnis für Hilfsdateien (relativ zum Dokument)."

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "suite": "datatex-stoicheia-performance",
+  "hardwareIndependentGates": {
+    "initialStoicheiaAssetCount": 0,
+    "adapterJsMaxBytes": 921600,
+    "scopedCssMaxBytes": 131072,
+    "stoicheiaOwnedJsMaxBytes": 1228800,
+    "largeSceneNodeCount": 5000,
+    "largeSceneSegmentBatchCount": 1,
+    "largeSceneSvgElementMax": 5200,
+    "mixedStyleSceneSvgElementMax": 6800
+  },
+  "measurementDefaults": {
+    "nativeWarmups": 5,
+    "nativeSamples": 15,
+    "rendererProcessWarmups": 1,
+    "rendererProcessSamples": 5
+  },
+  "comparisonPolicy": {
+    "runtimeTimingsAreAdvisory": true,
+    "requireMatchedMachineAndToolchainProfile": true,
+    "warnWhenCoefficientOfVariationExceedsPercent": 15,
+    "bundleRegression": {
+      "enabled": false,
+      "requiresExplicitBaseline": true,
+      "percent": 5,
+      "absoluteBytes": 32768
+    }
+  },
+  "productionTauriCapture": {
+    "requiredMetrics": [
+      "coldStartupToFirstPaintMs",
+      "graphicsModuleLoadMs",
+      "firstCanvasCommitMs",
+      "parseRoundTripMs",
+      "rendererMs",
+      "dragFrameIntervalsMs",
+      "panFrameIntervalsMs",
+      "zoomFrameIntervalsMs",
+      "exactCompileColdMs",
+      "exactCompileWarmMs"
+    ],
+    "targetRefreshFraction": 0.9,
+    "p95FramePeriodsMax": 2,
+    "longTaskMs": 100,
+    "matchedProfileRegressionPercent": 15
+  }
+}

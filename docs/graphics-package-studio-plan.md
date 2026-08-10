@@ -1,5 +1,11 @@
 # Graphics Package Studio Implementation Plan
 
+> **Direction update — 2026-07-28:** the initial Stoicheia migration now follows
+> the [Stoicheia Copy-First Integration Plan](stoicheia-copy-first-integration-plan.md).
+> That plan supersedes the rewrite-first parts of the Executive Decision and
+> phase order below until functional and visual parity has been reached. This
+> document remains the long-term multi-package graphics roadmap.
+
 This document defines the dedicated visual-authoring architecture for LaTeX
 graphics inside DataTeX. It covers TikZ/PGF, tkz-euclide, tkz-elements, PGFPlots,
 PSTricks and its major subpackages, image/figure composition, and future graphics
@@ -9,10 +15,30 @@ The workbench is part of the main DataTeX window and integrates with the common
 package, preset, diagnostics, preview, and safe source-editing services defined
 in [Package Studio Implementation Plan](package-studio-plan.md).
 
-Last updated: 2026-07-20
+Last updated: 2026-08-03
 
 ## Current Status
 
+- [x] Copy-first parity track Phases 1–3: Rust engine, Tauri adapter, mechanical
+  frontend transplant, copied tests, and conditional lazy boundary.
+- [x] Copy-first parity track Phase 4: scoped CSS, portal boundary, embedded
+  shell, and full-bleed Package Studio mount.
+- [x] Copy-first Phase 5 slice 1: active-document hydration, immutable session
+  baseline, and complete graphics-state isolation on file/workspace changes.
+- [x] Copy-first Phase 5 slice 2: Rust full-document plan, SHA-256 and exact
+  stale-source guards, in-window diff/review, and confirmed baseline advance.
+- [x] Copy-first Phase 5 slice 3: Rust-owned `tikzpicture` discovery/focus,
+  cursor-aware target selection, single-range review, and byte-preserving
+  Apply.
+- [x] Copy-first Phase 5 slice 4: isolated New Drawing scratch session,
+  inline/figure insertion options, Rust-owned dependency and insertion plans,
+  and reviewed insertion into an open or empty DataTeX document.
+- [x] Copy-first Phase 5 slice 5: host-owned explicit Save from embedded/global
+  UI, ordered review → Apply → bridge commit → persistence, exact draft/path
+  validation, and per-file write serialization.
+- [x] Copy-first Phase 5 slice 6: host-owned Save As and exact SVG export,
+  destination-before-review flow, atomic post-write tab retarget, sanitized
+  render revisions, and post-dialog/post-commit race guards.
 - [x] Audit the local `Stoicheia project/`.
 - [x] Compare the local project with the public
   [CSMathematics/Stoicheia](https://github.com/CSMathematics/Stoicheia)
@@ -34,6 +60,25 @@ Last updated: 2026-07-20
 - [ ] Phase 8: PSTricks adapter families.
 - [ ] Phase 9: exact preview, persistence, and editor/database integration.
 - [ ] Phase 10: specialist adapters, hardening, and legacy cleanup.
+
+Copy-first Phase 4 verification:
+
+- The original 110-file frontend baseline remains auditable: 73 files are
+  byte-identical and 37 host-boundary adaptations are recorded with their
+  source hashes.
+- The full workbench is a conditional, full-bleed Package Studio route rather
+  than a narrow editor-side panel.
+- Scoped CSS has zero selector/root/global-namespace leaks; all 24 copied
+  dialogs share a focus-managed portal.
+- Host-owned settings and file/autosave ownership remain with DataTeX.
+- Container-relative menus/resizers, exact-SVG sanitization, cleanup
+  regressions, and a local error boundary complete the embedded-shell gate.
+- Full-document, selected-`tikzpicture`, and New Drawing Apply/Save use
+  DataTeX's reviewed edit path. The copied frontend has no direct document
+  write path.
+- A new drawing starts from a deterministic compile-ready scratch document and
+  can be inserted at a captured selection, a safe body cursor, or immediately
+  before `\end{document}`. The host never writes around the Rust edit planner.
 
 ## Executive Decision
 
@@ -911,13 +956,83 @@ legacy implementations are no longer loaded.
 
 ## Immediate Next Implementation Step
 
-Do not begin by moving React components.
+Follow Phase 5 of the
+[copy-first integration plan](stoicheia-copy-first-integration-plan.md):
 
-1. Complete the provenance/license record.
-2. Freeze the Stoicheia fixtures and capability inventory.
-3. Create the Tauri-independent `graphics-engine` crate.
-4. Extract the smallest parser/geometry vertical slice: free points, segments,
-   one derived construction, scene output, and tests.
-5. Add stable IDs/source spans and generated TypeScript DTOs.
-6. Prove the full path in a minimal DataTeX route before migrating the remaining
-   tool families.
+1. **Done:** seed a document-scoped graphics session from the active DataTeX
+   tab.
+2. **Done:** capture an immutable exact source baseline plus a diagnostic
+   fingerprint, and reset all local scene state when the file or Package Studio
+   lifetime changes.
+3. **Done:** identify a selected/current `tikzpicture` without dropping or
+   rewriting source outside its exact range.
+4. **Done:** produce typed Rust full/range edit plans and show them in DataTeX's
+   existing in-window diff/review UI.
+5. **Done:** apply only after SHA-256, exact source, session, and target
+   validation; reject stale plans before review and immediately before Apply.
+6. **Done:** create a drawing from scratch, configure inline/figure wrapping
+   and destination, add the required package/library declarations once, and
+   insert it through the same reviewed edit path.
+7. **Done:** route explicit Save through DataTeX only after the reviewed edit
+   has been accepted and the full host baseline has committed; serialize
+   per-file writes and retain newer editor changes as dirty.
+8. **Done:** add narrow host-owned SVG Export and Save As contracts without
+   restoring the copied standalone New/Open/file system.
+9. **Done:** connect exact-SVG jobs to the existing DataTeX process-tree
+   manager, cancel superseded/unmounted frontend jobs, reap LaTeX and
+   `dvisvgm` after stop/timeout, and cover Linux descendants/temp cleanup.
+10. **Done:** add explicit `dvisvgm` discovery/configuration and include its
+    canonical path, file metadata, reported version, and schema in the
+    exact-preview cache key.
+11. **In progress:** portable native process-tree/exact-preview smoke tests are
+    implemented and pass again on Linux. The build/release workflow contract
+    now runs inside every job before those tests and freezes exactly the
+    Windows x64, Linux x64, Intel Mac, and Apple Silicon config/target pairs.
+    The current official labels (`macos-15-intel` x64 and `macos-15` arm64)
+    were reverified on 2026-08-10. Close the gate after all four hosted jobs are
+    green.
+12. **Done locally:** keep instant preview and pan/zoom responsive while an
+    exact render is active. A diagnostics-only 250 ms event-loop probe adds no
+    normal-mode timer/render work, the frontend regression keeps UI updates
+    live during a pending exact job, and the native regression parses within
+    250 ms while a delayed compiler is still running.
+13. **Open release gate:** run the committed native matrix on Windows x64,
+    Linux x64, Intel Mac, and Apple Silicon. Local Linux execution and the
+    workflow contract are green; the hosted jobs remain required for release.
+14. **Done locally:** Phase 7 source/UI parity inventory. An immutable-manifest
+    gate now covers 100 toolbar tools, 100 icons, 112 Command Palette actions,
+    24 dialogs, and source integrity for the copied LaTeX generator/tests.
+15. **Done locally:** freeze 10 versioned byte-exact generated-LaTeX scenarios,
+    execute them from the permanent prebuild parity gate, and add exact host
+    outputs for focused edits, scratch templates, and CRLF figure insertion.
+16. **Done locally:** freeze four canonical Rust parser/geometry results and
+    consume the same payloads through the real frontend pipeline for complete
+    canonical semantic-SVG snapshots with ID/reference normalization and
+    per-scenario hashes. Cover chained geometry, styles, Unicode labels,
+    clipping, incomplete diagnostics, and deterministic 1,000-node batching.
+17. **Done locally:** add deterministic flat and dependency-heavy 5,000-node
+    native reports, policy-driven batch-friendly and mixed-style renderer
+    checks, animation-frame-coalesced point dragging, and production-manifest
+    closure reports with zero Graphics assets in initial startup.
+18. **Done locally:** add the opt-in production WebView recorder for real cold
+    startup, Graphics first paint, IPC-inclusive parse, drag/pan/zoom frame
+    intervals, long tasks, and cold/warm exact compile. It persists a
+    machine-readable report and the main performance collector validates the
+    complete required inventory before merging it.
+19. **Done locally:** the first cold Linux production capture is retained as a
+    partial diagnostic report, and the corrected rerun closed the local gate.
+    It measured 155 ms startup, 48 ms module load, 313 ms first usable canvas,
+    1 ms median parser round trip, 1.5 ms median renderer, and 793/2 ms
+    cold/warm exact compile. The complete raw capture and collector-validated
+    merged report are linked from
+    [the performance baseline](stoicheia-performance-baseline.md).
+
+Full-document, selected/current `tikzpicture`, and New Drawing Apply/Save now
+pass stale-source, target-switching, file-switching, duplicate-insertion, and
+concurrent-write guards. Save As and exact SVG export now share the same
+host-owned lifecycle without restoring a second file system. Phase 5 is
+complete. The Linux cancellation/process-cleanup and explicit `dvisvgm`
+discovery/cache-identity slices are complete. Portable native smoke coverage
+is implemented and verified on Linux. Concurrent instant/exact responsiveness
+is also verified locally without changing the copied core. The next copy-first
+gate is the green Windows/Linux/Intel-Mac/Apple-Silicon build matrix.

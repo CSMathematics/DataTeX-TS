@@ -108,6 +108,7 @@
       "pdflatexPath": { "label": "Путь к pdfLaTeX" },
       "xelatexPath": { "label": "Путь к XeLaTeX" },
       "lualatexPath": { "label": "Путь к LuaLaTeX" },
+      "dvisvgmPath": { "label": "Путь к dvisvgm", "description": "Используется Graphics Studio для точного SVG-просмотра. Укажите имя программы или абсолютный путь." },
       "outputDirectory": {
         "label": "Выходная директория",
         "description": "Директория для вспомогательных файлов (относительно документа)."

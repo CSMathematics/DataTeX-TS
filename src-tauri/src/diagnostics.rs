@@ -52,18 +52,6 @@ pub fn init() {
             );
             default_hook(panic_info);
         }));
-
-        terminal_log(
-            "INFO",
-            "BOOT",
-            "diagnostics-ready",
-            Some(&format!(
-                "pid={} debug_build={} rust_backtrace={}",
-                std::process::id(),
-                cfg!(debug_assertions),
-                std::env::var("RUST_BACKTRACE").unwrap_or_else(|_| "<unset>".to_string())
-            )),
-        );
     });
 }
 
@@ -98,10 +86,9 @@ pub fn terminal_log(level: &str, scope: &str, event: &str, details: Option<&str>
 
 pub fn debug_log(scope: &str, event: &str, details: Option<&str>) {
     let enabled = DEBUG_ENABLED.get_or_init(|| {
-        cfg!(debug_assertions)
-            || std::env::var("DATATEX_DEBUG")
-                .map(|value| !matches!(value.as_str(), "" | "0" | "false" | "off"))
-                .unwrap_or(false)
+        std::env::var("DATATEX_DEBUG")
+            .map(|value| !matches!(value.as_str(), "" | "0" | "false" | "off"))
+            .unwrap_or(false)
     });
     if *enabled {
         terminal_log("DEBUG", scope, event, details);

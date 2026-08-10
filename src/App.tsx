@@ -65,6 +65,24 @@ import { templates, getTemplateById } from "./services/templateService";
 import type { DtexFile, DtexDatabaseInfo } from "./types/dtex";
 import { useDtexAutoSave } from "./hooks/useDtexAutoSave";
 import { DtexService } from "./services/dtexService";
+import {
+  applyPackageTextEdits,
+  planApplyBuilderConfiguration,
+  planMovePackage,
+  planRemovePackage,
+  stringIndexToUtf8ByteOffset,
+  type BuilderConfigurationDraft,
+  type PackageDiagnostic,
+  type PackageEditPlan,
+  type PackageStudioHostFileActionResult,
+  type PackageStudioHostSaveAsPickRequest,
+  type PackageStudioHostSaveAsPickResult,
+  type PackageStudioHostSaveAsRequest,
+  type PackageStudioHostSaveRequest,
+  type PackageStudioHostSvgExportRequest,
+  type PackageStudioEditReview,
+  type PackageStudioSourceFocus,
+} from "./services/packageStudioService";
 
 import {
   applyLatexSyntaxThemeOverrides,
@@ -151,6 +169,11 @@ const BibliographyWorkspace = lazy(() =>
     default: module.BibliographyWorkspace,
   })),
 );
+const PackageStudioWorkspace = lazy(() =>
+  import("./components/packages/PackageStudioWorkspace").then((module) => ({
+    default: module.PackageStudioWorkspace,
+  })),
+);
 const ResourceInspector = lazy(() =>
   import("./components/database/ResourceInspector").then((module) => ({
     default: module.ResourceInspector,
@@ -196,6 +219,67 @@ const ViewLoadingFallback = () => (
     </Text>
   </Box>
 );
+
+type PendingPackageStudioEditReview = PackageStudioEditReview & {
+  tabId: string;
+  noEditColor: "blue" | "yellow";
+};
+
+const viewKeepsEditorMounted = (view: ViewType) =>
+  view !== "settings" &&
+  view !== "bibliography-workspace" &&
+  view !== "package-studio";
+
+const WINDOWS_RESERVED_FILE_NAME =
+  /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
+
+const normalizeSuggestedFileName = (
+  value: string,
+  fallback: string,
+  extension: string,
+) => {
+  const baseName = value.split(/[/\\]/).pop()?.trim() || fallback;
+  let safeName = baseName
+    .replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, "")
+    .replace(/[:*?"<>|]/g, "-")
+    .replace(/[. ]+$/g, "")
+    .trim();
+  if (!safeName || safeName === "." || safeName === "..") {
+    safeName = fallback;
+  }
+  if (WINDOWS_RESERVED_FILE_NAME.test(safeName)) {
+    safeName = `_${safeName}`;
+  }
+  const suffix = `.${extension.toLowerCase()}`;
+  if (!safeName.toLowerCase().endsWith(suffix)) {
+    safeName += suffix;
+  }
+  if (safeName.length > 120) {
+    safeName = `${safeName.slice(0, Math.max(1, 120 - suffix.length))}${suffix}`;
+  }
+  return safeName;
+};
+
+const normalizeHostPath = async (filePath: string) => {
+  const { normalize, sep } = await import("@tauri-apps/api/path");
+  const normalizedPath = await normalize(filePath);
+  return {
+    path: normalizedPath,
+    key: sep() === "\\" ? normalizedPath.toLowerCase() : normalizedPath,
+  };
+};
+
+const suggestedPathBesideSource = async (
+  sourceFilePath: string,
+  suggestedFileName: string,
+) => {
+  try {
+    const { dirname, join } = await import("@tauri-apps/api/path");
+    return await join(await dirname(sourceFilePath), suggestedFileName);
+  } catch {
+    return suggestedFileName;
+  }
+};
 
 // --- CSS Variables Resolver ---
 const resolver: CSSVariablesResolver = (theme) => ({
@@ -261,8 +345,32 @@ export default function App() {
   const [activeActivity, setActiveActivity] =
     useState<SidebarSection>("database");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const latestEditorSourceRef = useRef<{
+    documentId: string;
+    source: string;
+  } | null>(null);
+  const fileSaveQueueRef = useRef(new Map<string, Promise<boolean>>());
+  const editorRef = useRef<any>(null);
   const [activeView, setActiveView] = useState<ViewType>("editor");
+  const activeViewRef = useRef<ViewType>(activeView);
+  const editorSurfaceActiveRef = useRef(viewKeepsEditorMounted(activeView));
+  activeViewRef.current = activeView;
+  editorSurfaceActiveRef.current = viewKeepsEditorMounted(activeView);
+  if (!editorSurfaceActiveRef.current) {
+    latestEditorSourceRef.current = null;
+    editorRef.current = null;
+  }
   const [activePackageId, setActivePackageId] = useState<string>("amsmath");
+  const [activePackageStudioBuilderId, setActivePackageStudioBuilderId] =
+    useState<string | null>(null);
+  const [pendingPackageStudioEditReview, setPendingPackageStudioEditReview] =
+    useState<PendingPackageStudioEditReview | null>(null);
+  const [packageStudioSourceFocus, setPackageStudioSourceFocus] =
+    useState<PackageStudioSourceFocus | null>(null);
+  const graphicsStudioSaveRequestRef = useRef<(() => void) | null>(null);
+  const graphicsStudioSaveAsRequestRef = useRef<(() => void) | null>(null);
+  const packageStudioSaveAsInFlightRef = useRef(false);
+  const packageStudioSvgExportInFlightRef = useRef(false);
 
   // --- Resizing State (from custom hook) ---
   const {
@@ -282,7 +390,9 @@ export default function App() {
   const markDirty = useTabsStore((state) => state.markDirty);
   const updateTabContent = useTabsStore((state) => state.updateTabContent);
   const renameTab = useTabsStore((state) => state.renameTab);
-  const editorRef = useRef<any>(null);
+  const retargetEditorTab = useTabsStore(
+    (state) => state.retargetEditorTab,
+  );
   const [outlineSource, setOutlineSource] = useState<string>("");
   const [spellCheckEnabled, setSpellCheckEnabled] = useState(false);
 
@@ -407,62 +517,714 @@ export default function App() {
   const activeTab = useActiveTab();
   const isTexFile = useIsTexFile();
 
+  const runQueuedFileSave = useCallback(
+    async (
+      filePath: string,
+      operation: () => Promise<boolean>,
+    ): Promise<boolean> => {
+      const previousSave = fileSaveQueueRef.current.get(filePath);
+      const queuedSave = (previousSave ?? Promise.resolve(true))
+        .catch(() => false)
+        .then(operation);
+
+      fileSaveQueueRef.current.set(filePath, queuedSave);
+      try {
+        return await queuedSave;
+      } finally {
+        if (fileSaveQueueRef.current.get(filePath) === queuedSave) {
+          fileSaveQueueRef.current.delete(filePath);
+        }
+      }
+    },
+    [],
+  );
+
+  const persistTabSource = useCallback(
+    async (
+      targetId: string,
+      contentToSave: string,
+      readCurrentSource: () => string | null,
+    ): Promise<boolean> => {
+      const tab = useTabsStore
+        .getState()
+        .tabs.find((candidate) => candidate.id === targetId);
+      if (!tab || tab.type !== "editor") return false;
+
+      return runQueuedFileSave(tab.id, async () => {
+          try {
+            if (tab.isDtexFile && tab.dtexData) {
+              const { DtexService } = await import("./services/dtexService");
+              await DtexService.saveContent(tab.id, contentToSave);
+            } else {
+              const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+              await writeTextFile(tab.id, contentToSave);
+            }
+
+            const currentSource = readCurrentSource();
+            const targetStillExists = useTabsStore
+              .getState()
+              .tabs.some(
+                (candidate) =>
+                  candidate.id === targetId && candidate.type === "editor",
+              );
+            if (targetStillExists && currentSource === contentToSave) {
+              updateTabContent(targetId, contentToSave);
+              markDirty(targetId, false);
+            } else if (targetStillExists) {
+              if (currentSource !== null) {
+                updateTabContent(targetId, currentSource);
+              }
+              markDirty(targetId, true);
+            }
+
+            invoke("save_history_snapshot_cmd", {
+              filePath: tab.id,
+              content: contentToSave,
+              summary: null,
+              isManual: false,
+            }).catch((err) =>
+              console.warn("Failed to save history snapshot:", err),
+            );
+            return targetStillExists;
+          } catch (e) {
+            console.error("Failed to save file:", e);
+            notifications.show({
+              title: "Save failed",
+              message: String(e),
+              color: "red",
+            });
+            return false;
+          }
+        });
+    },
+    [markDirty, runQueuedFileSave, updateTabContent],
+  );
+
   // --- Helper: Save File ---
   const handleSave = useCallback(
     async (tabId?: string): Promise<boolean> => {
-      const targetId = tabId || activeTabId;
-      const tab = tabs.find((t) => t.id === targetId);
+      const tabsState = useTabsStore.getState();
+      const targetId = tabId || tabsState.activeTabId;
+      const tab = tabsState.tabs.find((candidate) => candidate.id === targetId);
+      if (!tab || tab.type !== "editor") return false;
 
-      if (!tab || !tab.id) return false;
-
-      // Use current content from ref if it's the active tab, otherwise use stored content
-      let contentToSave = tab.content || "";
-      if (tab.id === activeTabId && editorRef.current) {
-        contentToSave = editorRef.current.getValue();
+      const editorSnapshot = latestEditorSourceRef.current;
+      const mountedEditor =
+        tab.id === tabsState.activeTabId &&
+        editorSurfaceActiveRef.current &&
+        editorSnapshot?.documentId === tab.id &&
+        editorRef.current
+          ? editorRef.current
+          : null;
+      const contentToSave =
+        editorSnapshot?.documentId === tab.id
+          ? editorSnapshot.source
+          : tab.content ?? "";
+      if (mountedEditor) {
+        updateTabContent(targetId, contentToSave);
       }
 
-      try {
-        // Check if this is a .dtex file
-        if (tab.isDtexFile && tab.dtexData) {
-          // Save .dtex file with metadata
-          const { DtexService } = await import("./services/dtexService");
-          await DtexService.saveContent(tab.id, contentToSave);
-
-          // Update tab states
-          markDirty(targetId, false);
-          updateTabContent(targetId, contentToSave);
-        } else {
-          // Save regular tex file
-          const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-          await writeTextFile(tab.id, contentToSave);
-
-          // Update tab dirty state and content
-          markDirty(targetId, false);
-          updateTabContent(targetId, contentToSave);
-        }
-
-        // Save local history snapshot (fire and forget)
-        invoke("save_history_snapshot_cmd", {
-          filePath: tab.id,
-          content: contentToSave,
-          summary: null,
-          isManual: false,
-        }).catch((err) =>
-          console.warn("Failed to save history snapshot:", err),
+      return persistTabSource(targetId, contentToSave, () => {
+        const currentState = useTabsStore.getState();
+        const currentTab = currentState.tabs.find(
+          (candidate) => candidate.id === targetId,
         );
-        return true;
-      } catch (e) {
-        console.error("Failed to save file:", e);
+        if (!currentTab || currentTab.type !== "editor") return null;
+        if (
+          latestEditorSourceRef.current?.documentId === targetId &&
+          currentState.activeTabId === targetId &&
+          editorSurfaceActiveRef.current
+        ) {
+          return latestEditorSourceRef.current.source;
+        }
+        return currentTab.content ?? "";
+      });
+    },
+    [persistTabSource, updateTabContent],
+  );
+
+  const handleSavePackageStudioDocument = useCallback(
+    async (request: Readonly<PackageStudioHostSaveRequest>) => {
+      const tabsState = useTabsStore.getState();
+      const targetTab = tabsState.tabs.find(
+        (tab) =>
+          tab.type === "editor" &&
+          tab.id === request.documentId &&
+          tab.id === request.targetFilePath,
+      );
+      if (!targetTab || (targetTab.content ?? "") !== request.source) {
         notifications.show({
-          title: "Save failed",
-          message: String(e),
-          color: "red",
+          title: "Graphics Studio",
+          message:
+            "The target document changed before Save. Review and apply the drawing again.",
+          color: "yellow",
         });
         return false;
       }
+
+      const saved = await persistTabSource(
+        targetTab.id,
+        request.source,
+        () => {
+          const currentState = useTabsStore.getState();
+          const currentTab = currentState.tabs.find(
+            (candidate) =>
+              candidate.type === "editor" &&
+              candidate.id === request.documentId,
+          );
+          const latestEditorSource = latestEditorSourceRef.current;
+          if (
+            currentTab &&
+            currentState.activeTabId === request.documentId &&
+            editorSurfaceActiveRef.current &&
+            latestEditorSource?.documentId === request.documentId
+          ) {
+            return latestEditorSource.source;
+          }
+          return currentTab?.content ?? null;
+        },
+      );
+      if (saved) {
+        const currentTab = useTabsStore
+          .getState()
+          .tabs.find((candidate) => candidate.id === request.documentId);
+        notifications.show({
+          title: "Graphics Studio",
+          message:
+            (currentTab?.content ?? null) === request.source
+              ? "The reviewed document was saved by DataTeX."
+              : "The reviewed document was saved. Newer changes remain unsaved.",
+          color: "green",
+        });
+      }
+      return saved;
     },
-    [tabs, activeTabId, markDirty, updateTabContent],
+    [persistTabSource],
   );
+
+  const handleChoosePackageStudioSaveAsTarget = useCallback(
+    async (
+      request: Readonly<PackageStudioHostSaveAsPickRequest>,
+    ): Promise<PackageStudioHostSaveAsPickResult> => {
+      if (packageStudioSaveAsInFlightRef.current) {
+        return {
+          status: "failed",
+          message: "A Save As dialog is already open.",
+        };
+      }
+
+      const initialTab = useTabsStore.getState().tabs.find(
+        (tab) =>
+          tab.type === "editor" &&
+          tab.id === request.documentId &&
+          tab.id === request.sourceFilePath,
+      );
+      if (!initialTab || (initialTab.content ?? "") !== request.source) {
+        return {
+          status: "failed",
+          message: "The source document changed before Save As.",
+        };
+      }
+      if (initialTab.isDtexFile) {
+        const message =
+          "Save As supports plain LaTeX files. Use Export to TeX for a .dtex document.";
+        notifications.show({
+          title: "Graphics Studio",
+          message,
+          color: "yellow",
+        });
+        return { status: "failed", message };
+      }
+
+      packageStudioSaveAsInFlightRef.current = true;
+      try {
+        const sourceExtension = request.sourceFilePath
+          .match(/\.(tex|sty|cls)$/i)?.[1]
+          ?.toLowerCase() ?? "tex";
+        const suggestedName = normalizeSuggestedFileName(
+          request.suggestedFileName,
+          `document.${sourceExtension}`,
+          sourceExtension,
+        );
+        const defaultPath = await suggestedPathBesideSource(
+          request.sourceFilePath,
+          suggestedName,
+        );
+        const { save } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await save({
+          title: "Save LaTeX document as",
+          defaultPath,
+          filters: [
+            { name: "LaTeX Document", extensions: ["tex", "sty", "cls"] },
+          ],
+        });
+        if (!selectedPath) return { status: "cancelled" };
+
+        const selectedExtension = selectedPath
+          .match(/\.([^.\\/]+)$/)?.[1]
+          ?.toLowerCase();
+        if (!selectedExtension || !["tex", "sty", "cls"].includes(selectedExtension)) {
+          const message = "Choose a .tex, .sty, or .cls destination.";
+          notifications.show({
+            title: "Save As cancelled",
+            message,
+            color: "yellow",
+          });
+          return { status: "failed", message };
+        }
+
+        const currentTab = useTabsStore.getState().tabs.find(
+          (tab) =>
+            tab.type === "editor" &&
+            tab.id === request.documentId &&
+            tab.id === request.sourceFilePath,
+        );
+        if (!currentTab || (currentTab.content ?? "") !== request.source) {
+          return {
+            status: "failed",
+            message: "The source document changed while Save As was open.",
+          };
+        }
+
+        const normalizedTarget = await normalizeHostPath(selectedPath);
+        const normalizedSource = await normalizeHostPath(
+          request.sourceFilePath,
+        );
+        const otherTabPaths = await Promise.all(
+          useTabsStore
+            .getState()
+            .tabs.filter(
+              (tab) =>
+                tab.type === "editor" &&
+                tab.id !== request.sourceFilePath,
+            )
+            .map(async (tab) => (await normalizeHostPath(tab.id)).key),
+        );
+        if (
+          normalizedTarget.key !== normalizedSource.key &&
+          otherTabPaths.includes(normalizedTarget.key)
+        ) {
+          const message =
+            "The selected destination is already open in DataTeX. Close that tab or choose another file.";
+          notifications.show({
+            title: "Save As blocked",
+            message,
+            color: "yellow",
+          });
+          return { status: "failed", message };
+        }
+
+        return {
+          status: "selected",
+          targetFilePath: normalizedTarget.path,
+        };
+      } catch (caught) {
+        console.error("Failed to choose Save As destination:", caught);
+        const message = String(caught);
+        notifications.show({
+          title: "Save As failed",
+          message,
+          color: "red",
+        });
+        return { status: "failed", message };
+      } finally {
+        packageStudioSaveAsInFlightRef.current = false;
+      }
+    },
+    [],
+  );
+
+  const handleSaveAsPackageStudioDocument = useCallback(
+    async (
+      request: Readonly<PackageStudioHostSaveAsRequest>,
+    ): Promise<PackageStudioHostFileActionResult> => {
+      if (packageStudioSaveAsInFlightRef.current) {
+        return {
+          status: "failed",
+          message: "Another Save As operation is still running.",
+        };
+      }
+      packageStudioSaveAsInFlightRef.current = true;
+
+      try {
+        if (!request.validate()) {
+          return {
+            status: "failed",
+            message: "The document changed before Save As.",
+          };
+        }
+        const normalizedSource = await normalizeHostPath(
+          request.sourceFilePath,
+        );
+        const normalizedTarget = await normalizeHostPath(
+          request.targetFilePath,
+        );
+        const readExactSourceTab = () =>
+          useTabsStore.getState().tabs.find(
+            (tab) =>
+              tab.type === "editor" &&
+              tab.id === request.documentId &&
+              tab.id === request.sourceFilePath &&
+              !tab.isDtexFile &&
+              (tab.content ?? "") === request.source,
+          );
+        if (!readExactSourceTab() || !request.validate()) {
+          return {
+            status: "failed",
+            message: "The reviewed source document changed before Save As.",
+          };
+        }
+
+        if (normalizedSource.key === normalizedTarget.key) {
+          const saved = await persistTabSource(
+            request.sourceFilePath,
+            request.source,
+            () => {
+              const tab = readExactSourceTab();
+              return tab?.content ?? null;
+            },
+          );
+          return saved
+            ? { status: "saved", filePath: request.sourceFilePath }
+            : {
+                status: "failed",
+                message: "DataTeX could not save the reviewed document.",
+              };
+        }
+
+        const written = await runQueuedFileSave(
+          normalizedTarget.path,
+          async () => {
+            if (!readExactSourceTab() || !request.validate()) return false;
+            const openPathKeys = await Promise.all(
+              useTabsStore
+                .getState()
+                .tabs.filter(
+                  (tab) =>
+                    tab.type === "editor" &&
+                    tab.id !== request.sourceFilePath,
+                )
+                .map(async (tab) => (await normalizeHostPath(tab.id)).key),
+            );
+            if (openPathKeys.includes(normalizedTarget.key)) return false;
+
+            try {
+              const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+              await writeTextFile(normalizedTarget.path, request.source);
+              return true;
+            } catch (caught) {
+              console.error("Save As write failed:", caught);
+              notifications.show({
+                title: "Save As failed",
+                message: String(caught),
+                color: "red",
+              });
+              return false;
+            }
+          },
+        );
+        if (!written) {
+          return {
+            status: "failed",
+            message:
+              "The source or destination changed before Save As completed.",
+          };
+        }
+
+        invoke("save_history_snapshot_cmd", {
+          filePath: normalizedTarget.path,
+          content: request.source,
+          summary: "Saved As from DataTeX",
+          isManual: false,
+        }).catch((error) =>
+          console.warn("Failed to save Save As history snapshot:", error),
+        );
+
+        if (!readExactSourceTab() || !request.validate()) {
+          notifications.show({
+            title: "Saved copy",
+            message:
+              "The file was written, but newer changes appeared during Save As. The original tab was left open and unchanged.",
+            color: "yellow",
+          });
+          return {
+            status: "savedDetached",
+            filePath: normalizedTarget.path,
+          };
+        }
+
+        const newTitle =
+          normalizedTarget.path.split(/[/\\]/).pop() ?? normalizedTarget.path;
+        const retargeted = retargetEditorTab(
+          request.sourceFilePath,
+          normalizedTarget.path,
+          newTitle,
+          request.source,
+        );
+        if (!retargeted) {
+          notifications.show({
+            title: "Saved copy",
+            message:
+              "The file was written, but the original tab changed during Save As and was not retargeted.",
+            color: "yellow",
+          });
+          return {
+            status: "savedDetached",
+            filePath: normalizedTarget.path,
+          };
+        }
+
+        notifications.show({
+          title: "Saved As",
+          message: `The reviewed document is now ${newTitle}.`,
+          color: "green",
+        });
+        return { status: "saved", filePath: normalizedTarget.path };
+      } catch (caught) {
+        console.error("Save As failed:", caught);
+        const message = String(caught);
+        notifications.show({
+          title: "Save As failed",
+          message,
+          color: "red",
+        });
+        return { status: "failed", message };
+      } finally {
+        packageStudioSaveAsInFlightRef.current = false;
+      }
+    },
+    [persistTabSource, retargetEditorTab, runQueuedFileSave],
+  );
+
+  const handleExportPackageStudioSvg = useCallback(
+    async (
+      request: Readonly<PackageStudioHostSvgExportRequest>,
+    ): Promise<PackageStudioHostFileActionResult> => {
+      if (packageStudioSvgExportInFlightRef.current) {
+        return {
+          status: "failed",
+          message: "An SVG export is already running.",
+        };
+      }
+      const svgSource = request.svgSource;
+      const sourceDocumentExists = () =>
+        useTabsStore.getState().tabs.some(
+          (tab) =>
+            tab.type === "editor" &&
+            tab.id === request.documentId &&
+            tab.id === request.sourceFilePath,
+        );
+      if (
+        !sourceDocumentExists() ||
+        !request.validate() ||
+        !svgSource.trim() ||
+        new TextEncoder().encode(svgSource).byteLength > 25 * 1024 * 1024 ||
+        svgSource.includes("\0") ||
+        !/<svg(?:\s|>)/i.test(svgSource)
+      ) {
+        return {
+          status: "failed",
+          message: "The exact SVG export payload is invalid or too large.",
+        };
+      }
+
+      packageStudioSvgExportInFlightRef.current = true;
+      try {
+        const suggestedName = normalizeSuggestedFileName(
+          request.suggestedFileName,
+          "drawing.svg",
+          "svg",
+        );
+        const defaultPath = await suggestedPathBesideSource(
+          request.sourceFilePath,
+          suggestedName,
+        );
+        const { save } = await import("@tauri-apps/plugin-dialog");
+        const selectedPath = await save({
+          title: "Export exact SVG",
+          defaultPath,
+          filters: [{ name: "SVG image", extensions: ["svg"] }],
+        });
+        if (!selectedPath) return { status: "cancelled" };
+        if (!sourceDocumentExists() || !request.validate()) {
+          return {
+            status: "failed",
+            message:
+              "The drawing or its compiled preview changed while the export dialog was open.",
+          };
+        }
+
+        const normalizedTarget = await normalizeHostPath(selectedPath);
+        const openPathKeys = await Promise.all(
+          useTabsStore
+            .getState()
+            .tabs.filter((tab) => tab.type === "editor")
+            .map(async (tab) => (await normalizeHostPath(tab.id)).key),
+        );
+        if (openPathKeys.includes(normalizedTarget.key)) {
+          const message =
+            "The SVG destination is already open in DataTeX. Close that tab or choose another file.";
+          notifications.show({
+            title: "SVG export blocked",
+            message,
+            color: "yellow",
+          });
+          return { status: "failed", message };
+        }
+
+        const written = await runQueuedFileSave(
+          normalizedTarget.path,
+          async () => {
+            if (!sourceDocumentExists() || !request.validate()) return false;
+            try {
+              const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+              await writeTextFile(
+                normalizedTarget.path,
+                svgSource.endsWith("\n") ? svgSource : `${svgSource}\n`,
+              );
+              return true;
+            } catch (caught) {
+              console.error("SVG export failed:", caught);
+              return false;
+            }
+          },
+        );
+        if (!written) {
+          const message = "DataTeX could not write the SVG file.";
+          notifications.show({
+            title: "SVG export failed",
+            message,
+            color: "red",
+          });
+          return { status: "failed", message };
+        }
+
+        notifications.show({
+          title: "SVG exported",
+          message: normalizedTarget.path,
+          color: "green",
+        });
+        return { status: "saved", filePath: normalizedTarget.path };
+      } catch (caught) {
+        console.error("SVG export failed:", caught);
+        const message = String(caught);
+        notifications.show({
+          title: "SVG export failed",
+          message,
+          color: "red",
+        });
+        return { status: "failed", message };
+      } finally {
+        packageStudioSvgExportInFlightRef.current = false;
+      }
+    },
+    [runQueuedFileSave],
+  );
+
+  const handleRegisterGraphicsStudioSaveRequest = useCallback(
+    (requestSave: (() => void) | null) => {
+      graphicsStudioSaveRequestRef.current = requestSave;
+    },
+    [],
+  );
+
+  const handleRegisterGraphicsStudioSaveAsRequest = useCallback(
+    (requestSaveAs: (() => void) | null) => {
+      graphicsStudioSaveAsRequestRef.current = requestSaveAs;
+    },
+    [],
+  );
+
+  const handleSaveFromActiveSurface = useCallback(() => {
+    if (
+      activeViewRef.current === "package-studio" &&
+      activePackageStudioBuilderId === "graphics-studio"
+    ) {
+      const requestSave = graphicsStudioSaveRequestRef.current;
+      if (requestSave) {
+        requestSave();
+      } else {
+        notifications.show({
+          title: "Graphics Studio",
+          message:
+            "Choose or create a drawing before saving from Graphics Studio.",
+          color: "yellow",
+        });
+      }
+      return;
+    }
+    void handleSave();
+  }, [activePackageStudioBuilderId, handleSave]);
+
+  const handleSaveAsFromActiveSurface = useCallback(() => {
+    if (
+      activeViewRef.current === "package-studio" &&
+      activePackageStudioBuilderId === "graphics-studio"
+    ) {
+      const requestSaveAs = graphicsStudioSaveAsRequestRef.current;
+      if (requestSaveAs) {
+        requestSaveAs();
+      } else {
+        notifications.show({
+          title: "Graphics Studio",
+          message:
+            "Choose or create a drawing before using Save As from Graphics Studio.",
+          color: "yellow",
+        });
+      }
+      return;
+    }
+
+    const tabsState = useTabsStore.getState();
+    const targetTab = tabsState.tabs.find(
+      (tab) => tab.type === "editor" && tab.id === tabsState.activeTabId,
+    );
+    if (!targetTab) return;
+    const editorSnapshot = latestEditorSourceRef.current;
+    const source =
+      editorSurfaceActiveRef.current &&
+      editorSnapshot?.documentId === targetTab.id
+        ? editorSnapshot.source
+        : targetTab.content ?? "";
+    if ((targetTab.content ?? "") !== source) {
+      updateTabContent(targetTab.id, source);
+    }
+
+    void (async () => {
+      const picked = await handleChoosePackageStudioSaveAsTarget({
+        documentId: targetTab.id,
+        sourceFilePath: targetTab.id,
+        source,
+        suggestedFileName: targetTab.title,
+      });
+      if (picked.status !== "selected") return;
+      await handleSaveAsPackageStudioDocument({
+        documentId: targetTab.id,
+        sourceFilePath: targetTab.id,
+        targetFilePath: picked.targetFilePath,
+        source,
+        validate: () => {
+          const currentState = useTabsStore.getState();
+          const currentTab = currentState.tabs.find(
+            (tab) => tab.type === "editor" && tab.id === targetTab.id,
+          );
+          if (!currentTab || (currentTab.content ?? "") !== source) return false;
+          const latestSource = latestEditorSourceRef.current;
+          return !(
+            editorSurfaceActiveRef.current &&
+            currentState.activeTabId === targetTab.id &&
+            latestSource?.documentId === targetTab.id &&
+            latestSource.source !== source
+          );
+        },
+      });
+    })();
+  }, [
+    activePackageStudioBuilderId,
+    handleChoosePackageStudioSaveAsTarget,
+    handleSaveAsPackageStudioDocument,
+    updateTabContent,
+  ]);
 
   // --- Compilation Hook ---
   const {
@@ -642,6 +1404,50 @@ export default function App() {
     };
   }, [workspaceRoot]);
 
+  const syncActiveEditorContent = useCallback(() => {
+    if (
+      !viewKeepsEditorMounted(activeView) ||
+      !activeTabId ||
+      !editorRef.current
+    ) {
+      return;
+    }
+    try {
+      const editor = editorRef.current;
+      const source = editor.getValue();
+      latestEditorSourceRef.current = {
+        documentId: activeTabId,
+        source,
+      };
+      updateTabContent(activeTabId, source);
+
+      const model = editor.getModel?.();
+      const position = editor.getPosition?.();
+      const selection = editor.getSelection?.();
+      if (!model || !position) {
+        setPackageStudioSourceFocus(null);
+        return;
+      }
+
+      const toUtf8Byte = (editorPosition: unknown) => {
+        const utf16Offset = model.getOffsetAt(editorPosition);
+        return stringIndexToUtf8ByteOffset(source, utf16Offset);
+      };
+      const selectionStart =
+        selection?.getStartPosition?.() ?? position;
+      const selectionEnd = selection?.getEndPosition?.() ?? position;
+      setPackageStudioSourceFocus({
+        documentId: activeTabId,
+        source,
+        cursorByte: toUtf8Byte(position),
+        selectionStartByte: toUtf8Byte(selectionStart),
+        selectionEndByte: toUtf8Byte(selectionEnd),
+      });
+    } catch (e) {
+      setPackageStudioSourceFocus(null);
+    }
+  }, [activeTabId, activeView, updateTabContent]);
+
   const handleToggleSidebar = useCallback(
     (section: SidebarSection) => {
       if (section === "settings") {
@@ -654,11 +1460,15 @@ export default function App() {
           setShowDatabasePanel(true);
         } else if (section === "bibliography") {
           setActiveView("bibliography-workspace");
+        } else if (section === "packages") {
+          syncActiveEditorContent();
+          setActiveView("package-studio");
         } else {
           setActiveView((currentView) =>
             currentView === "settings" ||
             currentView === "database" ||
-            currentView === "bibliography-workspace"
+            currentView === "bibliography-workspace" ||
+            currentView === "package-studio"
               ? "editor"
               : currentView,
           );
@@ -673,23 +1483,36 @@ export default function App() {
         }
       }
     },
-    [activeActivity],
+    [activeActivity, syncActiveEditorContent],
   );
 
-  const handleNavigateView = useCallback((view: ViewType) => {
-    setActiveView(view);
+  const handleNavigateView = useCallback(
+    (view: ViewType) => {
+      if (view === "package-studio") {
+        syncActiveEditorContent();
+      }
 
-    if (view === "database") {
-      setActiveActivity("database");
-      setShowDatabasePanel(true);
-      return;
-    }
+      setActiveView(view);
 
-    if (view === "bibliography-workspace") {
-      setActiveActivity("bibliography");
-      setIsSidebarOpen(true);
-    }
-  }, []);
+      if (view === "database") {
+        setActiveActivity("database");
+        setShowDatabasePanel(true);
+        return;
+      }
+
+      if (view === "bibliography-workspace") {
+        setActiveActivity("bibliography");
+        setIsSidebarOpen(true);
+        return;
+      }
+
+      if (view === "package-studio") {
+        setActiveActivity("packages");
+        setIsSidebarOpen(true);
+      }
+    },
+    [syncActiveEditorContent],
+  );
 
   const handleExitBibliographyWorkspace = useCallback(() => {
     handleNavigateView("database");
@@ -713,6 +1536,10 @@ export default function App() {
       if (currentId && editorRef.current) {
         try {
           const currentContent = editorRef.current.getValue();
+          latestEditorSourceRef.current = {
+            documentId: currentId,
+            source: currentContent,
+          };
           updateTabContent(currentId, currentContent);
         } catch (e) {
           /* ignore */
@@ -720,6 +1547,7 @@ export default function App() {
       }
 
       setActiveTab(newId);
+      latestEditorSourceRef.current = null;
 
       // Update outline source for new tab
       const newTab = tabs.find((t) => t.id === newId);
@@ -991,6 +1819,9 @@ export default function App() {
 
   const handleEditorChange = useCallback(
     (id: string, val: string) => {
+      if (editorSurfaceActiveRef.current && editorRef.current) {
+        latestEditorSourceRef.current = { documentId: id, source: val };
+      }
       // Access store directly to avoid dependency on 'tabs'
       const { tabs } = useTabsStore.getState();
       const tab = tabs.find((t) => t.id === id);
@@ -1013,6 +1844,17 @@ export default function App() {
   const handleOpenPackageBrowser = useCallback(
     () => setActiveView("package-browser"),
     [],
+  );
+
+  const handleOpenPackageStudioBuilder = useCallback(
+    (builderId?: string) => {
+      syncActiveEditorContent();
+      if (builderId) setActivePackageStudioBuilderId(builderId);
+      setActiveActivity("packages");
+      setActiveView("package-studio");
+      setIsSidebarOpen(true);
+    },
+    [syncActiveEditorContent],
   );
   const handleOpenExamGenerator = useCallback(() => {}, []);
 
@@ -1037,6 +1879,12 @@ export default function App() {
   // Keyboard shortcut: Ctrl+Shift+P for Package Browser
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof Element &&
+        e.target.closest(".stoicheia-scope")
+      ) {
+        return;
+      }
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "p") {
         e.preventDefault();
         setActiveView("package-browser");
@@ -1049,6 +1897,12 @@ export default function App() {
   // Keyboard shortcut: Ctrl+Shift+N for New from Template
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof Element &&
+        e.target.closest(".stoicheia-scope")
+      ) {
+        return;
+      }
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "n") {
         e.preventDefault();
         setShowTemplateModal(true);
@@ -1093,9 +1947,373 @@ export default function App() {
     }
   }, []);
 
+  const handleInsertFromPackageStudio = useCallback(
+    (code: string) => {
+      setActiveView("editor");
+      window.setTimeout(() => handleInsertSnippet(code), 80);
+    },
+    [handleInsertSnippet],
+  );
+
+  const getPackageStudioEditorContext = useCallback(
+    (message: string) => {
+      const tabsState = useTabsStore.getState();
+      const tab = tabsState.tabs.find(
+        (item) => item.id === tabsState.activeTabId,
+      );
+
+      if (!tab || tab.type !== "editor") {
+        notifications.show({
+          title: "Package Studio",
+          message,
+          color: "yellow",
+        });
+        return null;
+      }
+
+      const source =
+        activeView === "editor" &&
+        tab.id === tabsState.activeTabId &&
+        editorRef.current
+          ? editorRef.current.getValue()
+          : tab.content || "";
+
+      return { source, tabId: tab.id };
+    },
+    [activeView],
+  );
+
+  const applyPackageStudioPlanToEditor = useCallback(
+    (
+      plan: PackageEditPlan,
+      source: string,
+      tabId: string,
+      noEditColor: "blue" | "yellow" = "blue",
+    ) => {
+      if (plan.edits.length === 0) {
+        notifications.show({
+          title: plan.title,
+          message: plan.summary,
+          color: noEditColor,
+        });
+        if (activeView !== "package-studio") setActiveView("editor");
+        return false;
+      }
+
+      setActiveTab(tabId);
+      const keepPackageStudioOpen = activeView === "package-studio";
+      if (keepPackageStudioOpen) {
+        const nextContent = applyPackageTextEdits(source, plan.edits);
+        updateTabContent(tabId, nextContent);
+        markDirty(tabId, true);
+      } else {
+        setActiveView("editor");
+
+        window.setTimeout(() => {
+          const editor = editorRef.current;
+          if (!editor || editor.getValue() !== source) {
+            const nextContent = applyPackageTextEdits(source, plan.edits);
+            updateTabContent(tabId, nextContent);
+            markDirty(tabId, true);
+            if (editor) {
+              editor.setValue(nextContent);
+              editor.focus();
+            }
+            return;
+          }
+
+          editor.executeEdits(
+            "package-studio",
+            plan.edits.map((edit) => ({
+              range: {
+                startLineNumber: edit.range.start.line,
+                startColumn: edit.range.start.column,
+                endLineNumber: edit.range.end.line,
+                endColumn: edit.range.end.column,
+              },
+              text: edit.replacement,
+              forceMoveMarkers: true,
+            })),
+          );
+          const nextContent = editor.getValue();
+          updateTabContent(tabId, nextContent);
+          markDirty(tabId, true);
+          editor.focus();
+        }, 80);
+      }
+
+      notifications.show({
+        title: plan.title,
+        message: plan.summary,
+        color: "green",
+      });
+
+      return true;
+    },
+    [activeView, markDirty, setActiveTab, updateTabContent],
+  );
+
+  const reviewPackageStudioPlan = useCallback(
+    (
+      plan: PackageEditPlan,
+      source: string,
+      tabId: string,
+      targetFilePath: string,
+      noEditColor: "blue" | "yellow" = "blue",
+    ) => {
+      if (plan.edits.length === 0) {
+        return applyPackageStudioPlanToEditor(
+          plan,
+          source,
+          tabId,
+          noEditColor,
+        );
+      }
+
+      setPendingPackageStudioEditReview({
+        plan,
+        source,
+        tabId,
+        targetFilePath,
+        noEditColor,
+      });
+      setActiveView("package-studio");
+      notifications.show({
+        title: "Package Studio",
+        message: "Review the source changes before applying them.",
+        color: "blue",
+      });
+      return true;
+    },
+    [applyPackageStudioPlanToEditor],
+  );
+
+  const handleDismissPendingPackageStudioEditReview = useCallback(() => {
+    setPendingPackageStudioEditReview(null);
+  }, []);
+
+  const handleApplyPendingPackageStudioEditReview = useCallback(() => {
+    if (!pendingPackageStudioEditReview) return false;
+
+    const tabsState = useTabsStore.getState();
+    const targetTab = tabsState.tabs.find(
+      (tab) => tab.id === pendingPackageStudioEditReview.tabId,
+    );
+
+    if (!targetTab || targetTab.type !== "editor") {
+      notifications.show({
+        title: "Package Studio",
+        message: "The target editor tab is no longer open.",
+        color: "red",
+      });
+      setPendingPackageStudioEditReview(null);
+      return false;
+    }
+
+    const currentSource =
+      tabsState.activeTabId === pendingPackageStudioEditReview.tabId &&
+      activeView === "editor" &&
+      editorRef.current
+        ? editorRef.current.getValue()
+        : targetTab.content || "";
+
+    if (currentSource !== pendingPackageStudioEditReview.source) {
+      notifications.show({
+        title: "Package Studio",
+        message:
+          "The document changed after the review was created. Generate the package change again.",
+        color: "yellow",
+      });
+      setPendingPackageStudioEditReview(null);
+      return false;
+    }
+
+    const applied = applyPackageStudioPlanToEditor(
+      pendingPackageStudioEditReview.plan,
+      pendingPackageStudioEditReview.source,
+      pendingPackageStudioEditReview.tabId,
+      pendingPackageStudioEditReview.noEditColor,
+    );
+    setPendingPackageStudioEditReview(null);
+    return applied;
+  }, [
+    activeView,
+    applyPackageStudioPlanToEditor,
+    pendingPackageStudioEditReview,
+  ]);
+
+  const handleReviewPackageStudioEditPlan = useCallback(
+    (plan: PackageEditPlan, source: string, targetFilePath: string) => {
+      const tabsState = useTabsStore.getState();
+      const targetTab = tabsState.tabs.find(
+        (tab) => tab.type === "editor" && tab.id === targetFilePath,
+      );
+
+      if (!targetTab) {
+        notifications.show({
+          title: "Package Studio",
+          message: "The target editor tab is no longer open.",
+          color: "yellow",
+        });
+        return false;
+      }
+
+      const currentSource =
+        tabsState.activeTabId === targetTab.id &&
+        activeView === "editor" &&
+        editorRef.current
+          ? editorRef.current.getValue()
+          : targetTab.content || "";
+      if (currentSource !== source) {
+        notifications.show({
+          title: "Package Studio",
+          message:
+            "The target document changed before the review was created. Generate the change again.",
+          color: "yellow",
+        });
+        return false;
+      }
+
+      return reviewPackageStudioPlan(
+        plan,
+        source,
+        targetTab.id,
+        targetFilePath,
+        "blue",
+      );
+    },
+    [activeView, reviewPackageStudioPlan],
+  );
+
+  const handleFixPackageDiagnosticFromPackageStudio = useCallback(
+    async (diagnostic: PackageDiagnostic) => {
+      const context = getPackageStudioEditorContext(
+        "Open a LaTeX document before fixing a package diagnostic.",
+      );
+      if (!context) return;
+
+      try {
+        let plan: PackageEditPlan | null = null;
+
+        if (
+          diagnostic.code === "package-conflict-color-xcolor" ||
+          diagnostic.code === "obsolete-package-epsfig" ||
+          diagnostic.code === "package-conflict-subfigure-subcaption"
+        ) {
+          if (!diagnostic.packageId) return;
+          plan = await planRemovePackage({
+            source: context.source,
+            revision: Date.now(),
+            packageId: diagnostic.packageId,
+          });
+        } else if (diagnostic.code === "package-order-hyperref-late") {
+          plan = await planMovePackage({
+            source: context.source,
+            revision: Date.now(),
+            packageId: "hyperref",
+            target: "latePreamble",
+          });
+        } else if (
+          diagnostic.code === "package-order-cleveref-after-hyperref"
+        ) {
+          plan = await planMovePackage({
+            source: context.source,
+            revision: Date.now(),
+            packageId: "cleveref",
+            target: "afterPackage",
+            afterPackageId: "hyperref",
+          });
+        }
+
+        if (!plan) {
+          notifications.show({
+            title: "Package Studio",
+            message: "No automatic fix is available for this diagnostic yet.",
+            color: "blue",
+          });
+          return;
+        }
+
+        reviewPackageStudioPlan(
+          plan,
+          context.source,
+          context.tabId,
+          context.tabId,
+          plan.diagnostics.some(
+            (item) => item.severity === "warning" || item.severity === "error",
+          )
+            ? "yellow"
+            : "blue",
+        );
+      } catch (caught) {
+        console.error("Failed to create package diagnostic fix plan:", caught);
+        notifications.show({
+          title: "Package Studio",
+          message: String(caught),
+          color: "red",
+        });
+      }
+    },
+    [getPackageStudioEditorContext, reviewPackageStudioPlan],
+  );
+
+  const handleApplyBuilderConfigurationFromPackageStudio = useCallback(
+    async (configuration: BuilderConfigurationDraft) => {
+      const context = getPackageStudioEditorContext(
+        "Open a LaTeX document before changing a package configuration.",
+      );
+      if (!context) return;
+
+      try {
+        const plan = await planApplyBuilderConfiguration({
+          ...configuration,
+          source: context.source,
+          revision: Date.now(),
+        });
+
+        reviewPackageStudioPlan(
+          plan,
+          context.source,
+          context.tabId,
+          context.tabId,
+          plan.diagnostics.some(
+            (diagnostic) =>
+              diagnostic.severity === "warning" ||
+              diagnostic.severity === "error",
+          )
+            ? "yellow"
+            : "blue",
+        );
+      } catch (caught) {
+        console.error("Failed to apply builder configuration plan:", caught);
+        notifications.show({
+          title: "Package Studio",
+          message: String(caught),
+          color: "red",
+        });
+      }
+    },
+    [getPackageStudioEditorContext, reviewPackageStudioPlan],
+  );
+
+  const handleRevealPackageStudioSourceLine = useCallback(
+    (line: number) => {
+      setActiveView("editor");
+      window.setTimeout(() => handleRevealLine(line), 80);
+    },
+    [handleRevealLine],
+  );
+
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: any) => {
       editorRef.current = editor;
+      const mountedDocumentId = useTabsStore.getState().activeTabId;
+      if (mountedDocumentId) {
+        latestEditorSourceRef.current = {
+          documentId: mountedDocumentId,
+          source: editor.getValue(),
+        };
+      }
       configureLatexMonaco(monaco);
       // settings is a dependency here
       monaco.editor.setTheme(settings.editor.theme);
@@ -1119,8 +2337,6 @@ export default function App() {
           ];
 
           const result = await invoke<string>('run_synctex_command', { args, cwd });
-          console.log("SyncTeX Edit Result:", result);
-          
           const lineMatch = result.match(/Line:(\\d+)/);
 
           if (lineMatch) {
@@ -1544,7 +2760,7 @@ export default function App() {
             <HeaderContent
               onNewFile={handleRequestNewFile}
               onNewFromTemplate={handleOpenTemplateModal}
-              onSaveFile={() => handleSave()}
+              onSaveFile={handleSaveFromActiveSurface}
               onOpenFile={handleOpenFileDialog}
               // Left Sidebar
               showLeftSidebar={isSidebarOpen}
@@ -1688,58 +2904,7 @@ export default function App() {
               onExportToTex={handleExportToTex}
               onBatchExport={() => setBatchModalOpen(true)}
               // New Actions
-              onSaveAs={async () => {
-                if (activeTabId && activeTab) {
-                  try {
-                    const { save } = await import("@tauri-apps/plugin-dialog");
-                    const newPath = await save({
-                      defaultPath: activeTab.title,
-                      filters: [
-                        { name: "LaTeX Document", extensions: ["tex"] },
-                        { name: "All Files", extensions: ["*"] },
-                      ],
-                    });
-
-                    if (newPath) {
-                      // Save content to new path
-                      const content =
-                        editorRef.current?.getValue() ||
-                        activeTab.content ||
-                        "";
-                      const { writeTextFile } =
-                        await import("@tauri-apps/plugin-fs");
-                      await writeTextFile(newPath, content);
-
-                      // Open new tab (or rename current? standard is rename current)
-                      // We will open as new tab and close old one if it was untitled,
-                      // but simpler to just open new tab for now or rename.
-                      // Let's mimic "Save As" by renaming the current tab to the new file
-
-                      // Close current tab and open new one to ensure clean state
-                      // Actually, correct behavior is: current editor now points to new file.
-                      // We can achieve this by closing old tab and opening new one.
-                      // BUT we must be careful about unsaved changes prompt.
-
-                      // For now, let's just open the new file in a new tab
-                      const node: FileSystemNode = {
-                        id: newPath,
-                        name: newPath.split(/[/\\]/).pop() || newPath,
-                        type: "file",
-                        path: newPath,
-                        children: [],
-                      };
-                      handleOpenFileNode(node);
-                      notifications.show({
-                        title: "Saved As",
-                        message: `File saved as ${node.name}`,
-                        color: "green",
-                      });
-                    }
-                  } catch (e) {
-                    console.error("Save As failed", e);
-                  }
-                }
-              }}
+              onSaveAs={handleSaveAsFromActiveSurface}
               onCloseFile={() => {
                 if (activeTabId) {
                   handleCloseTab(activeTabId);
@@ -1822,6 +2987,8 @@ export default function App() {
                 onInsertSymbol={handleInsertSnippet}
                 activePackageId={activePackageId}
                 onSelectPackage={setActivePackageId}
+                activePackageStudioBuilderId={activePackageStudioBuilderId}
+                onOpenPackageStudioBuilder={handleOpenPackageStudioBuilder}
                 outlineSource={outlineSource}
                 onScrollToLine={handleRevealLine}
                 // Git & History
@@ -1886,6 +3053,65 @@ export default function App() {
                   <Suspense fallback={<ViewLoadingFallback />}>
                     <BibliographyWorkspace
                       onClose={handleExitBibliographyWorkspace}
+                    />
+                  </Suspense>
+                ) : activeView === "package-studio" ? (
+                  <Suspense fallback={<ViewLoadingFallback />}>
+                    <PackageStudioWorkspace
+                      activeBuilderId={activePackageStudioBuilderId}
+                      onSelectBuilder={setActivePackageStudioBuilderId}
+                      onBackToEditor={() => setActiveView("editor")}
+                      onInsertCode={handleInsertFromPackageStudio}
+                      onFixDiagnostic={
+                        handleFixPackageDiagnosticFromPackageStudio
+                      }
+                      onApplyBuilderConfiguration={
+                        handleApplyBuilderConfigurationFromPackageStudio
+                      }
+                      onReviewEditPlan={handleReviewPackageStudioEditPlan}
+                      onRevealSourceLine={handleRevealPackageStudioSourceLine}
+                      pendingEditReview={pendingPackageStudioEditReview}
+                      onApplyPendingEditPlan={
+                        handleApplyPendingPackageStudioEditReview
+                      }
+                      onDismissPendingEditPlan={
+                        handleDismissPendingPackageStudioEditReview
+                      }
+                      onSaveHostDocument={
+                        handleSavePackageStudioDocument
+                      }
+                      onChooseHostSaveAsTarget={
+                        handleChoosePackageStudioSaveAsTarget
+                      }
+                      onSaveAsHostDocument={
+                        handleSaveAsPackageStudioDocument
+                      }
+                      onExportHostSvg={handleExportPackageStudioSvg}
+                      onRegisterGraphicsSaveRequest={
+                        handleRegisterGraphicsStudioSaveRequest
+                      }
+                      onRegisterGraphicsSaveAsRequest={
+                        handleRegisterGraphicsStudioSaveAsRequest
+                      }
+                      activeFilePath={
+                        activeTab?.type === "editor" ? activeTab.id : undefined
+                      }
+                      activeFileContent={
+                        activeTab?.type === "editor"
+                          ? activeTab.content
+                          : undefined
+                      }
+                      activeFileFocus={packageStudioSourceFocus}
+                      hostTheme={activeTheme.type}
+                      hostLanguage={settings.general.language}
+                      hostLatexCompiler={settings.texEngine.defaultEngine}
+                      hostLatexEnginePaths={{
+                        lualatex: settings.texEngine.lualatexPath,
+                        pdflatex: settings.texEngine.pdflatexPath,
+                        xelatex: settings.texEngine.xelatexPath,
+                      }}
+                      hostDvisvgmPath={settings.texEngine.dvisvgmPath}
+                      onOpenHostSettings={() => setActiveView("settings")}
                     />
                   </Suspense>
                 ) : /* Default: EDITOR AREA with optional Database Panel */
@@ -2271,6 +3497,10 @@ export default function App() {
                 setSpellCheckEnabled(!spellCheckEnabled)
               }
               onWordCount={handleWordCount}
+              stoicheiaActive={
+                activeView === "package-studio" &&
+                activePackageStudioBuilderId === "graphics-studio"
+              }
             />
           </AppShell.Footer>
 
@@ -2524,7 +3754,6 @@ export default function App() {
                 });
                 setShowRightSidebar(true);
 
-                console.log("Imported .dtex to:", texPath);
               } catch (err) {
                 console.error("Failed to import .dtex to database:", err);
                 // Fallback: open as standalone
@@ -2598,7 +3827,6 @@ export default function App() {
                 });
                 setShowRightSidebar(true);
 
-                console.log("Created database and imported .dtex to:", texPath);
               } catch (err) {
                 console.error("Failed to create database:", err);
                 // Fallback: open as standalone

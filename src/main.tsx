@@ -3,6 +3,7 @@ import "./i18n"; // Initialize i18n
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import { installGlobalDebugHandlers } from "./utils/debugLogger";
+import { initializeStoicheiaRuntimePerformanceCapture } from "./utils/stoicheiaRuntimePerformance";
 
 // 1. IMPORT ΤΩΝ ΒΑΣΙΚΩΝ STYLES ΤΟΥ MANTINE (ΑΠΑΡΑΙΤΗΤΟ ΓΙΑ V7)
 import "@mantine/core/styles.css";
@@ -11,6 +12,7 @@ import "@mantine/core/styles.css";
 import "./App.css";
 
 installGlobalDebugHandlers();
+initializeStoicheiaRuntimePerformanceCapture();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

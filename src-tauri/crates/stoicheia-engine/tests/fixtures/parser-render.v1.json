@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "suite": "stoicheia-parser-geometry-semantic-svg",
+  "provenance": {
+    "standaloneVersion": "1.2.2",
+    "encoding": "utf-8",
+    "lineEndings": "lf",
+    "unicodeNormalization": "none",
+    "parseProjection": "serde_json::to_value(ParseResult) excluding only top-level timings",
+    "semanticSvgProjection": {
+      "schemaVersion": 1,
+      "generatedIds": "canonicalized by retained definition order",
+      "attributes": "all explicit SVG, data, and aria attributes except class",
+      "text": "non-empty text nodes preserved exactly"
+    },
+    "rustSources": [
+      {
+        "path": "src-tauri/crates/stoicheia-engine/src/parser.rs",
+        "sha256": "baa08fde7c850b9335c0218920529d7daf7f0f935629f4ebfdefb59d37b7187a"
+      },
+      {
+        "path": "src-tauri/crates/stoicheia-engine/src/geometry.rs",
+        "sha256": "11e40603cc6940cd924fb9e2d379ea4c8c2df1fe229a7825f6ec1e67eda01cb3"
+      }
+    ],
+    "frontendSources": [
+      {
+        "path": "src/features/stoicheia/hooks/useDocumentPipeline.ts",
+        "sha256": "fa3e3fd300a132146c76cde868994ad66cda667dfd6bcb834f99a79d3a15b444"
+      },
+      {
+        "path": "src/features/stoicheia/store.ts",
+        "sha256": "adf8b9ba30e3ee1df09d6205a5acdda5a5c18f07d75a9be6e8cae58f8586a36b"
+      },
+      {
+        "path": "src/features/stoicheia/renderers/FastSvgRenderer.tsx",
+        "sha256": "0ffa45e31ee30b55907d18891afcc606670df717d046a95a7638357767d1e291"
+      },
+      {
+        "path": "src/features/stoicheia/geometry/fastViewport.ts",
+        "sha256": "eb43b0de8d71fdc31840ec74d0f251e590863eba9203fb5bd43b2cf30a7c3a2a"
+      },
+      {
+        "path": "src/features/stoicheia/geometry/math.ts",
+        "sha256": "7c8b8da0fdce2499504ce31909f6d91ae456510e0e35e280f5d268ca40d0b2e3"
+      },
+      {
+        "path": "src/features/stoicheia/tikz/options.ts",
+        "sha256": "15b7560cea8e93245c84ee85754cb5624cba050b0a3ce755743be82f820452f9"
+      },
+      {
+        "path": "src/features/stoicheia/editor/commandOptions.ts",
+        "sha256": "535d81798edc3176e6068b165f8cdbc0c934dd0224da0c713bd2970eca76b8d7"
+      },
+      {
+        "path": "src/features/stoicheia/parity/semanticSvg.ts",
+        "sha256": "f90b0f265a99d3e85ba1f6b5121cd3da8ab8b403be9331a68c5efac0763d0439"
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "basic-triangle",
+      "category": "basic",
+      "description": "Basic triangle with polygon, points, and labels.",
+      "source": "\\documentclass[tikz,border=2mm]{standalone}\n\\usepackage{tkz-euclide}\n\\begin{document}\n\\begin{tikzpicture}\n  \\tkzDefPoint(0,0){A}\n  \\tkzDefPoint(4,0){B}\n  \\tkzDefPoint(2,3){C}\n  \\tkzDrawPolygon(A,B,C)\n  \\tkzDrawPoints(A,B,C)\n  \\tkzLabelPoints(A,B)\n  \\tkzLabelPoints[above](C)\n\\end{tikzpicture}\n\\end{document}",
+      "sourceSha256Utf8": "e677be396d21e45b6cba4541656493064493de612322ab1bbac0cc7b3101c91a",
+      "expectedParseResult": {
+        "geometry_complete": true,
+        "nodes": [
+          { "coordinate_mode": "cartesian", "name": "A", "type": "Point", "x": 0.0, "y": 0.0 },
+          { "coordinate_mode": "cartesian", "name": "B", "type": "Point", "x": 4.0, "y": 0.0 },
+          { "coordinate_mode": "cartesian", "name": "C", "type": "Point", "x": 2.0, "y": 3.0 },
+          { "options": null, "points": ["A", "B", "C"], "type": "Polygon" },
+          { "options": null, "points": ["A", "B"], "type": "LabelPoints" },
+          { "options": "above", "points": ["C"], "type": "LabelPoints" }
+        ],
+        "renderScene": {
+          "geometryComplete": true,
+          "points": {
+            "A": { "x": 0.0, "y": 0.0 },
+            "B": { "x": 4.0, "y": 0.0 },
+            "C": { "x": 2.0, "y": 3.0 }
+          },
+          "viewBox": "-51.02362206 -136.06299216 215.43307092 187.08661422"
+        },
+        "viewport": { "viewBox": "-51.02362206 -136.06299216 215.43307092 187.08661422" }
+      },
+      "expectedParseResultSha256CanonicalJson": "d051cbaa16dbc30838affcd3f530bd4516c075e4d03791502cedeb0091720452",
+      "expectedSemanticSvg": {"schemaVersion":1,"root":{"tag":"svg","attributes":{"aria-label":"Instant geometry preview","viewBox":"-51.02362206 -136.06299216 215.43307092 187.08661422"},"children":[{"tag":"g","children":[{"tag":"polygon","attributes":{"data-node-type":"Polygon","fill":"transparent","opacity":"1","points":"0,0 113.3858268,0 56.6929134,-85.0393701","stroke":"#0f172a","stroke-linejoin":"round","stroke-width":"0.8"}}]},{"tag":"g","attributes":{"data-layer":"path-labels"}},{"tag":"g","children":[{"tag":"g","attributes":{"aria-label":"Point A","data-point-name":"A","opacity":"1"},"children":[{"tag":"circle","attributes":{"cx":"0","cy":"0","data-point-shape":"circle","fill":"#0f172a","r":"3.4","stroke":"#0f172a","stroke-width":"1.5"}},{"tag":"text","attributes":{"fill":"#0f172a","font-family":"ui-serif, Georgia, serif","font-size":"10.5","x":"6","y":"-7"},"children":[{"text":"A"}]}]},{"tag":"g","attributes":{"aria-label":"Point B","data-point-name":"B","opacity":"1"},"children":[{"tag":"circle","attributes":{"cx":"113.3858268","cy":"0","data-point-shape":"circle","fill":"#0f172a","r":"3.4","stroke":"#0f172a","stroke-width":"1.5"}},{"tag":"text","attributes":{"fill":"#0f172a","font-family":"ui-serif, Georgia, serif","font-size":"10.5","x":"119.3858268","y":"-7"},"children":[{"text":"B"}]}]},{"tag":"g","attributes":{"aria-label":"Point C","data-point-name":"C","opacity":"1"},"children":[{"tag":"circle","attributes":{"cx":"56.6929134","cy":"-85.0393701","data-point-shape":"circle","fill":"#0f172a","r":"3.4","stroke":"#0f172a","stroke-width":"1.5"}},{"tag":"text","attributes":{"fill":"#0f172a","font-family":"ui-serif, Georgia, serif","font-size":"10.5","x":"62.6929134","y":"-99.0393701"},"children":[{"text":"C"}]}]}]}]}},
+      "expectedSemanticSvgSha256CanonicalJson": "b3f1a2a961e5e9341111cc76f50309c86d1cb5c63eb14bb53927e0c3d3b49357"
+    },
+    {
+      "id": "chained-construction",
+      "category": "construction",
+      "description": "Two dependent midpoint constructions with styled segments.",
+      "source": "\\begin{tikzpicture}\n  \\tkzDefPoint(0,0){A}\n  \\tkzDefPoint(4,0){B}\n  \\tkzDefPoint(0,4){C}\n  \\tkzDefMidPoint(A,B)\n  \\tkzGetPoint{M}\n  \\tkzDefMidPoint(M,C)\n  \\tkzGetPoint{N}\n  \\tkzDrawSegments[blue,thick](A,M M,N N,C)\n  \\tkzDrawPoints(M,N)\n\\end{tikzpicture}",
+      "sourceSha256Utf8": "8e1117dd9d871da508646635c996830ddf51d18f65bf450ae0d178be44607a97",
+      "expectedParseResult": {
+        "geometry_complete": true,
+        "nodes": [
+          { "coordinate_mode": "cartesian", "name": "A", "type": "Point", "x": 0.0, "y": 0.0 },
+          { "coordinate_mode": "cartesian", "name": "B", "type": "Point", "x": 4.0, "y": 0.0 },
+          { "coordinate_mode": "cartesian", "name": "C", "type": "Point", "x": 0.0, "y": 4.0 },
+          { "name": "M", "p1": "A", "p2": "B", "type": "MidPoint" },
+          { "name": "N", "p1": "M", "p2": "C", "type": "MidPoint" },
+          { "options": "blue,thick", "pairs": [["A", "M"], ["M", "N"], ["N", "C"]], "type": "Segments" }
+        ],
+        "renderScene": {
+          "geometryComplete": true,
+          "points": {
+            "A": { "x": 0.0, "y": 0.0 },
+            "B": { "x": 4.0, "y": 0.0 },
+            "C": { "x": 0.0, "y": 4.0 },
+            "M": { "x": 2.0, "y": 0.0 },
+            "N": { "x": 1.0, "y": 2.0 }
+          },
+          "viewBox": "-51.02362206 -164.40944886 215.43307092 215.43307092"
+        },
+        "viewport": { "viewBox": "-51.02362206 -164.40944886 215.43307092 215.43307092" }
+      },
+      "expectedParseResultSha256CanonicalJson": "2844aed857cf284f76bf5a52d2ef4a730daac423c297de53f7b10d039797304e",
+      "expectedSemanticSvg": {"schemaVersion":1,"root":{"tag":"svg","attributes":{"aria-label":"Instant geometry preview","viewBox":"-51.02362206 -164.40944886 215.43307092 215.43307092"},"children":[{"tag":"g","children":[{"tag":"g","attributes":{"data-node-type":"MidPoint"},"children":[{"tag":"g","attributes":{"aria-label":"Point M","data-point-name":"M","opacity":"1"},"children":[{"tag":"circle","attributes":{"cx":"56.6929134","cy":"0","data-point-shape":"circle","fill":"#0f172a","r":"3.4","stroke":"#0f172a","stroke-width":"1.5"}},{"tag":"text","attributes":{"fill":"#334155","font-family":"ui-serif, Georgia, serif","font-size":"10.5","x":"62.6929134","y":"-7"},"children":[{"text":"M"}]}]}]},{"tag":"g","attributes":{"data-node-type":"MidPoint"},"children":[{"tag":"g","attributes":{"aria-label":"Point N","data-point-name":"N","opacity":"1"},"children":[{"tag":"circle","attributes":{"cx":"28.3464567","cy":"-56.6929134","data-point-shape":"circle","fill":"#0f172a","r":"3.4","stroke":"#0f172a","stroke-width":"1.5"}},{"tag":"text","attributes":{"fill":"#334155","font-family":"ui-serif, Georgia, serif","font-size":"10.5","x":"34.346456700000005","y":"-63.6929134"},"children":[{"text":"N"}]}]}]},{"tag":"g","attributes":{"data-node-type":"Segments"},"children":[{"tag":"line","attributes":{"fill":"none","opacity":"1","stroke":"#2563eb","stroke-linecap":"round","stroke-linejoin":"round","stroke-width":"1.35","x1":"0","x2":"56.6929134","y1":"0","y2":"0"}},{"tag":"line","attributes":{"fill":"none","opacity":"1","stroke":"#2563eb","stroke-linecap":"round","stroke-linejoin":"round","stroke-width":"1.35","x1":"56.6929134","x2":"28.3464567","y1":"0","y2":"-56.6929134"}},{"tag":"line","attributes":{"fill":"none","opacity":"1","stroke":"#2563eb","stroke-linecap":"round","stroke-linejoin":"round","stroke-width":"1.35","x1":"28.3464567","x2":"0","y1":"-56.6929134","y2":"-113.3858268"}}]}]},{"tag":"g","attributes":{"data-layer":"path-labels"}},{"tag":"g","children":[{"tag":"circle","attributes":{"aria-label":"Point A","cx":"0","cy":"0","data-point-name":"A","data-point-shape":"circle","fill":"#ef4444","r":"3.4","stroke":"white","stroke-width":"1.5"}},{"tag":"text","attributes":{"fill":"#334155","font-family":"ui-serif, Georgia, serif","font-size":"10.5","x":"6","y":"-7"},"children":[{"text":"A"}]},{"tag":"circle","attributes":{"aria-label":"Point B","cx":"113.3858268","cy":"0","data-point-name":"B","data-point-shape":"circle","fill":"#ef4444","r":"3.4","stroke":"white","stroke-width":"1.5"}},{"tag":"text","attributes":{"fill":"#334155","font-family":"ui-serif, Georgia, serif","font-size":"10.5","x":"119.3858268","y":"-7"},"children":[{"text":"B"}]},{"tag":"circle","attributes":{"aria-label":"Point C","cx":"0","cy":"-113.3858268","data-point-name":"C","data-point-shape":"circle","fill":"#ef4444","r":"3.4","stroke":"white","stroke-width":"1.5"}},{"tag":"text","attributes":{"fill":"#334155","font-family":"ui-serif, Georgia, serif","font-size":"10.5","x":"6","y":"-120.3858268"},"children":[{"text":"C"}]}]}]}},
+      "expectedSemanticSvgSha256CanonicalJson": "747d97e32bc90807fa298d968038deddfc406df2a684bf33a266103aad02542c"
+    },
+    {
+      "id": "styles-labels-clipping",
+      "category": "style-and-clip",
+      "description": "Styles, Unicode labels, polygon clipping, and a clipped fill.",
+      "source": "\\begin{tikzpicture}\n  \\tkzInit[xmin=-1,xmax=5,ymin=-1,ymax=4]\n  \\tkzDefPoint(0,0){A}\n  \\tkzDefPoint(4,0){B}\n  \\tkzDefPoint(1,3){C}\n  \\tkzDrawPolygon[teal,dashed,line width=1.2pt,fill=cyan!20](A,B,C)\n  \\tkzDrawPoints[fill=orange,draw=black,size=4](A,B,C)\n  \\tkzLabelPoint[above,color=purple](C){Κορυφή Γ}\n  \\tkzLabelSegment[below,sloped,color=blue](A,B){βάση}\n  \\tkzClipPolygon(A,B,C)\n  \\tkzFillCircle[red!25](A,B)\n\\end{tikzpicture}",
+      "sourceSha256Utf8": "d075acae153a222d9cf5dd2a7e85a1d59f225bcc5df7f9c6934486e374a26bcb",
+      "expectedParseResult": {
+        "geometry_complete": true,
+        "nodes": [
+          { "options": "xmin=-1,xmax=5,ymin=-1,ymax=4", "type": "CanvasInit", "xmax": 5.0, "xmin": -1.0, "xstep": 1.0, "ymax": 4.0, "ymin": -1.0, "ystep": 1.0 },
+          { "coordinate_mode": "cartesian", "name": "A", "type": "Point", "x": 0.0, "y": 0.0 },
+          { "coordinate_mode": "cartesian", "name": "B", "type": "Point", "x": 4.0, "y": 0.0 },
+          { "coordinate_mode": "cartesian", "name": "C", "type": "Point", "x": 1.0, "y": 3.0 },
+          { "options": "teal,dashed,line width=1.2pt,fill=cyan!20", "points": ["A", "B", "C"], "type": "Polygon" },
+          { "options": "above,color=purple", "point": "C", "text": "Κορυφή Γ", "type": "LabelPoint" },
+          { "options": "below,sloped,color=blue", "p1": "A", "p2": "B", "text": "βάση", "type": "LabelSegment" },
+          { "options": null, "out": false, "points": ["A", "B", "C"], "type": "PolygonClip" },
+          { "center": "A", "mode": "radius", "options": "red!25", "radius": "B", "type": "FillCircle" }
+        ],
+        "renderScene": {
+          "geometryComplete": true,
+          "points": {
+            "A": { "x": 0.0, "y": 0.0 },
+            "B": { "x": 4.0, "y": 0.0 },
+            "C": { "x": 1.0, "y": 3.0 }
+          },
+          "viewBox": "-228.18897643500003 -228.18897643500003 484.72440957000003 456.37795287000006"
+        },
+        "viewport": { "viewBox": "-228.18897643500003 -228.18897643500003 484.72440957000003 456.37795287000006" }
+      },
+      "expectedParseResultSha256CanonicalJson": "9a12787daa7d0e664952645ba4666a8cd0e7eab741c37eaf88a8f3e410cbf838",
+      "expectedSemanticSvg": {"schemaVersion":1,"root":{"tag":"svg","attributes":{"aria-label":"Instant geometry preview","viewBox":"-228.18897643500003 -228.18897643500003 484.72440957000003 456.37795287000006"},"children":[{"tag":"defs","children":[{"tag":"clipPath","attributes":{"id":"semantic-svg-id-1"},"children":[{"tag":"polygon","attributes":{"points":"0,0 113.3858268,0 28.3464567,-85.0393701"}}]}]},{"tag":"g","children":[{"tag":"polygon","attributes":{"data-node-type":"Polygon","fill":"#0891b2","opacity":"1","points":"0,0 113.3858268,0 28.3464567,-85.0393701","stroke":"#0d9488","stroke-dasharray":"7 5","stroke-linejoin":"round","stroke-width":"1.5996"}},{"tag":"g","attributes":{"clip-path":"url(#semantic-svg-id-1)"},"children":[{"tag":"circle","attributes":{"cx":"0","cy":"0","data-node-type":"FillCircle","fill":"#dc2626","opacity":"1","r":"113.3858268","stroke":"none"}}]}]},{"tag":"g","attributes":{"data-layer":"path-labels"},"children":[{"tag":"text","attributes":{"data-label-command":"tkzLabelSegment","dominant-baseline":"central","fill":"#2563eb","font-size":"10.5","text-anchor":"middle","x":"56.6929134","y":"10"},"children":[{"text":"βάση"}]}]},{"tag":"g","children":[{"tag":"g","attributes":{"aria-label":"Point A","data-point-name":"A","opacity":"1"},"children":[{"tag":"circle","attributes":{"cx":"0","cy":"0","data-point-shape":"circle","fill":"#ea580c","r":"4.52","stroke":"#0f172a","stroke-width":"1.5"}},{"tag":"text","attributes":{"fill":"#334155","font-family":"ui-serif, Georgia, serif","font-size":"10.5","x":"6","y":"-7"},"children":[{"text":"A"}]}]},{"tag":"g","attributes":{"aria-label":"Point B","data-point-name":"B","opacity":"1"},"children":[{"tag":"circle","attributes":{"cx":"113.3858268","cy":"0","data-point-shape":"circle","fill":"#ea580c","r":"4.52","stroke":"#0f172a","stroke-width":"1.5"}},{"tag":"text","attributes":{"fill":"#334155","font-family":"ui-serif, Georgia, serif","font-size":"10.5","x":"119.3858268","y":"-7"},"children":[{"text":"B"}]}]},{"tag":"g","attributes":{"aria-label":"Point C","data-point-name":"C","opacity":"1"},"children":[{"tag":"circle","attributes":{"cx":"28.3464567","cy":"-85.0393701","data-point-shape":"circle","fill":"#ea580c","r":"4.52","stroke":"#0f172a","stroke-width":"1.5"}},{"tag":"text","attributes":{"fill":"#9333ea","font-family":"ui-serif, Georgia, serif","font-size":"10.5","x":"34.346456700000005","y":"-99.0393701"},"children":[{"text":"Κορυφή Γ"}]}]}]}]}},
+      "expectedSemanticSvgSha256CanonicalJson": "1a8cd79c3ad15217e7575c8139e850c68ed4fd12c10f678c6d143a77d9a50910"
+    },
+    {
+      "id": "incomplete-geometry-diagnostics",
+      "category": "diagnostics",
+      "description": "Partial geometry with one unresolved midpoint and dependent segment.",
+      "source": "\\begin{tikzpicture}\n  \\tkzDefPoint(1,2){A}\n  \\tkzDefMidPoint(A,B)\n  \\tkzGetPoint{M}\n  \\tkzDrawSegment[red](A,M)\n\\end{tikzpicture}",
+      "sourceSha256Utf8": "0bdbc0170921a16b2bb95f55096c87993a8bc78c7715f52a65694637ac0d98a2",
+      "expectedParseResult": {
+        "geometry_complete": false,
+        "nodes": [
+          { "coordinate_mode": "cartesian", "name": "A", "type": "Point", "x": 1.0, "y": 2.0 },
+          { "name": "M", "p1": "A", "p2": "B", "type": "MidPoint" },
+          { "options": "red", "p1": "A", "p2": "M", "type": "Segment" }
+        ],
+        "renderScene": {
+          "diagnostics": [
+            {
+              "message": "Could not resolve target M for MidPoint",
+              "nodeIndex": 1,
+              "nodeType": "MidPoint",
+              "severity": "warning",
+              "targets": ["M"]
+            }
+          ],
+          "geometryComplete": false,
+          "points": { "A": { "x": 1.0, "y": 2.0 } }
+        },
+        "viewport": null
+      },
+      "expectedParseResultSha256CanonicalJson": "6ce2f63bc4c8feab451000c85cea468911911c1eeb9d9834e2a0a74afea7b7ed",
+      "expectedSemanticSvg": {"schemaVersion":1,"root":{"tag":"svg","attributes":{"aria-label":"Instant geometry preview","viewBox":"-14.17322835 -99.21259845 85.0393701 85.0393701"},"children":[{"tag":"g"},{"tag":"g","attributes":{"data-layer":"path-labels"}},{"tag":"g","children":[{"tag":"circle","attributes":{"aria-label":"Point A","cx":"28.3464567","cy":"-56.6929134","data-point-name":"A","data-point-shape":"circle","fill":"#ef4444","r":"3.4","stroke":"white","stroke-width":"1.5"}},{"tag":"text","attributes":{"fill":"#334155","font-family":"ui-serif, Georgia, serif","font-size":"10.5","x":"34.346456700000005","y":"-63.6929134"},"children":[{"text":"A"}]}]}]}},
+      "expectedSemanticSvgSha256CanonicalJson": "cea1bc1e45c9a05b92fd0d82493830e6f87252cb568739d9ac6c2b4cfc4d0324"
+    }
+  ]
+}

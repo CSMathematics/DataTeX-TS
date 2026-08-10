@@ -1,0 +1,4 @@
+# This library is built through DataTeX's root Cargo package in later phases.
+# Keep its standalone parity-test artifacts local.
+/Cargo.lock
+/target/

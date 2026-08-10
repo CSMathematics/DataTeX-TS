@@ -1,0 +1,7 @@
+# Parity fixtures hash raw working-tree bytes. Keep the shared Rust/frontend
+# contract deterministic on Linux, Windows, Intel macOS, and Apple Silicon.
+/src/features/stoicheia/** text eol=lf
+/src-tauri/crates/stoicheia-engine/** text eol=lf
+/benchmarks/stoicheia/** text eol=lf
+/scripts/*.mjs text eol=lf
+/package.json text eol=lf

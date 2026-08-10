@@ -108,6 +108,7 @@
       "pdflatexPath": { "label": "pdfLaTeX パス" },
       "xelatexPath": { "label": "XeLaTeX パス" },
       "lualatexPath": { "label": "LuaLaTeX パス" },
+      "dvisvgmPath": { "label": "dvisvgm パス", "description": "Graphics Studio の正確な SVG プレビューに使用します。実行名または絶対パスを入力してください。" },
       "outputDirectory": {
         "label": "出力ディレクトリ",
         "description": "補助ファイルのディレクトリ（ドキュメントからの相対パス）。"

@@ -10,21 +10,180 @@ The graphics-specific architecture and the migration of the existing Stoicheia
 project are tracked separately in
 [Graphics Package Studio Plan](graphics-package-studio-plan.md).
 
-Last updated: 2026-07-20
+Last updated: 2026-07-25
 
 ## Current Status
+
+Current implementation checkpoint: Package Studio is now in a working vertical
+slice across Phase 1, Phase 2, and Phase 5. The app has a central Package Studio
+workspace, Rust-backed package analysis/edit planning, and the first native
+builders (`geometry`, `code-highlighting`). Package actions now create a
+reviewable pending edit plan with source preview, jump-to-line actions, apply,
+dismiss, and stale-source protection. Builder package removal and package-option
+changes now use the same Rust edit-plan/review path. The next focus is to harden
+diagnostics and improve the diff rendering before expanding the builder catalog.
+The first diagnostic hardening slice is in place for duplicate packages, common
+conflicts, obsolete packages, and `hyperref`/`cleveref` ordering. Those first
+diagnostics now expose reviewable quick fixes where the edit can be planned
+safely. The review panel now has a first inline diff view with add/remove
+highlighting instead of plain source textareas. The next non-graphics builder,
+`xcolor`, now has a Rust-backed palette generator and native Package Studio UI.
+`fancyhdr` now has a first Rust-backed header/footer builder with live page
+style preview and reviewable setup block. `enumitem` now has a first Rust-backed
+list builder with inline package options, global list settings, custom list
+creation, existing `\setlist`/`\newlist` import, label preset chips, live code
+preview, and reviewable setup block. The builder registry
+now starts to carry discoverable option metadata for the current builders so Package Studio
+can teach users available package options through direct controls and contextual
+tooltips instead of relying only on manual option strings. The option schema now
+carries choice lists, default values, units, and mutually-exclusive groups, and
+the first generic control renderer can edit flags, choice values, dimensions,
+key/value options, colors, and exclusive package options. Non-interactive
+metadata cards no longer duplicate the real form fields. The builder header and
+document/package status are now consolidated into a compact two-card overview,
+with requirements, targets, enabled capabilities, and diagnostics kept in one
+side card. The legacy
+wizard parity audit has started in `docs/package-studio-wizard-inventory.md` so
+new builders preserve existing wizard features before replacing old surfaces.
+All current builders now share a document-derived activation bar. Its
+switch adds/removes the managed package and generated setup through one atomic
+Rust edit plan; option changes, package variants, and setup blocks are reviewed
+and applied together. Applying a review keeps Package Studio open for iterative
+work. Builder drafts survive navigation between builders, and compact-sidebar
+cards now deep-link to the selected builder before closing to recover workspace
+width. The `xcolor` builder now covers color creation and palette editing, all
+legacy color models with conversion and real previews, strict Rust validation,
+`\colorlet` mixes, mutually-exclusive drivers, and body-command snippets.
+`fancyhdr` now has the next parity slice: built-in page-style presets, quick
+command chips for common header/footer tokens, advanced custom package options,
+and a compact visual/code preview switch with preview zoom. It can also import
+existing `\pagestyle`, `\fancyhf`, `\fancyhead`, `\fancyfoot`,
+`\headrulewidth`, and `\footrulewidth` setup from the active document.
+`code-highlighting` now has language-aware body snippet generation backed by
+Rust, reusing the legacy language catalog while filtering listings-compatible
+languages separately from minted-only languages. It can now also import
+existing unmanaged `listings`/`minted` setup from the active document, including
+engine selection, line numbering, line wrapping, frame options, and minted style.
+`xcolor` can now import existing package options, `\definecolor` declarations,
+and `\colorlet` aliases/mixes from the active document into the palette builder.
+`geometry` now imports active-document package options and detects
+`documentclass` `oneside`/`twoside` state while preserving the correct boundary:
+`twoside` is displayed as document-class state and is not emitted as a
+`geometry` package option.
+`graphicx` now has a first Rust-backed body builder for `\includegraphics` and
+optional `figure` wrappers, with package activation handled separately from
+cursor snippet insertion. Its first legacy-parity polish slice also restores a
+native image/PDF/EPS file picker inside the builder form, and it can import the
+first existing `figure`/`\includegraphics` snippet from the active document.
+The first tables slice has started with a Rust-backed Table Workbench that
+generates standard `tabular`, `booktabs`, and `tabularray` snippets from a
+simple editable grid, while keeping `tabularray`/`booktabs` package activation
+separate from cursor snippet insertion. The next table-editing slice adds an
+active-cell model with per-cell bold, italic, and alignment controls that feed
+both the instant sketch preview and Rust LaTeX generation. The next merge slice
+adds Shift-click range selection, merge/split controls, cell span state, visual
+spans in the editor/preview grids, and Rust generation for `\multicolumn`,
+`multirow`, and `tabularray` `r=`/`c=` cell specs. After comparing the legacy
+table wizards, the selection model now follows the older spreadsheet-like
+workflow: mouse-down on a cell, drag across cells, mouse-up to finish, then
+format or merge the selected range. The table editor controls are now
+consolidated into a compact in-grid toolbar: mode, row/column count, add/remove
+actions, rules, float/centering/placement, active column alignment,
+bold/italic, cell alignment, selected-cell text/background color, active
+row/column background color, clear styling, active-row/column insert/remove,
+merge, and split.
 
 - [x] Audit the current Package Browser, Package Gallery, wizard registry, and app routing.
 - [x] Audit the existing Rust CTAN catalog and compilation infrastructure.
 - [x] Establish the single-window product model.
 - [x] Establish the Rust-first ownership boundaries.
 - [x] Audit the local Stoicheia project before planning graphics integration.
-- [ ] Phase 0: baseline contracts and regression coverage.
-- [ ] Phase 1: Package Studio shell, navigation, and state.
-- [ ] Phase 2: Rust document-package analysis and safe edit plans.
+- [ ] Phase 0 (partial): baseline contracts and regression coverage. Core Rust contracts,
+  analyzer tests, edit-plan tests, builder inventory, and first fixtures are in
+  place. Remaining: UI tests, generated DTO pipeline, naming-boundary doc, and
+  performance baselines.
+- [ ] Phase 1 (partial): Package Studio shell, navigation, and state. Activity-bar entry,
+  central workspace shell, compact sidebar panel, mutually-exclusive sidebar
+  behavior, functional builder deep-links, draft preservation while switching
+  builders, registry-driven builder overview, and explicit main-content
+  scrollbar are in place. Remaining: persistent cross-session layout state,
+  focus/split modes, and shortcut cleanup.
+- [ ] Phase 2 (partial): Rust document-package analysis and safe edit plans. Add-package
+  plans, generated setup block plans, frontend edit application, active-document
+  package status, detected packages, diagnostics, editor jump actions, and a
+  first review-before-apply panel are in place. Atomic builder-configuration
+  plans now synchronize package variants/options and generated blocks in one
+  review. Remaining: richer package
+  diagnostics for more package families, improved diff rendering, and more
+  malformed-source test coverage.
 - [ ] Phase 3: unified catalog and document dependency workspace.
 - [ ] Phase 4: generic package builder platform.
-- [ ] Phase 5: non-graphics package builders and live previews.
+- [ ] Phase 5 (partial): non-graphics package builders and live previews. `geometry` and
+  `code-highlighting` have first native React control surfaces backed by Rust
+  code generation, instant visual sketches, generated-code previews, warnings,
+  package activation, and generated setup insertion/removal. `xcolor` now has a
+  complete first migration for option discovery, `\definecolor`, `\colorlet`,
+  model conversion/validation, palette management, previews, and usage snippets.
+  `fancyhdr` now has a first page style builder for headers, footers, rule
+  widths, presets, quick command insertion, custom package options, and compact
+  preview/code modes, plus active-document import for common fancyhdr setup
+  declarations. `code-highlighting` now adds language selection and generated
+  `lstlisting`/`minted` body snippets that can be inserted at the editor cursor,
+  plus active-document import for common `\lstdefinestyle`, `\lstset`,
+  `\usemintedstyle`, and `\setminted` declarations. `xcolor` now imports
+  active-document `\definecolor` declarations and common `\colorlet` aliases.
+  `geometry` now imports existing margin/layout options and makes `twoside`
+  document-class semantics explicit in the UI. `graphicx` now has a first
+  Package Studio body-snippet builder for `\includegraphics` and `figure`
+  environments while using the same reviewed package requirement flow for
+  `graphicx`, plus native image/PDF/EPS file selection and active-document
+  import for common `\includegraphics`/`figure` snippets. Tables now have a
+  first Rust-backed body-snippet workbench for standard `tabular`, `booktabs`,
+  and `tabularray`, with row/column sizing, cell editing, alignment, float
+  caption/label controls, instant sketch preview, generated-code preview, and
+  reviewed package requirements for `booktabs`/`tabularray`. The workbench now
+  also supports active-cell styling with bold, italic, and per-cell alignment
+  emitted through Rust-generated LaTeX, plus a first merge/split workflow with
+  spreadsheet-style drag selection, visual merged cells, `\multicolumn`,
+  `\multirow` requirements, and `tabularray` span specs. Table controls have
+  been consolidated into the editor toolbar to reduce vertical space and make
+  the workbench feel closer to the legacy spreadsheet-style table wizard. The
+  legacy table color workflow is now restored in compact form: selected cells
+  can receive background/text colors, active rows or columns can receive a
+  background color, the instant sketch reflects the styling, and Rust generation
+  adds the required `xcolor[table]` dependency plus `\cellcolor`/`\textcolor`
+  or `tabularray` color cell specs. Row/column structural edits now operate at
+  the active cell instead of only appending/removing at the end, with safe span
+  reset when a merged grid is structurally changed. A compact spreadsheet import
+  card now accepts pasted CSV, semicolon CSV, or tab-separated data and replaces
+  the grid with normalized cells while resetting style/span metadata. The first
+  richer `tabularray` cell-property slice adds selected-cell vertical alignment
+  (`valign=t/m/b`) to the compact toolbar, preview, and Rust-generated
+  `cell{r}{c}` specs. Bold/italic styling in `tabularray` mode now uses native
+  cell font specs (`font={\bfseries ...}`) instead of wrapping cell content,
+  keeping generated table source cleaner and closer to the legacy
+  `TabularrayWizard`. `tabularray` `X`/`Q` columns now also support optional
+  per-column weight/width specs such as `X[2]` or `Q[1.5cm]` from the compact
+  active-column toolbar. `longtblr` now reports builder warnings for label
+  without caption and for ignored floating/placement/centering controls, so
+  multi-page table edge cases are visible before insertion. `siunitx` now has a
+  first Rust-backed body/setup builder for `\num`, `\unit`, `\qty`,
+  `\qtylist`, `\qtyrange`, and `\sisetup`, with unit presets, prefix/unit/power
+  controls, number-format controls, generated-code preview, body insertion, and
+  reviewable package/setup synchronization for `siunitx`. It also imports
+  existing document `\sisetup` plus common `\num`, `\unit`, `\qty`,
+  `\qtylist`, and `\qtyrange` snippets so the UI can hydrate from the active
+  file instead of starting from defaults. The unit picker now has a broader
+  searchable SI catalog covering full decimal prefixes, base units, common
+  derived units, accepted non-SI units, information units, and practical
+  compound presets. The first `siunitx` diagnostics are now emitted from Rust
+  for empty numbers, short quantity lists, incomplete ranges, ignored
+  uncertainty precision, suspicious prefixes on special/non-SI units, legacy
+  v2-style commands such as `\SI`/`\si`, and version-sensitive options such as
+  `binary-units` or `separate-uncertainty`. The `siunitx` panel now includes a
+  lightweight live preview card for numbers, quantities, lists, ranges,
+  compound units, setup options, active number-format chips, warning counts, and
+  a compact running-app status strip without invoking a TeX compile.
 - [ ] Phase 6: graphics workbench integration.
 - [ ] Phase 7: presets, templates, and custom `.sty` resources.
 - [ ] Phase 8: TeX distribution diagnostics and optional package installation.
@@ -588,14 +747,21 @@ size, React commit time, preview latency, cancellation, and cache hit rate.
 
 ### Phase 0: Baseline Contracts
 
-- [ ] Add regression tests for current CTAN search, topics, pagination, and
+- [x] Add regression tests for current CTAN search, topics, pagination, and
   package lookup.
 - [ ] Add UI tests for existing Package Browser selection and insertion.
-- [ ] Inventory every existing wizard, generator, input, output target, and
+- [x] Inventory every existing wizard, generator, input, output target, and
   package requirement.
 - [ ] Freeze representative generated-code fixtures before moving generation to
-  Rust.
-- [ ] Define versioned `PackageEditPlan`, diagnostics, and builder DTOs.
+  Rust. In progress: first preamble, geometry, and code-highlighting fixtures
+  are captured under `src-tauri/src/package_studio/fixtures/`.
+- [x] Define versioned `PackageEditPlan` and package diagnostics DTOs.
+- [x] Add a minimal Rust document-package analyzer with regression tests.
+- [x] Add a first safe add-package edit plan command that returns source ranges
+  without mutating the active editor file.
+- [ ] Define builder DTOs. In progress: shared structured builder output DTOs
+  are implemented for `geometry` and `code-highlighting`; a Rust builder
+  registry now exposes descriptors for available builders.
 - [ ] Select and test Rust-to-TypeScript type generation.
 - [ ] Define the naming boundary among catalog packages, installed packages, and
   tracked custom `.sty` resources.
@@ -612,12 +778,12 @@ they did not lose supported workflows.
 
 - [ ] Rename the package/gallery activity to Packages without breaking saved
   shortcuts.
-- [ ] Match Database/Bibliography toggle behavior exactly.
-- [ ] Add lazy-loaded `PackageStudioWorkspace`.
-- [ ] Add compact Packages sidebar and remove the legacy package list from it.
+- [x] Match Database/Bibliography toggle behavior exactly.
+- [x] Add lazy-loaded `PackageStudioWorkspace`.
+- [x] Add compact Packages sidebar and remove the legacy package list from it.
 - [ ] Add internal workspace navigation and persistent layout state.
 - [ ] Implement focus, editor split, and compact in-route modes.
-- [ ] Ensure Database, Bibliography, Packages, and file-tree sidebar content are
+- [x] Ensure Database, Bibliography, Packages, and file-tree sidebar content are
   mutually exclusive.
 - [ ] Add error boundary and lightweight loading skeletons per workspace pane.
 - [ ] Route Header, Start Page, sidebar, shortcut, and editor contextual actions
@@ -630,14 +796,32 @@ without losing editor state or opening another window.
 
 ### Phase 2: Rust Document Analysis And Edit Plans
 
-- [ ] Implement tolerant preamble/package declaration analysis with source spans.
-- [ ] Detect package options, duplicate declarations, TikZ libraries, and
+- [x] Implement tolerant preamble/package declaration analysis with source spans.
+- [x] Detect package options, duplicate declarations, TikZ libraries, and
   PGFPlots compatibility settings.
 - [ ] Add package requirement/conflict/order diagnostics.
-- [ ] Implement previewable, revision-safe edit plans.
-- [ ] Apply an edit as one Monaco undo operation.
-- [ ] Keep Rust commands read/plan/validate only; apply to the unsaved Monaco
+- [x] Implement previewable, revision-safe edit plans.
+- [x] Apply an edit as one Monaco undo operation.
+- [x] Keep Rust commands read/plan/validate only; apply to the unsaved Monaco
   model in the frontend.
+- [x] Add active-document status and jump-to-source actions for package
+  declarations and diagnostics.
+- [x] Consolidate document status, requirements, output targets, enabled
+  capabilities, and diagnostics into a compact builder-side summary.
+- [x] Add a first review-before-apply surface for `PackageEditPlan`, including
+  source snippets, apply/dismiss actions, jump-to-edit actions, and stale-source
+  protection.
+- [x] Add a first remove-package edit plan and route it through the same review
+  path, preserving other packages in multi-package declarations.
+- [x] Add a first change-options flow for detected builder packages, routed
+  through the same review path and existing Rust update planner.
+- [x] Add first package relationship diagnostics for `color`/`xcolor`,
+  `subfigure`/`subcaption`, obsolete `epsfig`, `hyperref` late-loading, and
+  `cleveref` ordering.
+- [x] Add first actionable diagnostic fixes: remove obsolete/conflicting package
+  declarations and move `hyperref`/`cleveref` with reviewable edit plans.
+- [x] Replace plain review source snippets with a first inline diff view that
+  highlights added and removed lines.
 - [ ] Add tests for comments, conditionals, unusual formatting, duplicate
   options, stale plans, and malformed documents.
 
@@ -662,7 +846,21 @@ like one coherent workflow.
 ### Phase 4: Generic Builder Platform
 
 - [ ] Implement the Rust builder registry and schema.
+- [x] Add first option metadata catalog in the Rust builder registry. Flag
+  options render as compact switches; dimension, color, and choice metadata is
+  attached as contextual help to the real form controls instead of duplicated
+  information cards.
+- [x] Add a first schema-driven control renderer for reusable package options:
+  flags, choices, dimensions, key/value values, color values, and exclusive
+  groups now share one compact UI path. `xcolor` driver options use the
+  exclusive-group schema, `geometry` dimensions carry unit/default metadata, and
+  `minted` style exposes schema choices.
 - [ ] Implement shared form, validation, code, diff, preview, and apply panes.
+  The shared activation bar and atomic apply/remove lifecycle are complete;
+  builder-wide generated forms and validation-summary panes remain. A first
+  Package Studio smoke test now protects sidebar builder switching, single
+  builder-navigation ownership, enumitem command wiring, active-source import,
+  and enumitem label presets.
 - [ ] Implement preset serialization and builder-version migrations.
 - [ ] Migrate final generation from TypeScript into Rust one builder at a time.
 - [ ] Keep visual-only form calculations local when they do not define final
@@ -673,14 +871,48 @@ definition and focused tests.
 
 ### Phase 5: Non-Graphics Builders
 
-- [ ] Migrate `geometry` and document layout first.
-- [ ] Migrate `fancyhdr`.
-- [ ] Migrate `xcolor` and color profiles.
-- [ ] Migrate `enumitem`.
-- [ ] Migrate `siunitx`.
-- [ ] Migrate `listings` and `minted`.
+- [x] Migrate `geometry` and document layout first.
+- [x] Migrate `fancyhdr`.
+- [x] Migrate `xcolor` and color profiles.
+- [ ] Migrate `enumitem` (partial). First Rust-backed builder, package
+  activation, inline option, global spacing/label settings, custom list
+  creation, import of existing unmanaged `\setlist`/`\newlist` declarations,
+  richer preset chips, preview, and generated setup block are in place.
+  First smoke tests are in place. Remaining: running-app polish and richer
+  interaction tests if/when a UI test runner is added.
+- [ ] Migrate `siunitx` (partial). First Rust-backed builder, package
+  activation, body snippets for `\num`, `\unit`, `\qty`, `\qtylist`, and
+  `\qtyrange`, setup generation for `\sisetup`, number-format controls, unit
+  component controls, presets, generated-code preview, and active-document
+  import for existing setup/body snippets are in place. A broader searchable
+  unit catalog, more practical compound presets, and first builder diagnostics
+  are also in place. The active-document importer now flags legacy v2-style
+  commands and version-sensitive options, and the panel has a lightweight live
+  preview plus compact running-app status for common body/setup snippets.
+  Remaining: manual validation with larger representative siunitx-heavy
+  documents.
+- [x] Migrate `listings` and `minted`.
 - [ ] Consolidate table builders without losing supported output.
-- [ ] Migrate math-package configuration.
+- [ ] Migrate math-package configuration (partial). `amsmath`/`mathtools` now
+  have a first Rust-backed Math builder for body snippets: environments,
+  matrices, starred matrix alignment, extensible arrows, brackets/braces,
+  split fractions, prescripts, paired-delimiter declarations, and equation
+  tag-form snippets (`\newtagform`, `\usetagform`, `\refeq`, `\noeqref`), plus
+  first active-document import for supported environments, matrices, mathtools
+  tools, and tag snippets. Imported math snippets now keep source ranges and can
+  be replaced through the shared review/diff panel. The Math panel also lists
+  multiple detected snippets from the active document so the user can choose
+  which one to edit. A first KaTeX-backed instant preview now renders common
+  math environments, matrices, mathtools snippets, delimiter usage samples, and
+  tag samples without invoking a TeX compile. Delimited math snippets
+  (`\( ... \)`, `\[ ... \]`, `$ ... $`, `$$ ... $$`) are now detected,
+  source-range tracked, editable, and regenerated without forcing them into
+  environments. The Math panel has a first polish pass with grouped controls,
+  explicit draft/import status, import empty state, and a cleaner preview/source
+  action rail. A follow-up hardening slice adds `aligned`/`split` import
+  coverage, `\eqref`, more mathtools harpoon/long-equality arrows, and
+  KaTeX-safe preview normalization for mathtools commands that KaTeX does not
+  render exactly. Remaining: larger-document running-app validation.
 
 Done when: the most useful existing non-graphics wizards run inside the common
 host and generate validated Rust-owned output.
@@ -692,6 +924,31 @@ host and generate validated Rust-owned output.
 - [ ] Register graphics families through the common builder/session interface.
 - [ ] Share Package Studio navigation, presets, diagnostics, and safe insertion.
 - [ ] Keep the graphics canvas implementation modular and lazy-loaded.
+
+Current graphics integration progress: the copy-first workbench and host-owned
+document/file bridge are in place. Exact previews now reuse DataTeX's single
+`CompilationManager`; unique frontend jobs cancel on supersede/unmount and the
+verified Linux runner reaps LaTeX/`dvisvgm` process groups on stop or timeout.
+DataTeX now centrally configures/discovers `dvisvgm`, executes the canonical
+resolved binary, and invalidates exact-preview cache entries when either tool
+identity changes. Concurrent instant-preview responsiveness is now locally
+verified in both layers: frontend pan/zoom remains live during a pending exact
+job, and native parsing completes inside its 250 ms budget while a delayed
+external compiler is still active. The portable smoke harness passes on Linux
+and runs before each native Windows/Linux/Intel-Mac/Apple-Silicon build and
+draft-release upload. The release workflow conflict is resolved with the
+matching `tauri-action@v0` contract; the cross-OS gate closes when all four jobs
+are green. The first two Phase 7 parity slices are also complete: all 100 tools,
+100 icons, 112 palette actions, 24 dialogs, and copied LaTeX generation sources
+are checked before production builds, while 10 versioned scenarios execute as
+byte-exact generated-output goldens. Four shared Rust parser/geometry results
+now pass through the actual frontend pipeline into hashed canonical semantic-SVG
+snapshots, with incomplete-geometry and 1,000-node batching coverage. The next
+local deterministic performance slice is also complete: release Rust and
+renderer workload reports cover 50 through 5,000 nodes, point dragging is
+animation-frame coalesced, and production-manifest closure checks prove that
+Graphics assets remain absent from initial startup. Production Tauri/WebView
+startup, paint, FPS, IPC, and real-TeX capture remains the next release slice.
 
 Done when: graphics tools feel native to Package Studio while retaining their
 own high-performance workbench.
@@ -794,10 +1051,31 @@ hidden manager is loaded alongside it.
 
 ## Immediate Next Implementation Step
 
-Begin Phase 0 before moving UI:
+The active track is the Graphics Workbench parity/release gate:
 
-1. Add CTAN command regression tests.
-2. Create an inventory/golden corpus for the current wizards.
-3. Define `PackageEditPlan` and a minimal document-package analyzer in Rust.
-4. Spike generated TypeScript DTOs.
-5. Only then add the Package Studio route and activity behavior.
+1. **Done:** shared canonical Rust parser/geometry payloads now reach semantic
+   SVG assertions through the production frontend pipeline.
+2. **Done locally:** add profile-stamped release Rust and jsdom renderer
+   baselines, deterministic 5,000-node structural coverage, frame-coalesced
+   point dragging, and initial/Package/Graphics/editor bundle-closure reports.
+3. **Done locally:** add an opt-in, production-stamped Tauri/WebView recorder
+   for cold startup, first Graphics paint, IPC-inclusive parse,
+   drag/pan/zoom frame intervals, long tasks, and cold/warm exact compile.
+4. **Done locally:** the corrected Linux production run measured 155 ms cold
+   startup, 48 ms Graphics module load, 313 ms first usable canvas, 1 ms median
+   parser round trip, 1.5 ms median renderer, and 793/2 ms cold/warm exact
+   compile. The official collector accepted the complete capture with all hard
+   gates green and no warning. Raw and merged reports are versioned under
+   `benchmarks/stoicheia/`.
+5. **Ready for CI:** the exact four-platform build/release contract is now
+   self-tested inside every matrix job and the Linux native command is green.
+   Commit/push the branch and run the Windows x64, Linux x64, Intel Mac, and
+   Apple Silicon jobs to close the final Graphics release gate.
+
+After that gate, resume the broader non-graphics builder expansion:
+
+1. Extend diagnostics to builder-specific missing requirements and more package
+   families.
+2. Harden the first `siunitx` slice in the running app, then continue with its
+   active-document import and richer unit/option catalog before moving to the
+   next math-package configuration builder.

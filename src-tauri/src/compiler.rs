@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::env;
 use std::io::Read;
 use std::path::Path;
@@ -9,12 +9,19 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
 
-const GRACEFUL_STOP_TIMEOUT: Duration = Duration::from_millis(750);
-const FORCE_STOP_TIMEOUT: Duration = Duration::from_secs(2);
+pub(crate) const GRACEFUL_STOP_TIMEOUT: Duration = Duration::from_millis(750);
+pub(crate) const FORCE_STOP_TIMEOUT: Duration = Duration::from_secs(2);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ProcessToken {
+    pid: u32,
+    generation: u64,
+}
 
 #[derive(Default)]
 struct ProcessLifecycle {
     pid: Option<u32>,
+    generation: u64,
     finished: bool,
 }
 
@@ -32,7 +39,10 @@ struct ActiveCompilation {
 #[derive(Clone, Default)]
 pub struct CompilationManager {
     active: Arc<Mutex<HashMap<String, ActiveCompilation>>>,
+    pending_cancellations: Arc<Mutex<VecDeque<String>>>,
 }
+
+const MAX_PENDING_CANCELLATIONS: usize = 256;
 
 /// RAII registration for a compilation request. Dropping it always removes the
 /// request from the registry and wakes a concurrent stop command.
@@ -48,6 +58,17 @@ impl CompilationManager {
         let mut active = lock_unpoisoned(&self.active);
         if active.contains_key(&id) {
             return Err(format!("Compilation request '{}' is already active", id));
+        }
+        // `stop_compile` and the compile command travel over independent async
+        // IPC calls. Remember a narrowly bounded early stop so it cannot race
+        // registration and let a superseded job spawn afterwards.
+        let mut pending_cancellations = lock_unpoisoned(&self.pending_cancellations);
+        if let Some(index) = pending_cancellations
+            .iter()
+            .position(|pending| pending == &id)
+        {
+            pending_cancellations.remove(index);
+            return Err("Compilation stopped by user".to_string());
         }
         active.insert(
             id.clone(),
@@ -68,23 +89,40 @@ impl CompilationManager {
     /// Request termination of a compilation. This is idempotent: a request that
     /// has just completed is treated as already stopped.
     pub fn stop(&self, id: &str) -> Result<(), String> {
-        let (pid, signal) = {
+        let (process, signal) = {
             let mut active = lock_unpoisoned(&self.active);
             let Some(compilation) = active.get_mut(id) else {
+                let mut pending_cancellations = lock_unpoisoned(&self.pending_cancellations);
+                if !pending_cancellations.iter().any(|pending| pending == id) {
+                    pending_cancellations.push_back(id.to_string());
+                    while pending_cancellations.len() > MAX_PENDING_CANCELLATIONS {
+                        pending_cancellations.pop_front();
+                    }
+                }
                 return Ok(());
             };
             compilation.cancellation_requested = true;
             let signal = Arc::clone(&compilation.signal);
-            let pid = lock_unpoisoned(&signal.lifecycle).pid;
-            (pid, signal)
+            let lifecycle = lock_unpoisoned(&signal.lifecycle);
+            let process = if lifecycle.finished {
+                None
+            } else {
+                lifecycle.pid.map(|pid| ProcessToken {
+                    pid,
+                    generation: lifecycle.generation,
+                })
+            };
+            drop(lifecycle);
+            (process, signal)
         };
 
         // The blocking compilation task may still be preparing its input. The
         // cancellation flag ensures that, if it spawns later, it is terminated
         // immediately during process registration.
-        let Some(pid) = pid else {
+        let Some(process) = process else {
             return Ok(());
         };
+        let pid = process.pid;
 
         let graceful_error = signal_process_tree(pid, false).err();
         if wait_until_finished(&signal, GRACEFUL_STOP_TIMEOUT) {
@@ -117,6 +155,7 @@ impl CompilationManager {
     fn finish(&self, id: &str, signal: &ProcessSignal) {
         lock_unpoisoned(&self.active).remove(id);
         let mut lifecycle = lock_unpoisoned(&signal.lifecycle);
+        lifecycle.pid = None;
         lifecycle.finished = true;
         signal.changed.notify_all();
     }
@@ -139,18 +178,27 @@ impl CompilationPermit {
         }
     }
 
-    fn attach_process(&self, pid: u32) -> bool {
-        {
+    pub(crate) fn attach_process(&self, pid: u32) -> (ProcessToken, bool) {
+        let token = {
             let mut lifecycle = lock_unpoisoned(&self.signal.lifecycle);
+            lifecycle.generation = lifecycle.generation.wrapping_add(1);
             lifecycle.pid = Some(pid);
             lifecycle.finished = false;
             self.signal.changed.notify_all();
-        }
-        self.manager.cancellation_requested(&self.id)
+            ProcessToken {
+                pid,
+                generation: lifecycle.generation,
+            }
+        };
+        (token, self.manager.cancellation_requested(&self.id))
     }
 
-    fn mark_process_exited(&self) {
+    pub(crate) fn mark_process_exited(&self, token: ProcessToken) {
         let mut lifecycle = lock_unpoisoned(&self.signal.lifecycle);
+        if lifecycle.pid != Some(token.pid) || lifecycle.generation != token.generation {
+            return;
+        }
+        lifecycle.pid = None;
         lifecycle.finished = true;
         self.signal.changed.notify_all();
     }
@@ -158,6 +206,16 @@ impl CompilationPermit {
 
 impl Drop for CompilationPermit {
     fn drop(&mut self) {
+        // Futures can be aborted during application shutdown before their
+        // normal wait/reap path runs. The process-group signal is a final
+        // safety net; completed stages clear their PID and pay no cost here.
+        let live_pid = {
+            let lifecycle = lock_unpoisoned(&self.signal.lifecycle);
+            (!lifecycle.finished).then_some(lifecycle.pid).flatten()
+        };
+        if let Some(pid) = live_pid {
+            let _ = signal_process_tree(pid, true);
+        }
         self.manager.finish(&self.id, &self.signal);
     }
 }
@@ -179,23 +237,23 @@ fn wait_until_finished(signal: &ProcessSignal, timeout: Duration) -> bool {
 }
 
 #[cfg(unix)]
-fn configure_process_group(command: &mut Command) {
+pub(crate) fn configure_process_group(command: &mut Command) {
     use std::os::unix::process::CommandExt;
     command.process_group(0);
 }
 
 #[cfg(windows)]
-fn configure_process_group(command: &mut Command) {
+pub(crate) fn configure_process_group(command: &mut Command) {
     use std::os::windows::process::CommandExt;
     // CREATE_NEW_PROCESS_GROUP: lets taskkill terminate the whole compiler tree.
     command.creation_flags(0x0000_0200);
 }
 
 #[cfg(not(any(unix, windows)))]
-fn configure_process_group(_command: &mut Command) {}
+pub(crate) fn configure_process_group(_command: &mut Command) {}
 
 #[cfg(unix)]
-fn signal_process_tree(pid: u32, force: bool) -> Result<(), String> {
+pub(crate) fn signal_process_tree(pid: u32, force: bool) -> Result<(), String> {
     use std::io;
 
     const SIGTERM: i32 = 15;
@@ -227,7 +285,7 @@ fn signal_process_tree(pid: u32, force: bool) -> Result<(), String> {
 }
 
 #[cfg(windows)]
-fn signal_process_tree(pid: u32, force: bool) -> Result<(), String> {
+pub(crate) fn signal_process_tree(pid: u32, force: bool) -> Result<(), String> {
     let mut command = Command::new("taskkill");
     let pid = pid.to_string();
     command.args(["/PID", pid.as_str(), "/T"]);
@@ -248,7 +306,7 @@ fn signal_process_tree(pid: u32, force: bool) -> Result<(), String> {
 }
 
 #[cfg(not(any(unix, windows)))]
-fn signal_process_tree(_pid: u32, _force: bool) -> Result<(), String> {
+pub(crate) fn signal_process_tree(_pid: u32, _force: bool) -> Result<(), String> {
     Err("Stopping compilation is not supported on this platform".to_string())
 }
 
@@ -490,7 +548,8 @@ fn run_compilation_process(
         })
     });
 
-    if permit.attach_process(pid) {
+    let (process_token, cancellation_requested) = permit.attach_process(pid);
+    if cancellation_requested {
         // A stop may race with process startup. In that case no stop command is
         // waiting to apply the force-kill fallback, so arm a short watchdog.
         let cancellation_signal = Arc::clone(&permit.signal);
@@ -508,13 +567,13 @@ fn run_compilation_process(
             let _ = signal_process_tree(pid, true);
             let _ = child.kill();
             let _ = child.wait();
-            permit.mark_process_exited();
+            permit.mark_process_exited(process_token);
             return Err(format!("Failed to wait for compiler process: {}", error));
         }
     };
     // Mark the PID as finished before joining output readers, preventing a stop
     // watchdog from ever signalling a PID that the OS has already recycled.
-    permit.mark_process_exited();
+    permit.mark_process_exited(process_token);
     let stdout = join_output_reader(stdout, "stdout")?;
     let stderr = join_output_reader(stderr, "stderr")?;
 
@@ -611,6 +670,107 @@ mod tests {
         manager
             .begin("before-spawn".to_string())
             .expect("completed registration should be removed");
+    }
+
+    #[test]
+    fn cancellation_arriving_before_registration_is_consumed_once() {
+        let manager = CompilationManager::default();
+
+        manager
+            .stop("ipc-race")
+            .expect("an early stop should be remembered");
+        assert!(matches!(
+            manager.begin("ipc-race".to_string()),
+            Err(error) if error == "Compilation stopped by user"
+        ));
+
+        manager
+            .begin("ipc-race".to_string())
+            .expect("the cancellation tombstone must be consumed exactly once");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn dropping_a_permit_force_stops_an_attached_process_group() {
+        use std::time::Instant;
+
+        let manager = CompilationManager::default();
+        let permit = manager
+            .begin("drop-live-process".to_string())
+            .expect("register compilation");
+        let mut command = Command::new("sh");
+        command
+            .arg("-c")
+            .arg("trap '' TERM; while :; do sleep 1; done");
+        configure_process_group(&mut command);
+        let mut child = command.spawn().expect("spawn stubborn process group");
+        let _ = permit.attach_process(child.id());
+
+        let started = Instant::now();
+        drop(permit);
+        let status = child.wait().expect("reap process after permit drop");
+
+        assert!(!status.success());
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn exited_process_clears_its_pid_before_a_later_stop() {
+        let manager = CompilationManager::default();
+        let permit = manager
+            .begin("finished-stage".to_string())
+            .expect("register compilation");
+
+        let (token, cancellation_requested) = permit.attach_process(42_424);
+        assert!(!cancellation_requested);
+        permit.mark_process_exited(token);
+
+        {
+            let lifecycle = lock_unpoisoned(&permit.signal.lifecycle);
+            assert_eq!(lifecycle.pid, None);
+            assert!(lifecycle.finished);
+        }
+
+        // This marks the request as cancelled, but must not attempt to signal
+        // the PID belonging to the already-completed stage.
+        manager
+            .stop("finished-stage")
+            .expect("stopping between stages should be harmless");
+        assert_eq!(
+            permit.ensure_not_cancelled(),
+            Err("Compilation stopped by user".to_string())
+        );
+    }
+
+    #[test]
+    fn late_exit_notification_cannot_clear_a_new_process_generation() {
+        let manager = CompilationManager::default();
+        let permit = manager
+            .begin("process-generations".to_string())
+            .expect("register compilation");
+
+        let (first, _) = permit.attach_process(51_515);
+        permit.mark_process_exited(first);
+        let (second, _) = permit.attach_process(51_515);
+        assert_ne!(
+            first, second,
+            "a reused PID still needs a fresh stage token"
+        );
+
+        // A delayed/duplicate completion from the first stage must not make a
+        // currently-running second stage appear finished.
+        permit.mark_process_exited(first);
+        {
+            let lifecycle = lock_unpoisoned(&permit.signal.lifecycle);
+            assert_eq!(lifecycle.pid, Some(second.pid));
+            assert_eq!(lifecycle.generation, second.generation);
+            assert!(!lifecycle.finished);
+        }
+
+        permit.mark_process_exited(second);
+        let lifecycle = lock_unpoisoned(&permit.signal.lifecycle);
+        assert_eq!(lifecycle.pid, None);
+        assert!(lifecycle.finished);
     }
 
     #[cfg(unix)]

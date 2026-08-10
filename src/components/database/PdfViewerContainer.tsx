@@ -666,7 +666,6 @@ export const PdfViewerContainer = memo(
         .then((status) => {
           if (!cancelled) {
             setPdfiumStatus(status);
-            debugLog("info", "PDFIUM_UI", "renderer-status", status);
           }
         })
         .catch((statusError) => {
@@ -729,21 +728,12 @@ export const PdfViewerContainer = memo(
       setPdfiumOpenError(null);
       setPdfiumDocument(null);
       setLoading(true);
-      debugLog("info", "PDFIUM_UI", "open-request", {
-        path: pdfPath,
-        generation: documentGeneration,
-      });
 
       void invoke<PdfiumOpenDocumentResponse>("pdfium_open_document_cmd", {
         path: pdfPath,
       })
         .then((document) => {
           if (cancelled) {
-            debugLog("debug", "PDFIUM_UI", "open-result-after-cancel", {
-              path: pdfPath,
-              docId: document.docId,
-              generation: documentGeneration,
-            });
             void invoke("pdfium_close_document_cmd", {
               docId: document.docId,
             }).catch(() => {});
@@ -751,14 +741,6 @@ export const PdfViewerContainer = memo(
           }
 
           openedDocId = document.docId;
-          debugLog("info", "PDFIUM_UI", "open-complete", {
-            path: document.path,
-            docId: document.docId,
-            pages: document.numPages,
-            openTimeMs: document.openTimeMs,
-            cacheHit: document.cacheHit,
-            generation: documentGeneration,
-          });
           setPdfiumDocument(document);
           const firstPage = document.pageSizes[0];
           if (firstPage) {
@@ -833,11 +815,6 @@ export const PdfViewerContainer = memo(
       return () => {
         cancelled = true;
         if (openedDocId) {
-          debugLog("debug", "PDFIUM_UI", "close-request", {
-            path: pdfPath,
-            docId: openedDocId,
-            generation: documentGeneration,
-          });
           void invoke("pdfium_close_document_cmd", {
             docId: openedDocId,
           }).catch(() => {});
@@ -1095,8 +1072,8 @@ export const PdfViewerContainer = memo(
               nextMatches.push({ page: pageNumber, matchCount });
               setSearchMatches([...nextMatches]);
             }
-          } catch (searchError) {
-            console.debug("Could not index PDF page text:", searchError);
+          } catch {
+            // One unreadable page must not abort indexing the rest of the PDF.
           }
 
           await waitForSearchIdle();
@@ -1552,14 +1529,6 @@ const PdfiumRenderedPage = memo(function PdfiumRenderedPage({
 
     const renderPage = () => {
       startedAtRef.current = performance.now();
-      if (isActive) {
-        console.debug("[DataTeX][PDFIUM_UI] active-page-render-request", {
-          docId,
-          pageNumber,
-          scale,
-          rotation,
-        });
-      }
       void invoke<PdfiumRenderPageResponse>("pdfium_render_page_cmd", {
         request: {
           docId,
@@ -1571,14 +1540,6 @@ const PdfiumRenderedPage = memo(function PdfiumRenderedPage({
       })
         .then((response) => {
           if (!cancelled) {
-            if (isActive) {
-              console.debug("[DataTeX][PDFIUM_UI] active-page-render-complete", {
-                docId,
-                pageNumber,
-                cacheHit: response.cacheHit,
-                nativeTimeMs: response.renderTimeMs,
-              });
-            }
             setRenderedPage(response);
           }
         })

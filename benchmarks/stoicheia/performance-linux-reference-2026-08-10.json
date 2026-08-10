@@ -1,0 +1,2911 @@
+{
+  "schemaVersion": 1,
+  "suite": "datatex-stoicheia-performance",
+  "generatedAt": "2026-08-10T14:24:20.861Z",
+  "warnings": [],
+  "hardGates": {
+    "passed": true,
+    "largeSceneStructure": {
+      "passed": true,
+      "astNodes": 5000,
+      "expectedSegmentBatches": 1,
+      "svgElementMax": 5200,
+      "verifiedBy": "src/features/stoicheia/parity/parserRenderParity.test.tsx"
+    },
+    "mixedStyleRendererStructure": {
+      "passed": true,
+      "astNodes": 5000,
+      "svgElements": 6694,
+      "svgElementMax": 6800,
+      "note": "Mixed styles intentionally include unbatchable arrow segments; this is distinct from the one-batch structural gate."
+    },
+    "lazyBundle": {
+      "passed": true,
+      "initialStoicheiaAssetCount": 0,
+      "expectedInitialStoicheiaAssetCount": 0
+    }
+  },
+  "policy": {
+    "path": "benchmarks/stoicheia/performance-policy.v1.json",
+    "schemaVersion": 1,
+    "timingComparisons": {
+      "runtimeTimingsAreAdvisory": true,
+      "requireMatchedMachineAndToolchainProfile": true,
+      "warnWhenCoefficientOfVariationExceedsPercent": 15,
+      "bundleRegression": {
+        "enabled": false,
+        "requiresExplicitBaseline": true,
+        "percent": 5,
+        "absoluteBytes": 32768
+      }
+    }
+  },
+  "environment": {
+    "platform": "linux",
+    "architecture": "x64",
+    "osRelease": "7.1.4-1-MANJARO",
+    "cpuModel": "AMD Ryzen 9 7845HX with Radeon Graphics",
+    "logicalCpuCount": 24,
+    "totalMemoryBytes": 15920046080,
+    "nodeVersion": "v26.4.0",
+    "pnpmVersion": "11.3.0",
+    "viteVersion": "7.3.0",
+    "vitestVersion": "4.1.10",
+    "jsdomVersion": "29.1.1",
+    "rustcVersion": "rustc 1.91.1 (ed61e7d7e 2025-11-07)",
+    "gitCommit": "30ea3ef73cd3fe58b58624828b9afc2c4aa7a4ff",
+    "gitDirty": true
+  },
+  "buildProvenance": {
+    "productionBuildReused": true,
+    "manifestSha256": "7d76d6e8ee9bb110b435469d6c749301f7a83e5b43d8f10e09c1a45465a8d8aa",
+    "inputSha256": {
+      "package.json": "fe0482920f6679b1fe30439518995e6214262ce11263b57d827c97641b41b5e8",
+      "pnpm-lock.yaml": "ab224d21cc7de8e6d3a584b7a647bb2f4e446ba9e9a0894eb48e31f09fe6c6da",
+      "benchmarks/stoicheia/performance-policy.v1.json": "602e7161a0ec355a0cfbe8bb14321ad414f6b3a4da04657aee47cd2722c7ec8a",
+      "scripts/check-stoicheia-lazy-build.mjs": "2f4910f8589df926ea228ed5c7dfe33b5f8a672d9de0b54674ba38eb44248a6b",
+      "scripts/run-stoicheia-performance.mjs": "99bd49ceaad8dda94ab144efd60d070a5ef280058a25aab270d43b3a17f1d506",
+      "scripts/run-stoicheia-render-benchmark.mjs": "4e612a385e15e58fdceee92cd2d487d809cb1162f092f6cac7307438952240b7",
+      "src-tauri/crates/stoicheia-engine/examples/performance_report.rs": "7b9c1e86f2868924ff3b353311a2ca59c8fa3d6ed0fa5d9a1b1b3c59d236dcda",
+      "src-tauri/crates/stoicheia-engine/tests/fixtures/parser-render.v1.json": "6535a597735395abfa269da5ad05a6eec7a7b10b285179aa6619d91acbe2aa64",
+      "src/features/stoicheia/parity/parserRenderParity.test.tsx": "f74de6b84fdfc8fb480d53bd0f6a500cb769b2e7e4c9d12477feb010454d82d5",
+      "src/features/stoicheia/renderers/FastSvgRenderer.test.tsx": "14f71b6c320b4baf8adcf105caeef2c18f627ba42ffbe715fca2a06d26a41948"
+    }
+  },
+  "native": {
+    "schemaVersion": 1,
+    "suite": "stoicheia-native-performance",
+    "configuration": {
+      "warmups": 5,
+      "samples": 15,
+      "percentileMethod": "nearest-rank",
+      "timingPolicy": "advisory; compare only matched machine and toolchain profiles"
+    },
+    "environment": {
+      "packageVersion": "1.2.2",
+      "buildProfile": "release",
+      "targetOs": "linux",
+      "targetArch": "x86_64"
+    },
+    "workloads": [
+      {
+        "id": "canonical-basic-triangle",
+        "category": "canonical",
+        "sourceBytes": 307,
+        "payloadBytes": {
+          "samplesBytes": [
+            833,
+            831,
+            833,
+            845,
+            845,
+            831,
+            831,
+            818,
+            818,
+            831,
+            860,
+            859,
+            845,
+            818,
+            859
+          ],
+          "minBytes": 818,
+          "medianBytes": 833,
+          "maxBytes": 860
+        },
+        "nodeCount": 6,
+        "resolvedPointCount": 3,
+        "diagnosticCount": 0,
+        "geometryComplete": true,
+        "metrics": {
+          "parse": {
+            "samplesMs": [
+              0.001874,
+              0.001833,
+              0.001773,
+              0.001763,
+              0.001863,
+              0.002024,
+              0.001743,
+              0.001824,
+              0.001803,
+              0.001763,
+              0.001773,
+              0.001723,
+              0.001723,
+              0.001703,
+              0.001693
+            ],
+            "minMs": 0.001693,
+            "medianMs": 0.001773,
+            "p95Ms": 0.002024,
+            "maxMs": 0.002024,
+            "meanMs": 0.001792,
+            "coefficientOfVariationPercent": 4.567235
+          },
+          "geometry": {
+            "samplesMs": [
+              0.00014,
+              0.000161,
+              0.00014,
+              0.00013,
+              0.00014,
+              0.00013,
+              0.000141,
+              0.00016,
+              0.000141,
+              0.00013,
+              0.00014,
+              0.00014,
+              0.000141,
+              0.000141,
+              0.00014
+            ],
+            "minMs": 0.00013,
+            "medianMs": 0.00014,
+            "p95Ms": 0.000161,
+            "maxMs": 0.000161,
+            "meanMs": 0.000141,
+            "coefficientOfVariationPercent": 6.155658
+          },
+          "viewport": {
+            "samplesMs": [
+              0.000391,
+              0.00041,
+              0.000521,
+              0.000421,
+              0.00038,
+              0.000411,
+              0.00041,
+              0.000391,
+              0.00037,
+              0.000451,
+              0.00039,
+              0.000381,
+              0.000391,
+              0.00038,
+              0.000381
+            ],
+            "minMs": 0.00037,
+            "medianMs": 0.000391,
+            "p95Ms": 0.000521,
+            "maxMs": 0.000521,
+            "meanMs": 0.000405,
+            "coefficientOfVariationPercent": 9.089228
+          },
+          "rustTotal": {
+            "samplesMs": [
+              0.002595,
+              0.002685,
+              0.002645,
+              0.002524,
+              0.002584,
+              0.002795,
+              0.002525,
+              0.002565,
+              0.002515,
+              0.002545,
+              0.002505,
+              0.002455,
+              0.002455,
+              0.002435,
+              0.002404
+            ],
+            "minMs": 0.002404,
+            "medianMs": 0.002525,
+            "p95Ms": 0.002795,
+            "maxMs": 0.002795,
+            "meanMs": 0.002549,
+            "coefficientOfVariationPercent": 3.894885
+          },
+          "outerCall": {
+            "samplesMs": [
+              0.002655,
+              0.002755,
+              0.002696,
+              0.002595,
+              0.002635,
+              0.002845,
+              0.002585,
+              0.002625,
+              0.002575,
+              0.002595,
+              0.002555,
+              0.002515,
+              0.002505,
+              0.002485,
+              0.002464
+            ],
+            "minMs": 0.002464,
+            "medianMs": 0.002595,
+            "p95Ms": 0.002845,
+            "maxMs": 0.002845,
+            "meanMs": 0.002606,
+            "coefficientOfVariationPercent": 3.819264
+          },
+          "serialization": {
+            "samplesMs": [
+              0.001423,
+              0.001583,
+              0.001372,
+              0.001362,
+              0.001362,
+              0.001563,
+              0.001483,
+              0.001312,
+              0.001372,
+              0.001342,
+              0.001593,
+              0.001433,
+              0.001423,
+              0.001432,
+              0.001372
+            ],
+            "minMs": 0.001312,
+            "medianMs": 0.001423,
+            "p95Ms": 0.001593,
+            "maxMs": 0.001593,
+            "meanMs": 0.001428,
+            "coefficientOfVariationPercent": 6.037234
+          }
+        }
+      },
+      {
+        "id": "canonical-chained-construction",
+        "category": "canonical",
+        "sourceBytes": 254,
+        "payloadBytes": {
+          "samplesBytes": [
+            901,
+            887,
+            874,
+            899,
+            874,
+            901,
+            888,
+            888,
+            874,
+            872,
+            900,
+            872,
+            874,
+            873,
+            873
+          ],
+          "minBytes": 872,
+          "medianBytes": 874,
+          "maxBytes": 901
+        },
+        "nodeCount": 6,
+        "resolvedPointCount": 5,
+        "diagnosticCount": 0,
+        "geometryComplete": true,
+        "metrics": {
+          "parse": {
+            "samplesMs": [
+              0.001863,
+              0.001903,
+              0.001793,
+              0.001744,
+              0.001773,
+              0.001833,
+              0.001703,
+              0.001753,
+              0.001703,
+              0.001764,
+              0.001774,
+              0.001764,
+              0.001803,
+              0.001773,
+              0.001794
+            ],
+            "minMs": 0.001703,
+            "medianMs": 0.001773,
+            "p95Ms": 0.001903,
+            "maxMs": 0.001903,
+            "meanMs": 0.001783,
+            "coefficientOfVariationPercent": 2.901957
+          },
+          "geometry": {
+            "samplesMs": [
+              0.000331,
+              0.00032,
+              0.000271,
+              0.00033,
+              0.000321,
+              0.000371,
+              0.000391,
+              0.000291,
+              0.000341,
+              0.0003,
+              0.00031,
+              0.0003,
+              0.000301,
+              0.000321,
+              0.00033
+            ],
+            "minMs": 0.000271,
+            "medianMs": 0.000321,
+            "p95Ms": 0.000391,
+            "maxMs": 0.000391,
+            "meanMs": 0.000322,
+            "coefficientOfVariationPercent": 9.092631
+          },
+          "viewport": {
+            "samplesMs": [
+              0.000381,
+              0.000371,
+              0.000401,
+              0.000381,
+              0.000401,
+              0.000391,
+              0.000421,
+              0.000401,
+              0.000391,
+              0.000401,
+              0.000421,
+              0.000391,
+              0.000401,
+              0.00041,
+              0.000401
+            ],
+            "minMs": 0.000371,
+            "medianMs": 0.000401,
+            "p95Ms": 0.000421,
+            "maxMs": 0.000421,
+            "meanMs": 0.000398,
+            "coefficientOfVariationPercent": 3.379094
+          },
+          "rustTotal": {
+            "samplesMs": [
+              0.002795,
+              0.002845,
+              0.002695,
+              0.002685,
+              0.002715,
+              0.002825,
+              0.002755,
+              0.002675,
+              0.002655,
+              0.002695,
+              0.002725,
+              0.002725,
+              0.002735,
+              0.002715,
+              0.002745
+            ],
+            "minMs": 0.002655,
+            "medianMs": 0.002725,
+            "p95Ms": 0.002845,
+            "maxMs": 0.002845,
+            "meanMs": 0.002732,
+            "coefficientOfVariationPercent": 1.91094
+          },
+          "outerCall": {
+            "samplesMs": [
+              0.002855,
+              0.002905,
+              0.002745,
+              0.002736,
+              0.002775,
+              0.002875,
+              0.002805,
+              0.002735,
+              0.002715,
+              0.002745,
+              0.002785,
+              0.002775,
+              0.002785,
+              0.002785,
+              0.002796
+            ],
+            "minMs": 0.002715,
+            "medianMs": 0.002785,
+            "p95Ms": 0.002905,
+            "maxMs": 0.002905,
+            "meanMs": 0.002788,
+            "coefficientOfVariationPercent": 1.875461
+          },
+          "serialization": {
+            "samplesMs": [
+              0.001523,
+              0.001463,
+              0.001493,
+              0.001502,
+              0.001493,
+              0.001643,
+              0.001583,
+              0.001513,
+              0.001423,
+              0.001654,
+              0.001583,
+              0.001523,
+              0.001463,
+              0.001483,
+              0.001522
+            ],
+            "minMs": 0.001423,
+            "medianMs": 0.001513,
+            "p95Ms": 0.001654,
+            "maxMs": 0.001654,
+            "meanMs": 0.001524,
+            "coefficientOfVariationPercent": 4.145056
+          }
+        }
+      },
+      {
+        "id": "canonical-styles-labels-clipping",
+        "category": "canonical",
+        "sourceBytes": 442,
+        "payloadBytes": {
+          "samplesBytes": [
+            1270,
+            1283,
+            1270,
+            1298,
+            1298,
+            1270,
+            1270,
+            1284,
+            1271,
+            1285,
+            1285,
+            1271,
+            1283,
+            1297,
+            1271
+          ],
+          "minBytes": 1270,
+          "medianBytes": 1283,
+          "maxBytes": 1298
+        },
+        "nodeCount": 9,
+        "resolvedPointCount": 3,
+        "diagnosticCount": 0,
+        "geometryComplete": true,
+        "metrics": {
+          "parse": {
+            "samplesMs": [
+              0.003286,
+              0.003317,
+              0.003457,
+              0.003196,
+              0.003266,
+              0.003267,
+              0.003216,
+              0.00507,
+              0.003066,
+              0.003226,
+              0.003216,
+              0.003206,
+              0.003236,
+              0.003156,
+              0.003046
+            ],
+            "minMs": 0.003046,
+            "medianMs": 0.003226,
+            "p95Ms": 0.00507,
+            "maxMs": 0.00507,
+            "meanMs": 0.003348,
+            "coefficientOfVariationPercent": 14.025443
+          },
+          "geometry": {
+            "samplesMs": [
+              0.00022,
+              0.00021,
+              0.00022,
+              0.00017,
+              0.00017,
+              0.00021,
+              0.00022,
+              0.00017,
+              0.000171,
+              0.00018,
+              0.000181,
+              0.000171,
+              0.000171,
+              0.00017,
+              0.000161
+            ],
+            "minMs": 0.000161,
+            "medianMs": 0.000171,
+            "p95Ms": 0.00022,
+            "maxMs": 0.00022,
+            "meanMs": 0.000186,
+            "coefficientOfVariationPercent": 11.596214
+          },
+          "viewport": {
+            "samplesMs": [
+              0.000672,
+              0.000601,
+              0.000531,
+              0.000541,
+              0.000551,
+              0.000641,
+              0.000661,
+              0.000611,
+              0.000591,
+              0.000682,
+              0.000671,
+              0.000571,
+              0.000581,
+              0.000521,
+              0.000521
+            ],
+            "minMs": 0.000521,
+            "medianMs": 0.000591,
+            "p95Ms": 0.000682,
+            "maxMs": 0.000682,
+            "meanMs": 0.000596,
+            "coefficientOfVariationPercent": 9.354003
+          },
+          "rustTotal": {
+            "samplesMs": [
+              0.004368,
+              0.004368,
+              0.004458,
+              0.004108,
+              0.004198,
+              0.004338,
+              0.004318,
+              0.006081,
+              0.004028,
+              0.004318,
+              0.004288,
+              0.004128,
+              0.004188,
+              0.004018,
+              0.003928
+            ],
+            "minMs": 0.003928,
+            "medianMs": 0.004288,
+            "p95Ms": 0.006081,
+            "maxMs": 0.006081,
+            "meanMs": 0.004342,
+            "coefficientOfVariationPercent": 11.224099
+          },
+          "outerCall": {
+            "samplesMs": [
+              0.004418,
+              0.004429,
+              0.004509,
+              0.004158,
+              0.004258,
+              0.004389,
+              0.004369,
+              0.006161,
+              0.004088,
+              0.004378,
+              0.004338,
+              0.004178,
+              0.004238,
+              0.004088,
+              0.003978
+            ],
+            "minMs": 0.003978,
+            "medianMs": 0.004338,
+            "p95Ms": 0.006161,
+            "maxMs": 0.006161,
+            "meanMs": 0.004398,
+            "coefficientOfVariationPercent": 11.209735
+          },
+          "serialization": {
+            "samplesMs": [
+              0.002224,
+              0.002304,
+              0.002184,
+              0.002034,
+              0.002184,
+              0.002164,
+              0.003957,
+              0.002134,
+              0.002144,
+              0.002224,
+              0.002054,
+              0.002224,
+              0.002254,
+              0.002084,
+              0.002134
+            ],
+            "minMs": 0.002034,
+            "medianMs": 0.002184,
+            "p95Ms": 0.003957,
+            "maxMs": 0.003957,
+            "meanMs": 0.002287,
+            "coefficientOfVariationPercent": 19.76744
+          }
+        }
+      },
+      {
+        "id": "canonical-incomplete-geometry-diagnostics",
+        "category": "canonical",
+        "sourceBytes": 129,
+        "payloadBytes": {
+          "samplesBytes": [
+            572,
+            584,
+            572,
+            599,
+            586,
+            599,
+            572,
+            571,
+            586,
+            586,
+            586,
+            571,
+            572,
+            585,
+            572
+          ],
+          "minBytes": 571,
+          "medianBytes": 584,
+          "maxBytes": 599
+        },
+        "nodeCount": 3,
+        "resolvedPointCount": 1,
+        "diagnosticCount": 1,
+        "geometryComplete": false,
+        "metrics": {
+          "parse": {
+            "samplesMs": [
+              0.000501,
+              0.000511,
+              0.000501,
+              0.000541,
+              0.000521,
+              0.000511,
+              0.000521,
+              0.000511,
+              0.000501,
+              0.000511,
+              0.000501,
+              0.000501,
+              0.000511,
+              0.000501,
+              0.000501
+            ],
+            "minMs": 0.000501,
+            "medianMs": 0.000511,
+            "p95Ms": 0.000541,
+            "maxMs": 0.000541,
+            "meanMs": 0.00051,
+            "coefficientOfVariationPercent": 2.133356
+          },
+          "geometry": {
+            "samplesMs": [
+              0.000191,
+              0.00019,
+              0.000211,
+              0.0002,
+              0.0002,
+              0.0002,
+              0.000201,
+              0.00019,
+              0.0002,
+              0.0002,
+              0.0002,
+              0.00021,
+              0.000201,
+              0.000201,
+              0.000201
+            ],
+            "minMs": 0.00019,
+            "medianMs": 0.0002,
+            "p95Ms": 0.000211,
+            "maxMs": 0.000211,
+            "meanMs": 0.0002,
+            "coefficientOfVariationPercent": 2.904831
+          },
+          "viewport": {
+            "samplesMs": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "minMs": 0,
+            "medianMs": 0,
+            "p95Ms": 0,
+            "maxMs": 0,
+            "meanMs": 0,
+            "coefficientOfVariationPercent": 0
+          },
+          "rustTotal": {
+            "samplesMs": [
+              0.000912,
+              0.000922,
+              0.000932,
+              0.000952,
+              0.000941,
+              0.000952,
+              0.000932,
+              0.000902,
+              0.000891,
+              0.000941,
+              0.000932,
+              0.000932,
+              0.000942,
+              0.000922,
+              0.000912
+            ],
+            "minMs": 0.000891,
+            "medianMs": 0.000932,
+            "p95Ms": 0.000952,
+            "maxMs": 0.000952,
+            "meanMs": 0.000928,
+            "coefficientOfVariationPercent": 1.841441
+          },
+          "outerCall": {
+            "samplesMs": [
+              0.000972,
+              0.000982,
+              0.001012,
+              0.001022,
+              0.001022,
+              0.001022,
+              0.001012,
+              0.000962,
+              0.000961,
+              0.001011,
+              0.001012,
+              0.000992,
+              0.001002,
+              0.001002,
+              0.000992
+            ],
+            "minMs": 0.000961,
+            "medianMs": 0.001002,
+            "p95Ms": 0.001022,
+            "maxMs": 0.001022,
+            "meanMs": 0.000999,
+            "coefficientOfVariationPercent": 2.033045
+          },
+          "serialization": {
+            "samplesMs": [
+              0.001062,
+              0.001012,
+              0.001042,
+              0.001052,
+              0.001112,
+              0.001072,
+              0.001092,
+              0.001062,
+              0.001052,
+              0.001072,
+              0.001022,
+              0.000992,
+              0.001002,
+              0.000972,
+              0.001002
+            ],
+            "minMs": 0.000972,
+            "medianMs": 0.001052,
+            "p95Ms": 0.001112,
+            "maxMs": 0.001112,
+            "meanMs": 0.001041,
+            "coefficientOfVariationPercent": 3.68549
+          }
+        }
+      },
+      {
+        "id": "flat-50",
+        "category": "flat-throughput",
+        "sourceBytes": 1223,
+        "payloadBytes": {
+          "samplesBytes": [
+            4304,
+            4304,
+            4291,
+            4304,
+            4291,
+            4316,
+            4316,
+            4291,
+            4303,
+            4303,
+            4291,
+            4303,
+            4303,
+            4303,
+            4291
+          ],
+          "minBytes": 4291,
+          "medianBytes": 4303,
+          "maxBytes": 4316
+        },
+        "nodeCount": 50,
+        "resolvedPointCount": 25,
+        "diagnosticCount": 0,
+        "geometryComplete": true,
+        "metrics": {
+          "parse": {
+            "samplesMs": [
+              0.006363,
+              0.006162,
+              0.006162,
+              0.006021,
+              0.006102,
+              0.006513,
+              0.006292,
+              0.006092,
+              0.006031,
+              0.006111,
+              0.006112,
+              0.005961,
+              0.006111,
+              0.006162,
+              0.005891
+            ],
+            "minMs": 0.005891,
+            "medianMs": 0.006111,
+            "p95Ms": 0.006513,
+            "maxMs": 0.006513,
+            "meanMs": 0.006139,
+            "coefficientOfVariationPercent": 2.451315
+          },
+          "geometry": {
+            "samplesMs": [
+              0.001563,
+              0.001583,
+              0.001573,
+              0.001583,
+              0.001763,
+              0.001703,
+              0.001754,
+              0.001543,
+              0.001583,
+              0.001914,
+              0.001573,
+              0.001563,
+              0.001543,
+              0.001553,
+              0.001543
+            ],
+            "minMs": 0.001543,
+            "medianMs": 0.001573,
+            "p95Ms": 0.001914,
+            "maxMs": 0.001914,
+            "meanMs": 0.001622,
+            "coefficientOfVariationPercent": 6.540966
+          },
+          "viewport": {
+            "samplesMs": [
+              0.000601,
+              0.000601,
+              0.000571,
+              0.000572,
+              0.000551,
+              0.000521,
+              0.000551,
+              0.000541,
+              0.000551,
+              0.000561,
+              0.000551,
+              0.000521,
+              0.000561,
+              0.000531,
+              0.000551
+            ],
+            "minMs": 0.000521,
+            "medianMs": 0.000551,
+            "p95Ms": 0.000601,
+            "maxMs": 0.000601,
+            "meanMs": 0.000556,
+            "coefficientOfVariationPercent": 4.156873
+          },
+          "rustTotal": {
+            "samplesMs": [
+              0.009218,
+              0.009037,
+              0.009037,
+              0.008857,
+              0.009138,
+              0.009518,
+              0.009248,
+              0.008867,
+              0.008736,
+              0.009317,
+              0.008897,
+              0.008696,
+              0.008836,
+              0.008887,
+              0.008546
+            ],
+            "minMs": 0.008546,
+            "medianMs": 0.008897,
+            "p95Ms": 0.009518,
+            "maxMs": 0.009518,
+            "meanMs": 0.008989,
+            "coefficientOfVariationPercent": 2.806203
+          },
+          "outerCall": {
+            "samplesMs": [
+              0.009288,
+              0.009087,
+              0.009097,
+              0.008917,
+              0.009198,
+              0.009568,
+              0.009308,
+              0.008927,
+              0.008786,
+              0.009377,
+              0.008957,
+              0.008766,
+              0.008896,
+              0.008937,
+              0.008596
+            ],
+            "minMs": 0.008596,
+            "medianMs": 0.008957,
+            "p95Ms": 0.009568,
+            "maxMs": 0.009568,
+            "meanMs": 0.009047,
+            "coefficientOfVariationPercent": 2.793729
+          },
+          "serialization": {
+            "samplesMs": [
+              0.007133,
+              0.007134,
+              0.011933,
+              0.006993,
+              0.007113,
+              0.006984,
+              0.007154,
+              0.007103,
+              0.007024,
+              0.007124,
+              0.007033,
+              0.007054,
+              0.007023,
+              0.006953,
+              0.006923
+            ],
+            "minMs": 0.006923,
+            "medianMs": 0.007054,
+            "p95Ms": 0.011933,
+            "maxMs": 0.011933,
+            "meanMs": 0.007379,
+            "coefficientOfVariationPercent": 16.522362
+          }
+        }
+      },
+      {
+        "id": "flat-250",
+        "category": "flat-throughput",
+        "sourceBytes": 6188,
+        "payloadBytes": {
+          "samplesBytes": [
+            20194,
+            20207,
+            20182,
+            20196,
+            20194,
+            20208,
+            20183,
+            20182,
+            20208,
+            20183,
+            20207,
+            20183,
+            20183,
+            20183,
+            20208
+          ],
+          "minBytes": 20182,
+          "medianBytes": 20194,
+          "maxBytes": 20208
+        },
+        "nodeCount": 250,
+        "resolvedPointCount": 125,
+        "diagnosticCount": 0,
+        "geometryComplete": true,
+        "metrics": {
+          "parse": {
+            "samplesMs": [
+              0.02633,
+              0.034195,
+              0.029686,
+              0.028875,
+              0.030748,
+              0.030498,
+              0.030057,
+              0.029486,
+              0.030097,
+              0.030177,
+              0.029857,
+              0.029476,
+              0.030167,
+              0.034615,
+              0.035828
+            ],
+            "minMs": 0.02633,
+            "medianMs": 0.030097,
+            "p95Ms": 0.035828,
+            "maxMs": 0.035828,
+            "meanMs": 0.030673,
+            "coefficientOfVariationPercent": 7.63864
+          },
+          "geometry": {
+            "samplesMs": [
+              0.009407,
+              0.01059,
+              0.01038,
+              0.010159,
+              0.012804,
+              0.011762,
+              0.010991,
+              0.01055,
+              0.01033,
+              0.010249,
+              0.010329,
+              0.010219,
+              0.010069,
+              0.011853,
+              0.013145
+            ],
+            "minMs": 0.009407,
+            "medianMs": 0.01038,
+            "p95Ms": 0.013145,
+            "maxMs": 0.013145,
+            "meanMs": 0.010856,
+            "coefficientOfVariationPercent": 9.451625
+          },
+          "viewport": {
+            "samplesMs": [
+              0.001082,
+              0.001233,
+              0.001232,
+              0.001202,
+              0.001283,
+              0.001273,
+              0.001162,
+              0.001112,
+              0.001172,
+              0.001212,
+              0.001263,
+              0.001152,
+              0.001212,
+              0.001382,
+              0.00544
+            ],
+            "minMs": 0.001082,
+            "medianMs": 0.001212,
+            "p95Ms": 0.00544,
+            "maxMs": 0.00544,
+            "meanMs": 0.001494,
+            "coefficientOfVariationPercent": 70.741378
+          },
+          "rustTotal": {
+            "samplesMs": [
+              0.039064,
+              0.048793,
+              0.044043,
+              0.042841,
+              0.04776,
+              0.046438,
+              0.044915,
+              0.043643,
+              0.044084,
+              0.044273,
+              0.044214,
+              0.043312,
+              0.044043,
+              0.050685,
+              0.057329
+            ],
+            "minMs": 0.039064,
+            "medianMs": 0.044214,
+            "p95Ms": 0.057329,
+            "maxMs": 0.057329,
+            "meanMs": 0.045696,
+            "coefficientOfVariationPercent": 8.925931
+          },
+          "outerCall": {
+            "samplesMs": [
+              0.039124,
+              0.048843,
+              0.044113,
+              0.042901,
+              0.04782,
+              0.046508,
+              0.044975,
+              0.043713,
+              0.044134,
+              0.044333,
+              0.044284,
+              0.043372,
+              0.044093,
+              0.050756,
+              0.057399
+            ],
+            "minMs": 0.039124,
+            "medianMs": 0.044284,
+            "p95Ms": 0.057399,
+            "maxMs": 0.057399,
+            "meanMs": 0.045758,
+            "coefficientOfVariationPercent": 8.918426
+          },
+          "serialization": {
+            "samplesMs": [
+              0.032501,
+              0.035667,
+              0.035026,
+              0.036399,
+              0.044164,
+              0.034565,
+              0.034415,
+              0.034325,
+              0.034916,
+              0.035317,
+              0.034455,
+              0.034084,
+              0.043833,
+              0.041618,
+              0.041749
+            ],
+            "minMs": 0.032501,
+            "medianMs": 0.035026,
+            "p95Ms": 0.044164,
+            "maxMs": 0.044164,
+            "meanMs": 0.036869,
+            "coefficientOfVariationPercent": 10.144489
+          }
+        }
+      },
+      {
+        "id": "flat-1000",
+        "category": "flat-throughput",
+        "sourceBytes": 25658,
+        "payloadBytes": {
+          "samplesBytes": [
+            80889,
+            80877,
+            80877,
+            80890,
+            80877,
+            80889,
+            80877,
+            80890,
+            80889,
+            80877,
+            80865,
+            80878,
+            80888,
+            80879,
+            80890
+          ],
+          "minBytes": 80865,
+          "medianBytes": 80879,
+          "maxBytes": 80890
+        },
+        "nodeCount": 1000,
+        "resolvedPointCount": 500,
+        "diagnosticCount": 0,
+        "geometryComplete": true,
+        "metrics": {
+          "parse": {
+            "samplesMs": [
+              0.170943,
+              0.11599,
+              0.114096,
+              0.112673,
+              0.112963,
+              0.126339,
+              0.115087,
+              0.110489,
+              0.113084,
+              0.117422,
+              0.12141,
+              0.11627,
+              0.142629,
+              0.138682,
+              0.13769
+            ],
+            "minMs": 0.110489,
+            "medianMs": 0.11627,
+            "p95Ms": 0.170943,
+            "maxMs": 0.170943,
+            "meanMs": 0.124384,
+            "coefficientOfVariationPercent": 12.897065
+          },
+          "geometry": {
+            "samplesMs": [
+              0.060034,
+              0.087044,
+              0.054763,
+              0.052279,
+              0.048151,
+              0.049133,
+              0.046568,
+              0.046287,
+              0.045606,
+              0.050575,
+              0.050045,
+              0.051066,
+              0.065433,
+              0.059332,
+              0.061356
+            ],
+            "minMs": 0.045606,
+            "medianMs": 0.051066,
+            "p95Ms": 0.087044,
+            "maxMs": 0.087044,
+            "meanMs": 0.055178,
+            "coefficientOfVariationPercent": 18.737106
+          },
+          "viewport": {
+            "samplesMs": [
+              0.004498,
+              0.003707,
+              0.003216,
+              0.003036,
+              0.003046,
+              0.003326,
+              0.003126,
+              0.002956,
+              0.002906,
+              0.003196,
+              0.003286,
+              0.003076,
+              0.003767,
+              0.003877,
+              0.003697
+            ],
+            "minMs": 0.002906,
+            "medianMs": 0.003216,
+            "p95Ms": 0.004498,
+            "maxMs": 0.004498,
+            "meanMs": 0.003381,
+            "coefficientOfVariationPercent": 12.589718
+          },
+          "rustTotal": {
+            "samplesMs": [
+              0.245935,
+              0.216239,
+              0.180611,
+              0.176333,
+              0.172556,
+              0.187514,
+              0.172967,
+              0.167707,
+              0.1693,
+              0.17991,
+              0.183728,
+              0.179309,
+              0.22239,
+              0.212401,
+              0.213444
+            ],
+            "minMs": 0.167707,
+            "medianMs": 0.180611,
+            "p95Ms": 0.245935,
+            "maxMs": 0.245935,
+            "meanMs": 0.192023,
+            "coefficientOfVariationPercent": 11.960978
+          },
+          "outerCall": {
+            "samplesMs": [
+              0.246045,
+              0.216299,
+              0.180661,
+              0.176404,
+              0.172616,
+              0.187584,
+              0.173037,
+              0.167767,
+              0.16936,
+              0.17998,
+              0.183798,
+              0.179379,
+              0.22246,
+              0.212482,
+              0.213514
+            ],
+            "minMs": 0.167767,
+            "medianMs": 0.180661,
+            "p95Ms": 0.246045,
+            "maxMs": 0.246045,
+            "meanMs": 0.192092,
+            "coefficientOfVariationPercent": 11.961211
+          },
+          "serialization": {
+            "samplesMs": [
+              0.141417,
+              0.140796,
+              0.132821,
+              0.135375,
+              0.146657,
+              0.169551,
+              0.129675,
+              0.130086,
+              0.129114,
+              0.148761,
+              0.141016,
+              0.140445,
+              0.179399,
+              0.166855,
+              0.170432
+            ],
+            "minMs": 0.129114,
+            "medianMs": 0.141016,
+            "p95Ms": 0.179399,
+            "maxMs": 0.179399,
+            "meanMs": 0.146827,
+            "coefficientOfVariationPercent": 10.975049
+          }
+        }
+      },
+      {
+        "id": "flat-5000",
+        "category": "flat-throughput",
+        "sourceBytes": 135458,
+        "payloadBytes": {
+          "samplesBytes": [
+            413486,
+            413508,
+            413498,
+            413485,
+            413483,
+            413475,
+            413485,
+            413486,
+            413475,
+            413484,
+            413485,
+            413487,
+            413495,
+            413507,
+            413484
+          ],
+          "minBytes": 413475,
+          "medianBytes": 413485,
+          "maxBytes": 413508
+        },
+        "nodeCount": 5000,
+        "resolvedPointCount": 2500,
+        "diagnosticCount": 0,
+        "geometryComplete": true,
+        "metrics": {
+          "parse": {
+            "samplesMs": [
+              0.506537,
+              0.539479,
+              0.535782,
+              0.623969,
+              0.550691,
+              0.616295,
+              0.513751,
+              0.577731,
+              0.556111,
+              0.572041,
+              0.80416,
+              0.538026,
+              0.622076,
+              0.881886,
+              0.56657
+            ],
+            "minMs": 0.506537,
+            "medianMs": 0.56657,
+            "p95Ms": 0.881886,
+            "maxMs": 0.881886,
+            "meanMs": 0.60034,
+            "coefficientOfVariationPercent": 17.042607
+          },
+          "geometry": {
+            "samplesMs": [
+              0.337388,
+              0.326126,
+              0.30715,
+              0.350172,
+              0.30681,
+              0.321347,
+              0.55031,
+              0.307741,
+              0.310858,
+              0.329733,
+              0.318722,
+              0.300298,
+              0.382803,
+              0.322599,
+              0.307952
+            ],
+            "minMs": 0.300298,
+            "medianMs": 0.321347,
+            "p95Ms": 0.55031,
+            "maxMs": 0.55031,
+            "meanMs": 0.338667,
+            "coefficientOfVariationPercent": 17.752777
+          },
+          "viewport": {
+            "samplesMs": [
+              0.027231,
+              0.024296,
+              0.01557,
+              0.025218,
+              0.01582,
+              0.016651,
+              0.017483,
+              0.016712,
+              0.015098,
+              0.01636,
+              0.017954,
+              0.01591,
+              0.019267,
+              0.021511,
+              0.016842
+            ],
+            "minMs": 0.015098,
+            "medianMs": 0.016842,
+            "p95Ms": 0.027231,
+            "maxMs": 0.027231,
+            "meanMs": 0.018795,
+            "coefficientOfVariationPercent": 20.03221
+          },
+          "rustTotal": {
+            "samplesMs": [
+              0.911853,
+              0.945718,
+              0.899049,
+              1.038963,
+              0.912645,
+              0.996423,
+              1.121489,
+              0.94192,
+              0.922574,
+              0.960335,
+              1.221448,
+              0.894219,
+              1.07396,
+              1.293003,
+              0.932051
+            ],
+            "minMs": 0.894219,
+            "medianMs": 0.945718,
+            "p95Ms": 1.293003,
+            "maxMs": 1.293003,
+            "meanMs": 1.004377,
+            "coefficientOfVariationPercent": 11.826782
+          },
+          "outerCall": {
+            "samplesMs": [
+              0.911943,
+              0.945818,
+              0.89914,
+              1.039124,
+              0.912745,
+              0.996543,
+              1.12161,
+              0.94206,
+              0.922704,
+              0.960445,
+              1.221608,
+              0.89434,
+              1.07407,
+              1.293143,
+              0.932192
+            ],
+            "minMs": 0.89434,
+            "medianMs": 0.945818,
+            "p95Ms": 1.293143,
+            "maxMs": 1.293143,
+            "meanMs": 1.004499,
+            "coefficientOfVariationPercent": 11.826509
+          },
+          "serialization": {
+            "samplesMs": [
+              0.663965,
+              0.728887,
+              0.746009,
+              0.652362,
+              0.702728,
+              0.674555,
+              1.007954,
+              0.658504,
+              0.737163,
+              0.947571,
+              0.697248,
+              0.705232,
+              0.780355,
+              0.865285,
+              0.692489
+            ],
+            "minMs": 0.652362,
+            "medianMs": 0.705232,
+            "p95Ms": 1.007954,
+            "maxMs": 1.007954,
+            "meanMs": 0.750687,
+            "coefficientOfVariationPercent": 13.832344
+          }
+        }
+      },
+      {
+        "id": "chained-5000",
+        "category": "dependency-chain",
+        "sourceBytes": 189443,
+        "payloadBytes": {
+          "samplesBytes": [
+            398564,
+            398574,
+            398563,
+            398574,
+            398563,
+            398584,
+            398583,
+            398574,
+            398583,
+            398574,
+            398576,
+            398576,
+            398574,
+            398573,
+            398564
+          ],
+          "minBytes": 398563,
+          "medianBytes": 398574,
+          "maxBytes": 398584
+        },
+        "nodeCount": 5000,
+        "resolvedPointCount": 2500,
+        "diagnosticCount": 0,
+        "geometryComplete": true,
+        "metrics": {
+          "parse": {
+            "samplesMs": [
+              0.542946,
+              0.535963,
+              0.761428,
+              0.558886,
+              0.541613,
+              0.694202,
+              0.566872,
+              0.528078,
+              0.571209,
+              0.86833,
+              0.535111,
+              0.531595,
+              0.563705,
+              0.558846,
+              0.532316
+            ],
+            "minMs": 0.528078,
+            "medianMs": 0.558846,
+            "p95Ms": 0.86833,
+            "maxMs": 0.86833,
+            "meanMs": 0.59274,
+            "coefficientOfVariationPercent": 16.425139
+          },
+          "geometry": {
+            "samplesMs": [
+              0.761388,
+              0.747653,
+              0.860076,
+              0.779923,
+              0.74583,
+              0.844957,
+              0.733355,
+              0.683091,
+              0.701706,
+              0.704571,
+              0.694202,
+              0.732745,
+              0.981966,
+              0.718578,
+              0.694934
+            ],
+            "minMs": 0.683091,
+            "medianMs": 0.733355,
+            "p95Ms": 0.981966,
+            "maxMs": 0.981966,
+            "meanMs": 0.758998,
+            "coefficientOfVariationPercent": 10.282103
+          },
+          "viewport": {
+            "samplesMs": [
+              0.016682,
+              0.018094,
+              0.020418,
+              0.018255,
+              0.018856,
+              0.017302,
+              0.05786,
+              0.016301,
+              0.019737,
+              0.017353,
+              0.01612,
+              0.017112,
+              0.017092,
+              0.01592,
+              0.014998
+            ],
+            "minMs": 0.014998,
+            "medianMs": 0.017302,
+            "p95Ms": 0.05786,
+            "maxMs": 0.05786,
+            "meanMs": 0.02014,
+            "coefficientOfVariationPercent": 50.535208
+          },
+          "rustTotal": {
+            "samplesMs": [
+              1.360251,
+              1.345924,
+              1.91031,
+              1.398383,
+              1.352997,
+              1.608289,
+              1.398132,
+              1.267285,
+              1.33321,
+              1.630421,
+              1.284968,
+              1.323141,
+              1.602318,
+              1.332909,
+              1.282664
+            ],
+            "minMs": 1.267285,
+            "medianMs": 1.352997,
+            "p95Ms": 1.91031,
+            "maxMs": 1.91031,
+            "meanMs": 1.428747,
+            "coefficientOfVariationPercent": 12.144853
+          },
+          "outerCall": {
+            "samplesMs": [
+              1.360391,
+              1.346054,
+              1.910511,
+              1.398553,
+              1.353117,
+              1.608409,
+              1.398302,
+              1.267385,
+              1.33331,
+              1.630541,
+              1.285088,
+              1.323251,
+              1.602418,
+              1.333059,
+              1.282754
+            ],
+            "minMs": 1.267385,
+            "medianMs": 1.353117,
+            "p95Ms": 1.910511,
+            "maxMs": 1.910511,
+            "meanMs": 1.428876,
+            "coefficientOfVariationPercent": 12.144775
+          },
+          "serialization": {
+            "samplesMs": [
+              0.429321,
+              0.501317,
+              0.595014,
+              0.446073,
+              0.53451,
+              0.840729,
+              0.435703,
+              0.44957,
+              0.471541,
+              0.439941,
+              0.44975,
+              0.45503,
+              0.440031,
+              0.430854,
+              0.466231
+            ],
+            "minMs": 0.429321,
+            "medianMs": 0.44975,
+            "p95Ms": 0.840729,
+            "maxMs": 0.840729,
+            "meanMs": 0.492374,
+            "coefficientOfVariationPercent": 20.877753
+          }
+        }
+      }
+    ]
+  },
+  "renderer": {
+    "schemaVersion": 1,
+    "suite": "stoicheia-jsdom-renderer-performance",
+    "environment": {
+      "runtime": "Vitest/jsdom",
+      "nodeVersion": "v26.4.0",
+      "measuresBrowserLayoutPaintOrFps": false
+    },
+    "configuration": {
+      "processWarmups": 1,
+      "processSamples": 5,
+      "percentileMethod": "nearest-rank",
+      "timingPolicy": "advisory; jsdom reconciliation and DOM creation only"
+    },
+    "workloads": [
+      {
+        "nodes": 50,
+        "domElements": 95,
+        "svgElements": 94,
+        "render": {
+          "samplesMs": [
+            24.177,
+            25.309,
+            24.459,
+            28.051,
+            24.666
+          ],
+          "minMs": 24.177,
+          "medianMs": 24.666,
+          "p95Ms": 28.051,
+          "maxMs": 28.051,
+          "meanMs": 25.3324,
+          "coefficientOfVariationPercent": 5.56395
+        }
+      },
+      {
+        "nodes": 250,
+        "domElements": 361,
+        "svgElements": 360,
+        "render": {
+          "samplesMs": [
+            19.887,
+            20.548,
+            23.437,
+            25.761,
+            19.911
+          ],
+          "minMs": 19.887,
+          "medianMs": 20.548,
+          "p95Ms": 25.761,
+          "maxMs": 25.761,
+          "meanMs": 21.9088,
+          "coefficientOfVariationPercent": 10.627353
+        }
+      },
+      {
+        "nodes": 1000,
+        "domElements": 1361,
+        "svgElements": 1360,
+        "render": {
+          "samplesMs": [
+            68.573,
+            71.357,
+            79.434,
+            98.211,
+            79.184
+          ],
+          "minMs": 68.573,
+          "medianMs": 79.184,
+          "p95Ms": 98.211,
+          "maxMs": 98.211,
+          "meanMs": 79.3518,
+          "coefficientOfVariationPercent": 13.04551
+        }
+      },
+      {
+        "nodes": 5000,
+        "domElements": 6695,
+        "svgElements": 6694,
+        "render": {
+          "samplesMs": [
+            254.46,
+            237.474,
+            305.002,
+            301.773,
+            260.877
+          ],
+          "minMs": 237.474,
+          "medianMs": 260.877,
+          "p95Ms": 305.002,
+          "maxMs": 305.002,
+          "meanMs": 271.9172,
+          "coefficientOfVariationPercent": 9.866566
+        }
+      }
+    ]
+  },
+  "bundle": {
+    "schemaVersion": 1,
+    "manifest": "dist/.vite/manifest.json",
+    "buildReused": true,
+    "manifestSha256": "7d76d6e8ee9bb110b435469d6c749301f7a83e5b43d8f10e09c1a45465a8d8aa",
+    "lazyBundleGatesPassed": true,
+    "initialStoicheiaAssetCount": 0,
+    "adapter": {
+      "file": "assets/StoicheiaPackageStudioAdapter-BXUoiBU4.js",
+      "bytes": 819527
+    },
+    "scopedCss": {
+      "file": "assets/StoicheiaPackageStudioAdapter-BzH7luZd.css",
+      "bytes": 114208
+    },
+    "closures": {
+      "initialApplication": {
+        "fileCount": 5,
+        "bytes": 1692710,
+        "gzipBytes": 477427,
+        "brotliBytes": 395994,
+        "assets": [
+          {
+            "file": "assets/index-Bvv4Sk_t.css",
+            "bytes": 205406,
+            "gzipBytes": 30571,
+            "brotliBytes": 24957
+          },
+          {
+            "file": "assets/index-DdMr9M9k.js",
+            "bytes": 1039182,
+            "gzipBytes": 304334,
+            "brotliBytes": 250773
+          },
+          {
+            "file": "assets/vendor-mantine-CEWH8EWV.js",
+            "bytes": 363730,
+            "gzipBytes": 111539,
+            "brotliBytes": 92782
+          },
+          {
+            "file": "assets/vendor-react-Bce9NwRC.js",
+            "bytes": 11965,
+            "gzipBytes": 4282,
+            "brotliBytes": 3818
+          },
+          {
+            "file": "assets/vendor-utils-DXzJ3pMo.js",
+            "bytes": 72427,
+            "gzipBytes": 26701,
+            "brotliBytes": 23664
+          }
+        ]
+      },
+      "packageStudioIncremental": {
+        "fileCount": 63,
+        "bytes": 1558213,
+        "gzipBytes": 998701,
+        "brotliBytes": 957102,
+        "assets": [
+          {
+            "file": "assets/KaTeX_AMS-Regular-BQhdFMY1.woff2",
+            "bytes": 28076,
+            "gzipBytes": 28104,
+            "brotliBytes": 28080
+          },
+          {
+            "file": "assets/KaTeX_AMS-Regular-DMm9YOAa.woff",
+            "bytes": 33516,
+            "gzipBytes": 33526,
+            "brotliBytes": 33397
+          },
+          {
+            "file": "assets/KaTeX_AMS-Regular-DRggAlZN.ttf",
+            "bytes": 63632,
+            "gzipBytes": 34559,
+            "brotliBytes": 32208
+          },
+          {
+            "file": "assets/KaTeX_Caligraphic-Bold-ATXxdsX0.ttf",
+            "bytes": 12368,
+            "gzipBytes": 7730,
+            "brotliBytes": 7235
+          },
+          {
+            "file": "assets/KaTeX_Caligraphic-Bold-BEiXGLvX.woff",
+            "bytes": 7716,
+            "gzipBytes": 7662,
+            "brotliBytes": 7599
+          },
+          {
+            "file": "assets/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2",
+            "bytes": 6912,
+            "gzipBytes": 6935,
+            "brotliBytes": 6916
+          },
+          {
+            "file": "assets/KaTeX_Caligraphic-Regular-CTRA-rTL.woff",
+            "bytes": 7656,
+            "gzipBytes": 7611,
+            "brotliBytes": 7543
+          },
+          {
+            "file": "assets/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2",
+            "bytes": 6908,
+            "gzipBytes": 6931,
+            "brotliBytes": 6908
+          },
+          {
+            "file": "assets/KaTeX_Caligraphic-Regular-wX97UBjC.ttf",
+            "bytes": 12344,
+            "gzipBytes": 7680,
+            "brotliBytes": 7175
+          },
+          {
+            "file": "assets/KaTeX_Fraktur-Bold-BdnERNNW.ttf",
+            "bytes": 19584,
+            "gzipBytes": 13328,
+            "brotliBytes": 12741
+          },
+          {
+            "file": "assets/KaTeX_Fraktur-Bold-BsDP51OF.woff",
+            "bytes": 13296,
+            "gzipBytes": 13258,
+            "brotliBytes": 13195
+          },
+          {
+            "file": "assets/KaTeX_Fraktur-Bold-CL6g_b3V.woff2",
+            "bytes": 11348,
+            "gzipBytes": 11371,
+            "brotliBytes": 11352
+          },
+          {
+            "file": "assets/KaTeX_Fraktur-Regular-CB_wures.ttf",
+            "bytes": 19572,
+            "gzipBytes": 13254,
+            "brotliBytes": 12649
+          },
+          {
+            "file": "assets/KaTeX_Fraktur-Regular-CTYiF6lA.woff2",
+            "bytes": 11316,
+            "gzipBytes": 11339,
+            "brotliBytes": 11320
+          },
+          {
+            "file": "assets/KaTeX_Fraktur-Regular-Dxdc4cR9.woff",
+            "bytes": 13208,
+            "gzipBytes": 13171,
+            "brotliBytes": 13110
+          },
+          {
+            "file": "assets/KaTeX_Main-Bold-Cx986IdX.woff2",
+            "bytes": 25324,
+            "gzipBytes": 25352,
+            "brotliBytes": 25324
+          },
+          {
+            "file": "assets/KaTeX_Main-Bold-Jm3AIy58.woff",
+            "bytes": 29912,
+            "gzipBytes": 29932,
+            "brotliBytes": 29822
+          },
+          {
+            "file": "assets/KaTeX_Main-Bold-waoOVXN0.ttf",
+            "bytes": 51336,
+            "gzipBytes": 30582,
+            "brotliBytes": 28913
+          },
+          {
+            "file": "assets/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2",
+            "bytes": 16780,
+            "gzipBytes": 16808,
+            "brotliBytes": 16784
+          },
+          {
+            "file": "assets/KaTeX_Main-BoldItalic-DzxPMmG6.ttf",
+            "bytes": 32968,
+            "gzipBytes": 19701,
+            "brotliBytes": 18591
+          },
+          {
+            "file": "assets/KaTeX_Main-BoldItalic-SpSLRI95.woff",
+            "bytes": 19412,
+            "gzipBytes": 19388,
+            "brotliBytes": 19311
+          },
+          {
+            "file": "assets/KaTeX_Main-Italic-3WenGoN9.ttf",
+            "bytes": 33580,
+            "gzipBytes": 20012,
+            "brotliBytes": 18877
+          },
+          {
+            "file": "assets/KaTeX_Main-Italic-BMLOBm91.woff",
+            "bytes": 19676,
+            "gzipBytes": 19654,
+            "brotliBytes": 19576
+          },
+          {
+            "file": "assets/KaTeX_Main-Italic-NWA7e6Wa.woff2",
+            "bytes": 16988,
+            "gzipBytes": 17016,
+            "brotliBytes": 16990
+          },
+          {
+            "file": "assets/KaTeX_Main-Regular-B22Nviop.woff2",
+            "bytes": 26272,
+            "gzipBytes": 26300,
+            "brotliBytes": 26272
+          },
+          {
+            "file": "assets/KaTeX_Main-Regular-Dr94JaBh.woff",
+            "bytes": 30772,
+            "gzipBytes": 30787,
+            "brotliBytes": 30776
+          },
+          {
+            "file": "assets/KaTeX_Main-Regular-ypZvNtVU.ttf",
+            "bytes": 53580,
+            "gzipBytes": 31510,
+            "brotliBytes": 29620
+          },
+          {
+            "file": "assets/KaTeX_Math-BoldItalic-B3XSjfu4.ttf",
+            "bytes": 31196,
+            "gzipBytes": 18993,
+            "brotliBytes": 17862
+          },
+          {
+            "file": "assets/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2",
+            "bytes": 16400,
+            "gzipBytes": 16423,
+            "brotliBytes": 16399
+          },
+          {
+            "file": "assets/KaTeX_Math-BoldItalic-iY-2wyZ7.woff",
+            "bytes": 18668,
+            "gzipBytes": 18633,
+            "brotliBytes": 18550
+          },
+          {
+            "file": "assets/KaTeX_Math-Italic-DA0__PXp.woff",
+            "bytes": 18748,
+            "gzipBytes": 18722,
+            "brotliBytes": 18649
+          },
+          {
+            "file": "assets/KaTeX_Math-Italic-flOr_0UB.ttf",
+            "bytes": 31308,
+            "gzipBytes": 19130,
+            "brotliBytes": 18011
+          },
+          {
+            "file": "assets/KaTeX_Math-Italic-t53AETM-.woff2",
+            "bytes": 16440,
+            "gzipBytes": 16466,
+            "brotliBytes": 16441
+          },
+          {
+            "file": "assets/KaTeX_SansSerif-Bold-CFMepnvq.ttf",
+            "bytes": 24504,
+            "gzipBytes": 14596,
+            "brotliBytes": 13713
+          },
+          {
+            "file": "assets/KaTeX_SansSerif-Bold-D1sUS0GD.woff2",
+            "bytes": 12216,
+            "gzipBytes": 12239,
+            "brotliBytes": 12220
+          },
+          {
+            "file": "assets/KaTeX_SansSerif-Bold-DbIhKOiC.woff",
+            "bytes": 14408,
+            "gzipBytes": 14381,
+            "brotliBytes": 14316
+          },
+          {
+            "file": "assets/KaTeX_SansSerif-Italic-C3H0VqGB.woff2",
+            "bytes": 12028,
+            "gzipBytes": 12051,
+            "brotliBytes": 12032
+          },
+          {
+            "file": "assets/KaTeX_SansSerif-Italic-DN2j7dab.woff",
+            "bytes": 14112,
+            "gzipBytes": 14071,
+            "brotliBytes": 14019
+          },
+          {
+            "file": "assets/KaTeX_SansSerif-Italic-YYjJ1zSn.ttf",
+            "bytes": 22364,
+            "gzipBytes": 14269,
+            "brotliBytes": 13549
+          },
+          {
+            "file": "assets/KaTeX_SansSerif-Regular-BNo7hRIc.ttf",
+            "bytes": 19436,
+            "gzipBytes": 12359,
+            "brotliBytes": 11751
+          },
+          {
+            "file": "assets/KaTeX_SansSerif-Regular-CS6fqUqJ.woff",
+            "bytes": 12316,
+            "gzipBytes": 12279,
+            "brotliBytes": 12215
+          },
+          {
+            "file": "assets/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2",
+            "bytes": 10344,
+            "gzipBytes": 10367,
+            "brotliBytes": 10348
+          },
+          {
+            "file": "assets/KaTeX_Script-Regular-C5JkGWo-.ttf",
+            "bytes": 16648,
+            "gzipBytes": 10695,
+            "brotliBytes": 10047
+          },
+          {
+            "file": "assets/KaTeX_Script-Regular-D3wIWfF6.woff2",
+            "bytes": 9644,
+            "gzipBytes": 9667,
+            "brotliBytes": 9648
+          },
+          {
+            "file": "assets/KaTeX_Script-Regular-D5yQViql.woff",
+            "bytes": 10588,
+            "gzipBytes": 10534,
+            "brotliBytes": 10472
+          },
+          {
+            "file": "assets/KaTeX_Size1-Regular-C195tn64.woff",
+            "bytes": 6496,
+            "gzipBytes": 6450,
+            "brotliBytes": 6391
+          },
+          {
+            "file": "assets/KaTeX_Size1-Regular-Dbsnue_I.ttf",
+            "bytes": 12228,
+            "gzipBytes": 6395,
+            "brotliBytes": 6004
+          },
+          {
+            "file": "assets/KaTeX_Size1-Regular-mCD8mA8B.woff2",
+            "bytes": 5468,
+            "gzipBytes": 5491,
+            "brotliBytes": 5472
+          },
+          {
+            "file": "assets/KaTeX_Size2-Regular-B7gKUWhC.ttf",
+            "bytes": 11508,
+            "gzipBytes": 6092,
+            "brotliBytes": 5696
+          },
+          {
+            "file": "assets/KaTeX_Size2-Regular-Dy4dx90m.woff2",
+            "bytes": 5208,
+            "gzipBytes": 5231,
+            "brotliBytes": 5212
+          },
+          {
+            "file": "assets/KaTeX_Size2-Regular-oD1tc_U0.woff",
+            "bytes": 6188,
+            "gzipBytes": 6136,
+            "brotliBytes": 6078
+          },
+          {
+            "file": "assets/KaTeX_Size3-Regular-CTq5MqoE.woff",
+            "bytes": 4420,
+            "gzipBytes": 4360,
+            "brotliBytes": 4322
+          },
+          {
+            "file": "assets/KaTeX_Size3-Regular-DgpXs0kz.ttf",
+            "bytes": 7588,
+            "gzipBytes": 4274,
+            "brotliBytes": 3934
+          },
+          {
+            "file": "assets/KaTeX_Size4-Regular-BF-4gkZK.woff",
+            "bytes": 5980,
+            "gzipBytes": 5927,
+            "brotliBytes": 5878
+          },
+          {
+            "file": "assets/KaTeX_Size4-Regular-DWFBv043.ttf",
+            "bytes": 10364,
+            "gzipBytes": 5932,
+            "brotliBytes": 5512
+          },
+          {
+            "file": "assets/KaTeX_Size4-Regular-Dl5lxZxV.woff2",
+            "bytes": 4928,
+            "gzipBytes": 4951,
+            "brotliBytes": 4932
+          },
+          {
+            "file": "assets/KaTeX_Typewriter-Regular-C0xS9mPB.woff",
+            "bytes": 16028,
+            "gzipBytes": 15993,
+            "brotliBytes": 15927
+          },
+          {
+            "file": "assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2",
+            "bytes": 13568,
+            "gzipBytes": 13591,
+            "brotliBytes": 13572
+          },
+          {
+            "file": "assets/KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf",
+            "bytes": 27556,
+            "gzipBytes": 16279,
+            "brotliBytes": 15387
+          },
+          {
+            "file": "assets/LanguageDb-z096FkAo.js",
+            "bytes": 6008,
+            "gzipBytes": 2218,
+            "brotliBytes": 1843
+          },
+          {
+            "file": "assets/PackageStudioWorkspace-8nQZq-W9.js",
+            "bytes": 184902,
+            "gzipBytes": 44678,
+            "brotliBytes": 37809
+          },
+          {
+            "file": "assets/katex-DvXFAOB1.css",
+            "bytes": 29193,
+            "gzipBytes": 8045,
+            "brotliBytes": 6934
+          },
+          {
+            "file": "assets/katex.min-CtEh9IJh.js",
+            "bytes": 265162,
+            "gzipBytes": 77282,
+            "brotliBytes": 63673
+          }
+        ]
+      },
+      "graphicsStudioFirstOpenIncremental": {
+        "fileCount": 3,
+        "bytes": 934389,
+        "gzipBytes": 216328,
+        "brotliBytes": 178642,
+        "assets": [
+          {
+            "file": "assets/StoicheiaPackageStudioAdapter-BXUoiBU4.js",
+            "bytes": 819527,
+            "gzipBytes": 198275,
+            "brotliBytes": 163856
+          },
+          {
+            "file": "assets/StoicheiaPackageStudioAdapter-BzH7luZd.css",
+            "bytes": 114208,
+            "gzipBytes": 17709,
+            "brotliBytes": 14497
+          },
+          {
+            "file": "assets/index-D3LPrbHn.js",
+            "bytes": 654,
+            "gzipBytes": 344,
+            "brotliBytes": 289
+          }
+        ]
+      },
+      "graphicsEditorEntryIncremental": {
+        "fileCount": 2,
+        "bytes": 23279,
+        "gzipBytes": 8078,
+        "brotliBytes": 7104,
+        "assets": [
+          {
+            "file": "assets/Editor-iQSnity0.js",
+            "bytes": 8668,
+            "gzipBytes": 2988,
+            "brotliBytes": 2606
+          },
+          {
+            "file": "assets/index-1mn8vLp9.js",
+            "bytes": 14611,
+            "gzipBytes": 5090,
+            "brotliBytes": 4498
+          }
+        ]
+      },
+      "monacoCoreColdIncremental": {
+        "fileCount": 3,
+        "bytes": 4038531,
+        "gzipBytes": 1051255,
+        "brotliBytes": 826944,
+        "assets": [
+          {
+            "file": "assets/codicon-ngg6Pgfi.ttf",
+            "bytes": 121972,
+            "gzipBytes": 59175,
+            "brotliBytes": 53215
+          },
+          {
+            "file": "assets/editor-Ck3IbhyB.css",
+            "bytes": 142371,
+            "gzipBytes": 22847,
+            "brotliBytes": 19376
+          },
+          {
+            "file": "assets/editor.main-D379II_q.js",
+            "bytes": 3774188,
+            "gzipBytes": 969233,
+            "brotliBytes": 754353
+          }
+        ]
+      },
+      "monacoEditorWorkerOnFirstUse": {
+        "fileCount": 1,
+        "bytes": 251684,
+        "gzipBytes": 75417,
+        "brotliBytes": 62145,
+        "assets": [
+          {
+            "file": "assets/editor.worker-C2_AfrSl.js",
+            "bytes": 251684,
+            "gzipBytes": 75417,
+            "brotliBytes": 62145
+          }
+        ]
+      },
+      "graphicsEditorColdIncremental": {
+        "fileCount": 6,
+        "bytes": 4313494,
+        "gzipBytes": 1134750,
+        "brotliBytes": 896193,
+        "assets": [
+          {
+            "file": "assets/Editor-iQSnity0.js",
+            "bytes": 8668,
+            "gzipBytes": 2988,
+            "brotliBytes": 2606
+          },
+          {
+            "file": "assets/codicon-ngg6Pgfi.ttf",
+            "bytes": 121972,
+            "gzipBytes": 59175,
+            "brotliBytes": 53215
+          },
+          {
+            "file": "assets/editor-Ck3IbhyB.css",
+            "bytes": 142371,
+            "gzipBytes": 22847,
+            "brotliBytes": 19376
+          },
+          {
+            "file": "assets/editor.main-D379II_q.js",
+            "bytes": 3774188,
+            "gzipBytes": 969233,
+            "brotliBytes": 754353
+          },
+          {
+            "file": "assets/editor.worker-C2_AfrSl.js",
+            "bytes": 251684,
+            "gzipBytes": 75417,
+            "brotliBytes": 62145
+          },
+          {
+            "file": "assets/index-1mn8vLp9.js",
+            "bytes": 14611,
+            "gzipBytes": 5090,
+            "brotliBytes": 4498
+          }
+        ]
+      },
+      "allStoicheiaOwnedAssets": {
+        "fileCount": 29,
+        "bytes": 1097422,
+        "gzipBytes": 273829,
+        "brotliBytes": 229447,
+        "assets": [
+          {
+            "file": "assets/AdvancedPointDialog-Buu5oX6C.js",
+            "bytes": 9892,
+            "gzipBytes": 3113,
+            "brotliBytes": 2733
+          },
+          {
+            "file": "assets/AngleValueDialog-CPqOarQq.js",
+            "bytes": 4388,
+            "gzipBytes": 1903,
+            "brotliBytes": 1687
+          },
+          {
+            "file": "assets/AssociatedTriangleDialog-BE7kDhLV.js",
+            "bytes": 6162,
+            "gzipBytes": 2197,
+            "brotliBytes": 1937
+          },
+          {
+            "file": "assets/BarycentricPointDialog-DfA2gmYE.js",
+            "bytes": 4184,
+            "gzipBytes": 1760,
+            "brotliBytes": 1566
+          },
+          {
+            "file": "assets/CircleCircleDialog-NblWUyCK.js",
+            "bytes": 4987,
+            "gzipBytes": 1924,
+            "brotliBytes": 1737
+          },
+          {
+            "file": "assets/CircleTransformationDialog-DOdLOd8K.js",
+            "bytes": 5044,
+            "gzipBytes": 1980,
+            "brotliBytes": 1763
+          },
+          {
+            "file": "assets/CommandPalette-BqSyErG7.js",
+            "bytes": 7017,
+            "gzipBytes": 2598,
+            "brotliBytes": 2267
+          },
+          {
+            "file": "assets/DefinedCircleDialog-DOzqZGzi.js",
+            "bytes": 6458,
+            "gzipBytes": 2367,
+            "brotliBytes": 2113
+          },
+          {
+            "file": "assets/DefinedLineDialog-OnnMV_w8.js",
+            "bytes": 6607,
+            "gzipBytes": 2396,
+            "brotliBytes": 2121
+          },
+          {
+            "file": "assets/DefinedTriangleDialog-DlpQVVAm.js",
+            "bytes": 6256,
+            "gzipBytes": 2251,
+            "brotliBytes": 1974
+          },
+          {
+            "file": "assets/DuplicateSegmentDialog-mLKzii9f.js",
+            "bytes": 2941,
+            "gzipBytes": 1307,
+            "brotliBytes": 1154
+          },
+          {
+            "file": "assets/Editor-iQSnity0.js",
+            "bytes": 8668,
+            "gzipBytes": 2988,
+            "brotliBytes": 2606
+          },
+          {
+            "file": "assets/EllipseDialog-BT53lfsa.js",
+            "bytes": 3550,
+            "gzipBytes": 1326,
+            "brotliBytes": 1175
+          },
+          {
+            "file": "assets/LineCircleDialog-fc6KouSL.js",
+            "bytes": 5248,
+            "gzipBytes": 2081,
+            "brotliBytes": 1879
+          },
+          {
+            "file": "assets/MeasurementDialog-CGyhtSbA.js",
+            "bytes": 6640,
+            "gzipBytes": 2195,
+            "brotliBytes": 1973
+          },
+          {
+            "file": "assets/PointTransformationDialog-BRYx85up.js",
+            "bytes": 6560,
+            "gzipBytes": 2413,
+            "brotliBytes": 2114
+          },
+          {
+            "file": "assets/PointsTransformationDialog-BCwjSsEI.js",
+            "bytes": 6877,
+            "gzipBytes": 2520,
+            "brotliBytes": 2220
+          },
+          {
+            "file": "assets/PolygonConstructionDialog-DzN10l56.js",
+            "bytes": 6832,
+            "gzipBytes": 2547,
+            "brotliBytes": 2234
+          },
+          {
+            "file": "assets/ProjectedExcentersDialog-BCoSaOTD.js",
+            "bytes": 4487,
+            "gzipBytes": 1802,
+            "brotliBytes": 1598
+          },
+          {
+            "file": "assets/RadicalAxisDialog-D6gcEGXL.js",
+            "bytes": 2939,
+            "gzipBytes": 1311,
+            "brotliBytes": 1163
+          },
+          {
+            "file": "assets/RandomPointDialog-1MI7-8XB.js",
+            "bytes": 4756,
+            "gzipBytes": 1873,
+            "brotliBytes": 1661
+          },
+          {
+            "file": "assets/SettingsPage-CLIQbFv-.js",
+            "bytes": 19751,
+            "gzipBytes": 3911,
+            "brotliBytes": 3414
+          },
+          {
+            "file": "assets/ShowLineDialog-D8mpa8gg.js",
+            "bytes": 4647,
+            "gzipBytes": 1865,
+            "brotliBytes": 1655
+          },
+          {
+            "file": "assets/ShowTransformationDialog-EU8mYBHe.js",
+            "bytes": 4461,
+            "gzipBytes": 1796,
+            "brotliBytes": 1579
+          },
+          {
+            "file": "assets/StoicheiaPackageStudioAdapter-BXUoiBU4.js",
+            "bytes": 819527,
+            "gzipBytes": 198275,
+            "brotliBytes": 163856
+          },
+          {
+            "file": "assets/StoicheiaPackageStudioAdapter-BzH7luZd.css",
+            "bytes": 114208,
+            "gzipBytes": 17709,
+            "brotliBytes": 14497
+          },
+          {
+            "file": "assets/TriangleCenterDialog-BFe8qQiv.js",
+            "bytes": 5325,
+            "gzipBytes": 1906,
+            "brotliBytes": 1696
+          },
+          {
+            "file": "assets/VectorCoordinatesDialog-Vn29xGx1.js",
+            "bytes": 3912,
+            "gzipBytes": 1608,
+            "brotliBytes": 1395
+          },
+          {
+            "file": "assets/VectorPointDialog-DQdIyYXO.js",
+            "bytes": 5098,
+            "gzipBytes": 1907,
+            "brotliBytes": 1680
+          }
+        ]
+      }
+    }
+  },
+  "productionTauriCapture": {
+    "captured": true,
+    "requiredMetrics": [
+      "coldStartupToFirstPaintMs",
+      "graphicsModuleLoadMs",
+      "firstCanvasCommitMs",
+      "parseRoundTripMs",
+      "rendererMs",
+      "dragFrameIntervalsMs",
+      "panFrameIntervalsMs",
+      "zoomFrameIntervalsMs",
+      "exactCompileColdMs",
+      "exactCompileWarmMs"
+    ],
+    "inputPath": "/home/spyros/datatex-v2/benchmarks/stoicheia/runtime-linux-reference-2026-08-10.json",
+    "report": {
+      "schemaVersion": 1,
+      "suite": "datatex-stoicheia-production-tauri-performance",
+      "sessionId": "9613710c-6cf3-4b5f-9649-0a88aabc1d84",
+      "startedAt": "2026-08-10T14:16:45.797Z",
+      "captureMode": "production-tauri-webview",
+      "environment": {
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+        "platform": "Linux x86_64",
+        "hardwareConcurrency": 8,
+        "deviceMemoryGb": null,
+        "devicePixelRatio": 1,
+        "screen": {
+          "width": 1920,
+          "height": 1080
+        },
+        "performanceTimeOrigin": 1786371405664,
+        "longTaskObserverSupported": true
+      },
+      "metrics": {
+        "parseRoundTripMs": [
+          1,
+          1,
+          0,
+          1,
+          0,
+          36,
+          1,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          1,
+          0,
+          1,
+          1,
+          1,
+          0,
+          1,
+          1,
+          0,
+          1,
+          1,
+          0,
+          1,
+          1,
+          1,
+          1,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          2,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          1,
+          1,
+          1,
+          1,
+          0,
+          1,
+          1,
+          0,
+          1
+        ],
+        "rendererMs": [
+          5,
+          2,
+          1,
+          1
+        ],
+        "dragFrameIntervalsMs": [
+          16,
+          31,
+          17,
+          16,
+          17,
+          31,
+          17,
+          16,
+          16,
+          15,
+          33,
+          16,
+          15,
+          32,
+          32,
+          33,
+          16,
+          16,
+          16,
+          16,
+          16,
+          32,
+          32,
+          16,
+          32,
+          32,
+          32,
+          33,
+          32,
+          34,
+          32,
+          31,
+          16,
+          16,
+          15,
+          17,
+          15,
+          33,
+          16,
+          32,
+          32,
+          32,
+          17,
+          32,
+          16,
+          31,
+          33,
+          33,
+          17,
+          16,
+          33,
+          34,
+          34,
+          32,
+          33,
+          151
+        ],
+        "panFrameIntervalsMs": [
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          32,
+          16,
+          16,
+          32,
+          32,
+          16,
+          16,
+          17,
+          16,
+          16,
+          16,
+          16,
+          32,
+          32,
+          16,
+          32,
+          32,
+          16,
+          16,
+          16,
+          17,
+          32,
+          16,
+          16,
+          16,
+          16,
+          32,
+          48,
+          16,
+          16,
+          16,
+          16,
+          16,
+          33,
+          16,
+          48,
+          16,
+          16,
+          16,
+          22
+        ],
+        "zoomFrameIntervalsMs": [
+          48,
+          64,
+          50,
+          95,
+          32,
+          34,
+          159,
+          48,
+          64,
+          81,
+          193,
+          32,
+          48,
+          48,
+          48,
+          129,
+          49,
+          143,
+          49,
+          32,
+          161,
+          161,
+          16,
+          23,
+          16,
+          33,
+          33,
+          50,
+          102,
+          32,
+          48,
+          16,
+          16,
+          16,
+          29,
+          51,
+          113,
+          16,
+          20,
+          33,
+          204,
+          32,
+          16,
+          16,
+          16,
+          16,
+          25,
+          16,
+          38,
+          16,
+          17,
+          16,
+          17,
+          30,
+          26,
+          22,
+          25,
+          23,
+          36,
+          33,
+          23,
+          27,
+          34,
+          29,
+          26,
+          25,
+          24,
+          25,
+          43,
+          38,
+          32,
+          30,
+          26,
+          8,
+          210,
+          40,
+          33,
+          36,
+          31,
+          30,
+          20,
+          26,
+          25,
+          22,
+          38,
+          33,
+          33
+        ],
+        "failedExactCompileMs": [
+          432
+        ],
+        "coldStartupToFirstPaintMs": 155,
+        "graphicsModuleLoadMs": 48,
+        "firstCanvasCommitMs": 313,
+        "exactCompileColdMs": 793,
+        "exactCompileWarmMs": 2
+      },
+      "longTasks": [],
+      "completedAt": "2026-08-10T14:21:04.977Z"
+    },
+    "note": "Production Tauri/WebView capture validated against the required metric inventory."
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "suite": "stoicheia-generated-latex-byte-exact",
+  "provenance": {
+    "standaloneVersion": "1.2.2",
+    "encoding": "utf-8",
+    "comparison": "exact",
+    "unicodeNormalization": "none",
+    "scenarioInputs": "Audited, typed runners in parity/generatedLatexParity.test.ts",
+    "sourceManifest": {
+      "path": "src/features/stoicheia/SOURCE_MANIFEST.sha256",
+      "sha256": "a35468cc46d9011a6eb4e5cb3aacb49d65865ada2892f15013cbddb3ff6a2cb7"
+    },
+    "generatorSources": [
+      {
+        "path": "store.ts",
+        "sha256": "adf8b9ba30e3ee1df09d6205a5acdda5a5c18f07d75a9be6e8cae58f8586a36b"
+      },
+      {
+        "path": "tikz/options.ts",
+        "sha256": "15b7560cea8e93245c84ee85754cb5624cba050b0a3ce755743be82f820452f9"
+      },
+      {
+        "path": "tikz/styleCommands.ts",
+        "sha256": "2c9654b9fe0f3e028674455902e075681b125bbc98cb0b4e5a3fcb44970d56e5"
+      },
+      {
+        "path": "editor/commandOptions.ts",
+        "sha256": "535d81798edc3176e6068b165f8cdbc0c934dd0224da0c713bd2970eca76b8d7"
+      },
+      {
+        "path": "components/nodeDeletion.ts",
+        "sha256": "577d76de4d325177c7ed5a3c51adf69403c16972cae2965ddcae40e61efc4e3d"
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "first-of-multiple-pictures-lf",
+      "category": "insertion",
+      "description": "Insert into the first of multiple LF tikzpicture environments.",
+      "expectedSource": "\\documentclass{article}\n\\begin{document}\n\\begin{tikzpicture}\n\\tkzDefPoint(0,0){A}\n\\tkzDrawPoints(A)\n\\end{tikzpicture}\nBetween pictures.\n\\begin{tikzpicture}\n\\tkzDefPoint(1,1){B}\n\\end{tikzpicture}\n\\end{document}",
+      "expectedSourceSha256Utf8": "778a069ccc7b81d4778d3e8ddc5ebd24894f2b28adc95fd5c0cd4276ebee86b0"
+    },
+    {
+      "id": "before-end-document-crlf-unicode",
+      "category": "line-endings",
+      "description": "Freeze the inherited mixed-EOL insertion before end document with Unicode.",
+      "expectedSource": "\\documentclass{article}\r\n\\begin{document}\r\nΕλληνικό κείμενο\r\n\\tkzDrawPolygon(A,B,C)\n\\end{document}\r\n",
+      "expectedSourceSha256Utf8": "5b7280a8567389b4723598e1ba2f36b0e2c7d7112541304ee431f70167aaeb35"
+    },
+    {
+      "id": "append-without-document-shell",
+      "category": "insertion",
+      "description": "Append a command when no document or tikzpicture shell exists.",
+      "expectedSource": "% scratch source\n\\tkzDrawCircle(O,A)\n",
+      "expectedSourceSha256Utf8": "a23fd6018ea83d93cbae5523029bb5260525bf76574a523672da26b28f08a94e"
+    },
+    {
+      "id": "composite-construction-name-reservation",
+      "category": "construction",
+      "description": "Reserve generated names across midpoint, triangle, polygon, and segment actions.",
+      "expectedSource": "\\documentclass{standalone}\n\\usepackage{tkz-euclide}\n\\begin{document}\n\\begin{tikzpicture}\n\\tkzDefPoint(0,0){A}\n\\tkzDefPoint(4,0){B}\n\\tkzDefPoint(1,3){C}\n\\tkzDefMidPoint(A,B)\n\\tkzGetPoint{D}\n\\tkzDrawPoints(D)\n\\tkzLabelPoint(D){$D$}\n\\tkzDefTriangle[two angles=45 and 60,swap](A,B)\n\\tkzGetPoint{E}\n\\tkzDrawPolygon(A,B,E)\n\\tkzDrawPoints(E)\n\\tkzLabelPoint(E){$E$}\n\\tkzDefSquare(A,B)\n\\tkzGetPoints{F}{G}\n\\tkzDrawPolygon(A,B,F,G)\n\\tkzDrawPoints(F,G)\n\\tkzLabelPoint(F){$F$}\n\\tkzLabelPoint(G){$G$}\n\\tkzDrawSegment[color=teal,line width=.8pt](D,E)\n\\end{tikzpicture}\n\\end{document}",
+      "expectedSourceSha256Utf8": "3b9fb6f626fd2aae306c412abb781ff9799e305fda7693c389499af27645f7ac"
+    },
+    {
+      "id": "transform-and-intersection",
+      "category": "construction",
+      "description": "Generate a point transformation followed by a line-circle intersection.",
+      "expectedSource": "\\begin{tikzpicture}\n\\tkzDefPoint(0,0){A}\n\\tkzDefPoint(2,0){B}\n\\tkzDefPoint(0,2){C}\n\\tkzDefPoint(3,1){D}\n\\tkzDefPoint(1,1){O}\n\\tkzDefPointBy[translation=from B to C](A)\n\\tkzGetPoint{E}\n\\tkzDrawPoints(E)\n\\tkzLabelPoint(E){$E$}\n\\tkzInterLC[R,near](A,D)(O,2.5)\n\\tkzGetPoints{F}{G}\n\\tkzDrawPoints(F,G)\n\\tkzLabelPoint(F){$F$}\n\\tkzLabelPoint(G){$G$}\n\\end{tikzpicture}",
+      "expectedSourceSha256Utf8": "684a59fece7ac9d0b9fcbaeba604457290d742e2e187935a38b655ed1e142922"
+    },
+    {
+      "id": "styles-nested-options-unicode-label",
+      "category": "style",
+      "description": "Preserve nested style options and a Unicode mathematical label exactly.",
+      "expectedSource": "\\begin{tikzpicture}\n\\tkzSetUpStyle[draw=blue!70!black,line width=.8pt]{accent}\n\\tkzSetUpPoint[size=4,color={rgb,255:red,18;green,52;blue,86},fill=blue!15]\n\\tkzDefPoint(0,0){A}\n\\tkzLabelPoint[above,color={rgb,255:red,18;green,52;blue,86}](A){$Α_{κέντρο}$}\n\\end{tikzpicture}",
+      "expectedSourceSha256Utf8": "fe851b551e6ad9e18225d9cc3e23469368bba66ddea440951807383866ae68d4"
+    },
+    {
+      "id": "cartesian-and-polar-coordinate-edit",
+      "category": "editing",
+      "description": "Edit cartesian and polar point coordinates without rewriting surrounding bytes.",
+      "expectedSource": "\\begin{tikzpicture}\n\\tkzDefPoint(1.25,-2.5){A}\n\\tkzDefPoint(90:2){P}\n\\end{tikzpicture}",
+      "expectedSourceSha256Utf8": "18c2f2805aed57ca659d691d64f80eb4056973bb2a594914740c76103f278586"
+    },
+    {
+      "id": "inspector-options-and-reference-swap",
+      "category": "inspector",
+      "description": "Apply inspector options and swap references across a selected command block.",
+      "expectedSource": "\\begin{tikzpicture}\n\\tkzDefTriangle[equilateral](B,A)\n\\tkzGetPoint{C}\n\\tkzDrawPolygon[fill=cyan!15,draw={rgb,255:red,18;green,52;blue,86},line width=.8pt](B,A,C)\n\\tkzDrawPoints(C)\n\\end{tikzpicture}",
+      "expectedSourceSha256Utf8": "8ee080756c221ddc59cc65ce38795a3453d55fc328763354e37a3371010e97f4"
+    },
+    {
+      "id": "delete-construction-preserves-unrelated-bytes",
+      "category": "deletion",
+      "description": "Delete a generated construction while preserving unrelated Unicode comments and drawing bytes.",
+      "expectedSource": "\\begin{tikzpicture}\n% πριν\n\\tkzDrawSegment[dashed](A,B)\n% μετά\n\\end{tikzpicture}\n",
+      "expectedSourceSha256Utf8": "df952aa65d3aa9cf0077789c55f6978c50214fb01dfa46e948091647bc1e49f8"
+    },
+    {
+      "id": "direct-add-polygon-action",
+      "category": "construction",
+      "description": "Cover the direct polygon action that was missing from the inherited regression suite.",
+      "expectedSource": "\\begin{tikzpicture}\n\\tkzDefPoint(0,0){A}\n\\tkzDefPoint(2,0){B}\n\\tkzDefPoint(1,2){C}\n\\tkzDrawPolygon(A,B,C)\n\\end{tikzpicture}",
+      "expectedSourceSha256Utf8": "d240fe21745920384529c603710ea1a101613ef027a70f484cea45eca783e5ff"
+    }
+  ]
+}

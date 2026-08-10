@@ -42,13 +42,7 @@ export const aiProxy = {
     const listeners: (() => void)[] = [];
     let cleanupDone = false;
 
-    // Helper to emit stream formatted for UI
-    const emitThinking = (thought: string) => {
-      console.log("Thought:", thought);
-    };
-
     const teardown = () => {
-      console.log("[AIProxy] Teardown called");
       if (cleanupDone) return;
       cleanupDone = true;
       listeners.forEach((unlisten) => unlisten());
@@ -56,32 +50,16 @@ export const aiProxy = {
 
     return new Promise(async (resolve, reject) => {
       try {
-        console.log("[AIProxy] Setting up listeners...");
         // Setup Listeners
         listeners.push(
-          await listen("agent-thought", (event: any) => {
-            console.log("[Event] agent-thought:", event.payload);
-            emitThinking(event.payload);
-          }),
-        );
-        // ... (existing listeners are fine) ...
-        listeners.push(
-          await listen("agent-observation", (event: any) => {
-            console.log("[Event] agent-observation:", event.payload);
-          }),
-        );
-
-        listeners.push(
           await listen("agent-response", (event: any) => {
-            console.log("[Event] agent-response chunk received");
             fullResponse += event.payload;
             onStream(event.payload);
           }),
         );
 
         listeners.push(
-          await listen("agent-finished", (event: any) => {
-            console.log("[Event] agent-finished:", event.payload);
+          await listen("agent-finished", () => {
             teardown();
             resolve(fullResponse);
           }),
@@ -103,7 +81,6 @@ export const aiProxy = {
         listeners.push(
           await listen("agent-proposal", async (event: any) => {
             // ... existing proposal logic ...
-            console.log("[Event] agent-proposal:", event.payload);
             const { path, new_content } = event.payload;
 
             // 1. Read existing file content
@@ -145,15 +122,10 @@ export const aiProxy = {
         }));
 
         // Start Agent
-        console.log(
-          "[AIProxy] Invoking start_agent_cmd with history length:",
-          chatHistory.length,
-        );
         await invoke("start_agent_cmd", {
           chatHistory: chatHistory,
           config: config,
         });
-        console.log("[AIProxy] Invoke success");
       } catch (e: any) {
         console.error("[AIProxy] Invoke failed:", e);
         teardown();

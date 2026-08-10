@@ -117,8 +117,6 @@ pub fn save_document_metadata(
         .as_ref()
         .filter(|s| !s.is_empty());
 
-    eprintln!("[DEBUG] Saving Document: {}", resource_id);
-
     // 2. Validate Key Foreign Keys exist
     // Check Resource ID
     let resource_exists: bool = conn
@@ -205,11 +203,6 @@ pub fn save_document_metadata(
         }
     }
 
-    eprintln!("[DEBUG] field_id (final): {:?}", field_id);
-    eprintln!("[DEBUG] doc_type_id (final): {:?}", document_type_id);
-    eprintln!("[DEBUG] preamble_id (final): {:?}", preamble_id);
-    eprintln!("[DEBUG] solution_id (final): {:?}", solution_document_id);
-
     conn.execute(
         "INSERT OR REPLACE INTO resource_documents (
             resource_id, title, document_type_id,
@@ -264,7 +257,6 @@ pub fn save_document_metadata(
                     .unwrap_or(false);
 
                 if exists {
-                    eprintln!("[DEBUG] Inserting chapter FK: {}", id);
                     conn.execute("INSERT OR IGNORE INTO resource_document_chapters (resource_id, chapter_id) VALUES (?1, ?2)", params![resource_id, id])?;
                 } else {
                     eprintln!("[WARNING] Skipping invalid chapter_id: {}", id);
@@ -286,7 +278,6 @@ pub fn save_document_metadata(
                     .unwrap_or(false);
 
                 if exists {
-                    eprintln!("[DEBUG] Inserting section FK: {}", id);
                     conn.execute("INSERT OR IGNORE INTO resource_document_sections (resource_id, section_id) VALUES (?1, ?2)", params![resource_id, id])?;
                 } else {
                     eprintln!("[WARNING] Skipping invalid section_id: {}", id);
@@ -310,7 +301,6 @@ pub fn save_document_metadata(
                     .unwrap_or(false);
 
                 if exists {
-                    eprintln!("[DEBUG] Inserting subsection FK: {}", id);
                     conn.execute("INSERT OR IGNORE INTO resource_document_subsections (resource_id, subsection_id) VALUES (?1, ?2)", params![resource_id, id])?;
                 } else {
                     eprintln!("[WARNING] Skipping invalid subsection_id: {}", id);
