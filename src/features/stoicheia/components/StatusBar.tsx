@@ -1,6 +1,16 @@
 import { Activity, Box, MousePointer2, ZoomIn } from 'lucide-react';
 import { useEditorStore } from '../store';
 import { useShallow } from 'zustand/react/shallow';
+import { useEffect, useRef } from 'react';
+import {
+  clearStoicheiaHostStatus,
+  publishStoicheiaHostStatus,
+} from '../../../stores/stoicheiaHostStatus';
+import {
+  recordStoicheiaExactCompile,
+  recordStoicheiaParseRoundTrip,
+  recordStoicheiaRenderer,
+} from '../../../utils/stoicheiaRuntimePerformance';
 
 const humanizeTool = (tool: string) => {
   if (tool === 'cursor') return 'Select';
@@ -14,14 +24,120 @@ const formatMs = (value?: number) => {
   return value < 10 ? `${value.toFixed(1)}ms` : `${Math.round(value)}ms`;
 };
 
-export function StatusBar() {
-  const { activeTool, zoomLevel, parsedNodeCount, snapToGrid, performanceMetrics } = useEditorStore(useShallow(state => ({
+export function StatusBar({ mode = 'standalone' }: { mode?: 'standalone' | 'embedded' }) {
+  const {
+    activeTool,
+    zoomLevel,
+    parsedNodeCount,
+    snapToGrid,
+    performanceMetrics,
+    isCompiling,
+    errorLog,
+    previewMode,
+    source,
+    parsedSource,
+    compiledSource,
+    svgOutput,
+    latexCompiler,
+  } = useEditorStore(useShallow(state => ({
     activeTool: state.activeTool,
     zoomLevel: state.zoomLevel,
     parsedNodeCount: state.parsedNodes.length,
     snapToGrid: state.snapToGrid,
     performanceMetrics: state.performanceMetrics,
+    isCompiling: state.isCompiling,
+    errorLog: state.errorLog,
+    previewMode: state.previewMode,
+    source: state.source,
+    parsedSource: state.parsedSource,
+    compiledSource: state.compiledSource,
+    svgOutput: state.svgOutput,
+    latexCompiler: state.settings.latexCompiler,
   })));
+  const wasCompilingRef = useRef(false);
+  const compileMetricAtStartRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (mode !== 'embedded') return undefined;
+    publishStoicheiaHostStatus({
+      activeTool,
+      zoomLevel,
+      parsedNodeCount,
+      snapToGrid,
+      performanceMetrics,
+      isCompiling,
+      hasCompileError: Boolean(errorLog),
+      previewMode,
+    });
+    return undefined;
+  }, [
+    activeTool,
+    errorLog,
+    isCompiling,
+    mode,
+    parsedNodeCount,
+    performanceMetrics,
+    previewMode,
+    snapToGrid,
+    zoomLevel,
+  ]);
+
+  useEffect(() => {
+    if (mode !== 'embedded') return undefined;
+    return clearStoicheiaHostStatus;
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== 'embedded' || performanceMetrics?.rendererMs === undefined) {
+      return;
+    }
+    recordStoicheiaRenderer(performanceMetrics.rendererMs);
+  }, [mode, performanceMetrics?.rendererMs]);
+
+  useEffect(() => {
+    if (
+      mode === 'embedded'
+      && parsedSource
+      && performanceMetrics?.parseRoundTripMs !== undefined
+    ) {
+      recordStoicheiaParseRoundTrip(performanceMetrics.parseRoundTripMs);
+    }
+  }, [mode, parsedSource]);
+
+  useEffect(() => {
+    const wasCompiling = wasCompilingRef.current;
+    wasCompilingRef.current = isCompiling;
+    if (!wasCompiling && isCompiling) {
+      compileMetricAtStartRef.current = performanceMetrics?.compileRoundTripMs;
+      return;
+    }
+    if (
+      mode !== 'embedded'
+      || !wasCompiling
+      || isCompiling
+      || performanceMetrics?.compileRoundTripMs === undefined
+      || performanceMetrics.compileRoundTripMs === compileMetricAtStartRef.current
+    ) {
+      return;
+    }
+    recordStoicheiaExactCompile(
+      performanceMetrics.compileRoundTripMs,
+      source,
+      latexCompiler,
+      compiledSource === source && Boolean(svgOutput) && !errorLog,
+    );
+  }, [
+    compiledSource,
+    errorLog,
+    isCompiling,
+    latexCompiler,
+    mode,
+    performanceMetrics?.compileRoundTripMs,
+    source,
+    svgOutput,
+  ]);
+
+  if (mode === 'embedded') return null;
   const perfTitle = performanceMetrics ? [
     `Parse round-trip: ${formatMs(performanceMetrics.parseRoundTripMs)}`,
     `Rust parse: ${formatMs(performanceMetrics.parseMs)}`,

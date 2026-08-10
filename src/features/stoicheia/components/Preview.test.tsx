@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import { Preview } from './Preview';
 import { DEFAULT_APP_SETTINGS, useEditorStore } from '../store';
@@ -39,6 +39,10 @@ describe('Preview pan interaction', () => {
       showHandles: true,
       zoomLevel: 1,
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('does not pan with left drag while the cursor tool is active', () => {
@@ -613,7 +617,18 @@ describe('Preview pan interaction', () => {
     expect(parseFloat(scene.style.height)).toBeCloseTo(viewBoxHeight * 1.75);
   });
 
-  it('moves the dragged point handle optimistically before the parse pipeline catches up', () => {
+  it('coalesces point-drag bursts to one preview update per frame and one source commit', () => {
+    let nextFrameId = 1;
+    const frameCallbacks = new Map<number, FrameRequestCallback>();
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const frameId = nextFrameId;
+      nextFrameId += 1;
+      frameCallbacks.set(frameId, callback);
+      return frameId;
+    });
+    const cancelFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((frameId) => {
+      frameCallbacks.delete(frameId);
+    });
     useEditorStore.setState({
       source: '\\begin{tikzpicture}\n\\tkzDefPoint(0,0){A}\n\\tkzDefPoint(2,0){B}\n\\end{tikzpicture}',
       parsedNodes: [{ type: 'Point', name: 'A', x: 0, y: 0 }, { type: 'Point', name: 'B', x: 2, y: 0 }],
@@ -630,24 +645,102 @@ describe('Preview pan interaction', () => {
     const initialHistoryLength = useEditorStore.getState().sourceHistory.length;
 
     fireEvent.mouseDown(handle, { button: 0, clientX: -viewBox.x, clientY: -viewBox.y });
-    fireEvent.mouseMove(window, { clientX: targetSvgX - viewBox.x, clientY: targetSvgY - viewBox.y });
+    for (let index = 0; index < 120; index += 1) {
+      fireEvent.mouseMove(window, {
+        clientX: targetSvgX - viewBox.x + index / 100,
+        clientY: targetSvgY - viewBox.y + index / 100,
+        altKey: true,
+      });
+    }
 
     expect(useEditorStore.getState().source).toBe(initialSource);
     expect(useEditorStore.getState().sourceHistory).toHaveLength(initialHistoryLength);
+    expect(requestFrame).toHaveBeenCalledTimes(1);
+
+    const initialHandle = container.querySelector('circle.pointer-events-auto') as SVGCircleElement;
+    expect(Number(initialHandle.getAttribute('cx'))).not.toBeCloseTo(targetSvgX + 1.19, 2);
+
+    const firstFrame = frameCallbacks.entries().next().value as
+      | [number, FrameRequestCallback]
+      | undefined;
+    expect(firstFrame).toBeDefined();
+    frameCallbacks.delete(firstFrame![0]);
+    act(() => firstFrame![1](16));
 
     const movedHandle = container.querySelector('circle.pointer-events-auto') as SVGCircleElement;
-    expect(Number(movedHandle.getAttribute('cx'))).toBeCloseTo(targetSvgX, 2);
-    expect(Number(movedHandle.getAttribute('cy'))).toBeCloseTo(targetSvgY, 2);
+    expect(Number(movedHandle.getAttribute('cx'))).toBeCloseTo(1.04 * 28.3464567, 2);
+    expect(Number(movedHandle.getAttribute('cy'))).toBeCloseTo(-0.96 * 28.3464567, 2);
 
     fireEvent.mouseMove(window, { clientX: targetSvgX - viewBox.x + 4, clientY: targetSvgY - viewBox.y + 4, altKey: true });
+    expect(requestFrame).toHaveBeenCalledTimes(2);
     expect(useEditorStore.getState().source).toBe(initialSource);
     expect(useEditorStore.getState().sourceHistory).toHaveLength(initialHistoryLength);
 
     fireEvent.mouseUp(window);
 
+    expect(cancelFrame).toHaveBeenCalledTimes(1);
+    expect(frameCallbacks).toHaveLength(0);
     expect(useEditorStore.getState().source).not.toBe(initialSource);
     expect(useEditorStore.getState().source).toContain('\\tkzDefPoint(1.14,0.86){A}');
     expect(useEditorStore.getState().sourceHistory).toHaveLength(initialHistoryLength + 1);
+  });
+
+  it('clears an optimistic point drag when a pan replaces the interaction', () => {
+    let nextFrameId = 1;
+    const frameCallbacks = new Map<number, FrameRequestCallback>();
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const frameId = nextFrameId;
+      nextFrameId += 1;
+      frameCallbacks.set(frameId, callback);
+      return frameId;
+    });
+    const cancelFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((frameId) => {
+      frameCallbacks.delete(frameId);
+    });
+    useEditorStore.setState({
+      source: '\\begin{tikzpicture}\n\\tkzDefPoint(0,0){A}\n\\tkzDefPoint(2,0){B}\n\\end{tikzpicture}',
+      parsedNodes: [{ type: 'Point', name: 'A', x: 0, y: 0 }, { type: 'Point', name: 'B', x: 2, y: 0 }],
+      resolvedPoints: { A: { x: 0, y: 0 }, B: { x: 2, y: 0 } },
+      showHandles: true,
+    });
+    const { container } = render(<Preview />);
+    const canvas = container.firstElementChild as HTMLElement;
+    const handle = container.querySelector('circle.pointer-events-auto') as SVGCircleElement;
+    const originalCx = handle.getAttribute('cx');
+    const originalCy = handle.getAttribute('cy');
+    const { viewBox } = attachOverlayRect(container);
+    const initialSource = useEditorStore.getState().source;
+    const initialHistoryLength = useEditorStore.getState().sourceHistory.length;
+
+    fireEvent.mouseDown(handle, { button: 0, clientX: -viewBox.x, clientY: -viewBox.y });
+    fireEvent.mouseMove(window, {
+      clientX: 28.3464567 - viewBox.x,
+      clientY: -28.3464567 - viewBox.y,
+      altKey: true,
+    });
+    const firstFrame = frameCallbacks.entries().next().value as [number, FrameRequestCallback];
+    frameCallbacks.delete(firstFrame[0]);
+    act(() => firstFrame[1](16));
+    expect((container.querySelector('circle.pointer-events-auto') as SVGCircleElement).getAttribute('cx')).not.toBe(originalCx);
+
+    fireEvent.mouseMove(window, {
+      clientX: 56.6929134 - viewBox.x,
+      clientY: -56.6929134 - viewBox.y,
+      altKey: true,
+    });
+    fireEvent.mouseDown(canvas, { button: 1, clientX: 20, clientY: 20 });
+
+    const restoredHandle = container.querySelector('circle.pointer-events-auto') as SVGCircleElement;
+    expect(restoredHandle.getAttribute('cx')).toBe(originalCx);
+    expect(restoredHandle.getAttribute('cy')).toBe(originalCy);
+    expect(cancelFrame).toHaveBeenCalledTimes(1);
+    expect(frameCallbacks).toHaveLength(0);
+    expect(useEditorStore.getState().source).toBe(initialSource);
+    expect(useEditorStore.getState().sourceHistory).toHaveLength(initialHistoryLength);
+    expect(document.body.style.cursor).toBe('grabbing');
+
+    fireEvent.blur(window);
+    expect(document.body.style.cursor).toBe('');
   });
 
   it('draws a segment and a line directly with two point clicks', () => {

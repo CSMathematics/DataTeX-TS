@@ -33,11 +33,15 @@ const EmbeddedHeaderHarness = ({
   onRequestSave,
   onRequestSaveAs,
   onRequestExportSvg,
+  applyActionLabel,
+  copySourceMode,
 }: {
   onRequestApply?: (source: string) => void;
   onRequestSave?: (source: string) => void;
   onRequestSaveAs?: (source: string) => void;
   onRequestExportSvg?: (svgSource: string, suggestedFileName: string) => void;
+  applyActionLabel?: string;
+  copySourceMode?: 'document' | 'tikzpicture';
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
   return (
@@ -49,6 +53,8 @@ const EmbeddedHeaderHarness = ({
         onRequestSave={onRequestSave}
         onRequestSaveAs={onRequestSaveAs}
         onRequestExportSvg={onRequestExportSvg}
+        applyActionLabel={applyActionLabel}
+        copySourceMode={copySourceMode}
         showEditor
         showInspector
         sourcePanelMode="source"
@@ -89,6 +95,7 @@ describe('AppHeader', () => {
 
   afterEach(() => {
     delete window.showOpenFilePicker;
+    vi.unstubAllGlobals();
   });
 
   it('opens source/style views and toggles canvas options from the View menu', () => {
@@ -309,37 +316,66 @@ describe('AppHeader', () => {
     }
   });
 
-  it('removes standalone file actions while disabling unavailable host file actions', () => {
+  it('replaces the standalone menu bar with compact embedded actions', () => {
     render(<EmbeddedHeaderHarness />);
 
-    fireEvent.click(screen.getByRole('button', { name: /File/ }));
-    expect(screen.queryByRole('menuitem', { name: /^New/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: /^Open/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: /^SaveCtrl/ })).toBeDisabled();
-    expect(screen.getByRole('menuitem', { name: /^Save as/i })).toBeDisabled();
-    expect(screen.getByRole('menuitem', { name: /Export SVG/ })).toBeDisabled();
+    expect(screen.queryByRole('navigation', { name: /Application menu/ })).not.toBeInTheDocument();
     expect(document.querySelector('input[type="file"]')).toBeNull();
     expect(screen.queryByRole('button', { name: /Switch to light theme/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy code' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Save as through DataTeX' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Export exact SVG' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Save through DataTeX' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Apply changes to DataTeX' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Apply to DataTeX' })).toBeDisabled();
   });
 
-  it('routes embedded File and toolbar Save through the host with the latest source', () => {
+  it('routes embedded Save through the host with the latest source', () => {
     const onRequestSave = vi.fn();
     render(<EmbeddedHeaderHarness onRequestSave={onRequestSave} />);
-
-    act(() => useEditorStore.getState().setSource('latest source from File'));
-    fireEvent.click(screen.getByRole('button', { name: /File/ }));
-    fireEvent.click(screen.getByRole('menuitem', { name: /^SaveCtrl/ }));
-    expect(onRequestSave).toHaveBeenLastCalledWith('latest source from File');
 
     act(() => useEditorStore.getState().setSource('latest source from toolbar'));
     fireEvent.click(screen.getByRole('button', { name: 'Save through DataTeX' }));
     expect(onRequestSave).toHaveBeenLastCalledWith('latest source from toolbar');
-    expect(onRequestSave).toHaveBeenCalledTimes(2);
+    expect(onRequestSave).toHaveBeenCalledOnce();
   });
 
-  it('routes embedded File Save As and exact SVG export through the host', () => {
+  it('copies only the TikZ environment for a drawing target', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      clipboard: { writeText },
+    });
+    useEditorStore.setState({
+      source: String.raw`\documentclass{article}
+\begin{document}
+\begin{tikzpicture}
+\draw (0,0) -- (1,1);
+\end{tikzpicture}
+\end{document}`,
+    });
+    render(<EmbeddedHeaderHarness copySourceMode="tikzpicture" />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy code' }));
+
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(String.raw`\begin{tikzpicture}
+\draw (0,0) -- (1,1);
+\end{tikzpicture}`));
+  });
+
+  it('uses a context-specific embedded apply label', () => {
+    const onRequestApply = vi.fn();
+    render(
+      <EmbeddedHeaderHarness
+        onRequestApply={onRequestApply}
+        applyActionLabel="Insert into document"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Insert into document' }));
+    expect(onRequestApply).toHaveBeenCalledWith(initialSource);
+  });
+
+  it('routes compact Save As and exact SVG export through the host', () => {
     const onRequestSaveAs = vi.fn();
     const onRequestExportSvg = vi.fn();
     render(
@@ -350,8 +386,7 @@ describe('AppHeader', () => {
     );
 
     act(() => useEditorStore.getState().setSource('latest Save As source'));
-    fireEvent.click(screen.getByRole('button', { name: /File/ }));
-    fireEvent.click(screen.getByRole('menuitem', { name: /^Save as/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save as through DataTeX' }));
     expect(onRequestSaveAs).toHaveBeenCalledOnce();
     expect(onRequestSaveAs).toHaveBeenLastCalledWith('latest Save As source');
 
@@ -364,8 +399,7 @@ describe('AppHeader', () => {
         exportSvgFilename: 'my diagram',
       },
     }));
-    fireEvent.click(screen.getByRole('button', { name: /File/ }));
-    fireEvent.click(screen.getByRole('menuitem', { name: /Export SVG/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Export exact SVG' }));
     expect(onRequestExportSvg).toHaveBeenCalledOnce();
     expect(onRequestExportSvg).toHaveBeenLastCalledWith(
       '<svg id="fresh" />',
@@ -386,20 +420,20 @@ describe('AppHeader', () => {
     fireEvent.keyDown(window, { key: 's', ctrlKey: true });
     expect(onRequestSave).not.toHaveBeenCalled();
 
-    const fileButton = screen.getByRole('button', { name: /File/ });
+    const scopedButton = screen.getByRole('button', { name: 'Copy code' });
     act(() => useEditorStore.getState().setSource('latest Ctrl+S source'));
-    fireEvent.keyDown(fileButton, { key: 's', ctrlKey: true });
+    fireEvent.keyDown(scopedButton, { key: 's', ctrlKey: true });
     expect(onRequestSave).toHaveBeenLastCalledWith('latest Ctrl+S source');
 
     act(() => useEditorStore.getState().setSource('latest Cmd+S source'));
-    fireEvent.keyDown(fileButton, { key: 'S', metaKey: true });
+    fireEvent.keyDown(scopedButton, { key: 'S', metaKey: true });
     expect(onRequestSave).toHaveBeenLastCalledWith('latest Cmd+S source');
     expect(onRequestSave).toHaveBeenCalledTimes(2);
 
-    fireEvent.keyDown(fileButton, { key: 's', ctrlKey: true, repeat: true });
+    fireEvent.keyDown(scopedButton, { key: 's', ctrlKey: true, repeat: true });
     expect(onRequestSave).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Apply changes to DataTeX' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply to DataTeX' }));
     expect(onRequestApply).toHaveBeenCalledWith(useEditorStore.getState().source);
   });
 
@@ -407,7 +441,7 @@ describe('AppHeader', () => {
     const onRequestSaveAs = vi.fn();
     render(<EmbeddedHeaderHarness onRequestSaveAs={onRequestSaveAs} />);
 
-    const fileButton = screen.getByRole('button', { name: /File/ });
+    const scopedButton = screen.getByRole('button', { name: 'Copy code' });
     fireEvent.keyDown(window, {
       key: 's',
       ctrlKey: true,
@@ -416,7 +450,7 @@ describe('AppHeader', () => {
     expect(onRequestSaveAs).not.toHaveBeenCalled();
 
     act(() => useEditorStore.getState().setSource('latest Ctrl+Shift+S source'));
-    fireEvent.keyDown(fileButton, {
+    fireEvent.keyDown(scopedButton, {
       key: 's',
       ctrlKey: true,
       shiftKey: true,
@@ -424,7 +458,7 @@ describe('AppHeader', () => {
     expect(onRequestSaveAs).toHaveBeenLastCalledWith('latest Ctrl+Shift+S source');
 
     act(() => useEditorStore.getState().setSource('latest Cmd+Shift+S source'));
-    fireEvent.keyDown(fileButton, {
+    fireEvent.keyDown(scopedButton, {
       key: 'S',
       metaKey: true,
       shiftKey: true,
@@ -432,7 +466,7 @@ describe('AppHeader', () => {
     expect(onRequestSaveAs).toHaveBeenLastCalledWith('latest Cmd+Shift+S source');
     expect(onRequestSaveAs).toHaveBeenCalledTimes(2);
 
-    fireEvent.keyDown(fileButton, {
+    fireEvent.keyDown(scopedButton, {
       key: 's',
       ctrlKey: true,
       shiftKey: true,
@@ -445,7 +479,7 @@ describe('AppHeader', () => {
     const onRequestExportSvg = vi.fn();
     render(<EmbeddedHeaderHarness onRequestExportSvg={onRequestExportSvg} />);
 
-    const fileButton = screen.getByRole('button', { name: /File/ });
+    const scopedButton = screen.getByRole('button', { name: 'Copy code' });
     fireEvent.keyDown(window, {
       key: 'e',
       ctrlKey: true,
@@ -453,7 +487,7 @@ describe('AppHeader', () => {
     });
     expect(onRequestExportSvg).not.toHaveBeenCalled();
 
-    fireEvent.keyDown(fileButton, {
+    fireEvent.keyDown(scopedButton, {
       key: 'e',
       ctrlKey: true,
       shiftKey: true,
@@ -463,14 +497,14 @@ describe('AppHeader', () => {
       'stoicheia.svg',
     );
 
-    fireEvent.keyDown(fileButton, {
+    fireEvent.keyDown(scopedButton, {
       key: 'E',
       metaKey: true,
       shiftKey: true,
     });
     expect(onRequestExportSvg).toHaveBeenCalledTimes(2);
 
-    fireEvent.keyDown(fileButton, {
+    fireEvent.keyDown(scopedButton, {
       key: 'e',
       ctrlKey: true,
       shiftKey: true,
@@ -484,11 +518,10 @@ describe('AppHeader', () => {
     useEditorStore.setState({ compiledSource: `${initialSource}\n% stale` });
     render(<EmbeddedHeaderHarness onRequestExportSvg={onRequestExportSvg} />);
 
-    const fileButton = screen.getByRole('button', { name: /File/ });
-    fireEvent.click(fileButton);
-    expect(screen.getByRole('menuitem', { name: /Export SVG/ })).toBeDisabled();
+    const scopedButton = screen.getByRole('button', { name: 'Copy code' });
+    expect(screen.getByRole('button', { name: 'Export exact SVG' })).toBeDisabled();
 
-    fireEvent.keyDown(fileButton, {
+    fireEvent.keyDown(scopedButton, {
       key: 'e',
       ctrlKey: true,
       shiftKey: true,

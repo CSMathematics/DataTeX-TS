@@ -3497,6 +3497,10 @@ export default function App() {
                 setSpellCheckEnabled(!spellCheckEnabled)
               }
               onWordCount={handleWordCount}
+              stoicheiaActive={
+                activeView === "package-studio" &&
+                activePackageStudioBuilderId === "graphics-studio"
+              }
             />
           </AppShell.Footer>
 

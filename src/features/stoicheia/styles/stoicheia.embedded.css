@@ -406,6 +406,9 @@
       max-width: 96rem;
     }
   }
+  .stoicheia-scope .mx-0\.5 {
+    margin-inline: calc(var(--spacing) * 0.5);
+  }
   .stoicheia-scope .mx-1 {
     margin-inline: var(--spacing);
   }
@@ -3127,6 +3130,20 @@
 }
 .stoicheia-scope .app-titlebar nav[aria-label="Application menu"]::-webkit-scrollbar {
   display: none;
+}
+.stoicheia-scope .stoicheia-embedded-toolbar {
+  min-width: 0;
+}
+.stoicheia-scope .stoicheia-embedded-toolbar-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.stoicheia-scope .stoicheia-embedded-toolbar-scroll::-webkit-scrollbar {
+  display: none;
+}
+.stoicheia-scope .stoicheia-embedded-toolbar button {
+  flex: 0 0 auto;
 }
 .stoicheia-scope .app-brand {
   min-width: 11rem;

@@ -19,6 +19,8 @@ vi.mock("../App", () => ({
     onRequestSave,
     onRequestSaveAs,
     onRequestExportSvg,
+    applyActionLabel,
+    copySourceMode,
   }: {
     mode: string;
     theme: string;
@@ -27,12 +29,16 @@ vi.mock("../App", () => ({
     onRequestSave?: (source: string) => void;
     onRequestSaveAs?: (source: string) => void;
     onRequestExportSvg?: (svgSource: string, suggestedFileName: string) => void;
+    applyActionLabel?: string;
+    copySourceMode?: string;
   }) => (
     <>
       <div
         data-testid="embedded-app"
         data-mode={mode}
         data-theme={theme}
+        data-apply-action-label={applyActionLabel}
+        data-copy-source-mode={copySourceMode}
         lang={language}
       />
       <button
@@ -257,6 +263,14 @@ describe("Stoicheia Package Studio adapter", () => {
     fireEvent.click(screen.getByTestId("embedded-apply"));
 
     expect(onRequestApply).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("embedded-app")).toHaveAttribute(
+      "data-apply-action-label",
+      "Update drawing",
+    );
+    expect(screen.getByTestId("embedded-app")).toHaveAttribute(
+      "data-copy-source-mode",
+      "tikzpicture",
+    );
     const payload = onRequestApply.mock.calls[0][0];
     const lifecycle = onRequestApply.mock.calls[0][1];
     expect(payload).toEqual({
@@ -328,6 +342,10 @@ describe("Stoicheia Package Studio adapter", () => {
     fireEvent.click(applyButton);
 
     expect(onRequestApply).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("embedded-app")).toHaveAttribute(
+      "data-apply-action-label",
+      "Insert into document",
+    );
     const payload = onRequestApply.mock.calls[0][0];
     const lifecycle = onRequestApply.mock.calls[0][1];
     expect(payload).toEqual({

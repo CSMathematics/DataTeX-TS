@@ -11,6 +11,7 @@ const manifestPath = path.join(featureRoot, "SOURCE_MANIFEST.sha256");
 const ledgerPath = path.join(featureRoot, "PHASE4_ADAPTATION_LEDGER.md");
 
 const adaptedBaselineFiles = new Set([
+  "App.css",
   "App.tsx",
   "components/AdvancedPointDialog.tsx",
   "components/AngleValueDialog.tsx",
@@ -39,6 +40,7 @@ const adaptedBaselineFiles = new Set([
   "components/SettingsPage.tsx",
   "components/ShowLineDialog.tsx",
   "components/ShowTransformationDialog.tsx",
+  "components/StatusBar.tsx",
   "components/Toolbar.test.tsx",
   "components/ToolGroup.tsx",
   "components/TriangleCenterDialog.tsx",
@@ -63,7 +65,7 @@ const entries = manifest
 assert.equal(entries.length, 110, "Expected the 110-file Phase 3 baseline");
 assert.equal(
   adaptedBaselineFiles.size,
-  37,
+  39,
   "Phase 4 adaptation allowlist count changed unexpectedly",
 );
 
@@ -127,7 +129,7 @@ for (const entry of entries) {
   verified += 1;
 }
 
-assert.equal(verified, 73);
+assert.equal(verified, 71);
 process.stdout.write(
   `Stoicheia copy-first baseline verified: ${verified} unchanged files; ${adaptedBaselineFiles.size} explicit Phase 4 adapters.\n`,
 );

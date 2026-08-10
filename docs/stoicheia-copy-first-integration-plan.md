@@ -903,7 +903,7 @@ Verified on 2026-07-29:
 - A feature-local error boundary offers Retry and Back instead of allowing a
   copied component failure to unmount the DataTeX root.
 - `pnpm run check:stoicheia:copy` verifies the per-file patch ledger, all 24
-  portal targets, 37 explicit adapters, and 73 still-byte-identical baseline
+  portal targets, 39 explicit adapters, and 71 still-byte-identical baseline
   files. The check is also part of `prebuild`.
 - The complete Stoicheia frontend suite passes in DataTeX with 45 test files,
   429 passed tests, and one intentionally skipped benchmark. Package Studio's
@@ -1105,7 +1105,7 @@ Phase 5 slice 6 verification:
 - [x] Make cache identity include compiler and `dvisvgm` details.
 - [x] Add native Windows, Linux, Intel Mac, and Apple Silicon smoke tests.
 - [ ] Verify timeout and temp cleanup.
-- [ ] Keep instant preview responsive while exact preview runs.
+- [x] Keep instant preview responsive while exact preview runs.
 
 Phase 6 slice 1 is complete:
 
@@ -1173,7 +1173,7 @@ Phase 6 slice 3 test infrastructure is complete:
 - The complete local regression run passes with 220 DataTeX Rust tests,
   86 copied-engine unit tests plus 1 ignored benchmark, the native integration
   test, all 22 Package Studio contracts, TypeScript, formatting, diff hygiene,
-  and the 73-verbatim/37-adapter copy-first baseline.
+  and the 71-verbatim/39-adapter copy-first baseline.
 - Staged whitespace validation is clean for integration-owned files. Its only
   reports are pre-existing trailing spaces in the byte-identical copied
   `CanvasControls.tsx` and `store.ts`; they remain untouched intentionally so
@@ -1186,10 +1186,45 @@ Phase 6 slice 3 test infrastructure is complete:
   `tauri-action@v0` contract, matches pnpm 11.3.0, and runs the same native smoke
   command before building or uploading each platform's draft-release assets.
 - `pnpm run test:workflows` guards both workflows against conflict markers,
-  mixed `tauri-action` contracts, wrong macOS architecture labels, pnpm/cache
-  ordering regressions, and moving native smoke tests after build/upload.
+  mixed `tauri-action` contracts, wrong or extra release architectures,
+  mismatched config/target pairs, pnpm/cache ordering regressions, and moving
+  native smoke tests after build/upload. Both build and release matrices now
+  execute this contract before their native smoke command, so it is no longer
+  only a local/dead check.
+- The GitHub-hosted runner inventory was rechecked on 2026-08-10:
+  `macos-15-intel` remains the standard x64 label and `macos-15` remains the
+  arm64 label. The exact-preview integration test, all three portable
+  process-tree tests, workflow contract, and Rust formatting pass again on the
+  local Linux reference machine.
 - The all-release-OS gate and the broader timeout/cleanup checkbox stay open
   until those four native workflow jobs have produced green results.
+
+Phase 6 slice 4 responsiveness hardening is complete:
+
+- Exact compilation remains outside React and the browser main thread: the
+  frontend awaits a Tauri promise while DataTeX runs LaTeX/`dvisvgm` through
+  Tokio child processes. Instant parsing remains an independent Rust command.
+- A DataTeX-owned bridge samples browser event-loop drift every 250 ms only
+  while an exact job is active. It writes no React or Zustand state and emits
+  detailed and summary diagnostics only when `stoicheia-perf` logging is
+  enabled, so normal canvas interaction gets no render-per-sample overhead.
+- The probe stops on success, error, supersede, mode/tool change, or unmount.
+  Frontend fake-timer coverage proves pan/zoom updates are immediate during a
+  pending exact job and that sampling stops once the job completes.
+- The portable native exact-preview test holds its external compiler open for
+  750 ms, executes instant parsing concurrently, requires that parse to finish
+  within 250 ms, and verifies that the exact process was still active. This
+  covers the scheduling contract without requiring a local TeX installation.
+- The all-release-OS native matrix remains the only open Phase 6 release gate.
+  Its workflow/configuration contract and Linux-native execution are green;
+  closing it now requires the committed branch to run on the Windows x64,
+  Intel Mac, and Apple Silicon GitHub-hosted runners.
+- Verification passes: 220 DataTeX Rust tests; 86 copied-engine tests plus one
+  ignored benchmark; the delayed exact/instant native integration test and all
+  3 process-tree smoke tests; 454 frontend tests plus 1 skipped; all 22 Package
+  Studio contracts; TypeScript, Rust formatting, diff hygiene, copy baseline,
+  scoped-CSS, workflow, and lazy-build checks. The 71-verbatim/39-adapter
+  copy-first baseline remains intact.
 
 Gate: cancellation and exact preview pass on every release OS; no orphan TeX or
 `dvisvgm` process remains.
@@ -1198,15 +1233,87 @@ Rollback: disable exact mode and keep the instant Rust/TS renderer available.
 
 ### Phase 7 — Parity and performance release gate
 
-- [ ] Compare all toolbar tools and dialogs with standalone Stoicheia.
-- [ ] Compare generated LaTeX for golden scenarios byte-for-byte or by approved
-      normalized diff.
-- [ ] Compare parser/geometry/instant-render snapshots.
-- [ ] Run all DataTeX and copied Stoicheia tests.
-- [ ] Measure cold DataTeX startup with the builder unused.
-- [ ] Measure builder first-open, parse latency, canvas drag FPS, zoom/pan FPS,
+- [x] Compare all toolbar tools and dialogs with standalone Stoicheia.
+- [x] Compare generated LaTeX for golden scenarios byte-for-byte, without
+      normalization.
+- [x] Compare parser/geometry/instant-render snapshots.
+- [x] Run all DataTeX and copied Stoicheia tests.
+- [x] Measure cold DataTeX startup with the builder unused (155 ms in the
+      accepted Linux production capture).
+- [x] Measure builder first-open, parse latency, canvas drag FPS, zoom/pan FPS,
       and exact compile latency.
-- [ ] Verify large-document and large-scene behavior.
+- [x] Verify deterministic 5,000-node flat and dependency-heavy Rust documents,
+      plus batch-friendly and mixed-style 5,000-node renderer scenes.
+
+Phase 7 slices 1–4 source/UI, generated-output, shared parser/render parity,
+and deterministic local performance gates are complete:
+
+- The opt-in production WebView recorder now captures the full remaining
+  metric inventory, keeps frame sampling off the normal path, persists a
+  machine-readable report, and validates it before merging with
+  `perf:stoicheia`. The first Linux production attempt is retained as a partial
+  report: it established the 302 ms cold startup and real parser/render/drag/
+  zoom/compile observations, but correctly could not close the gate without pan
+  and warm compile samples. The corrected recorder rejects incomplete reports
+  and measures the first usable canvas rather than first non-empty drawing.
+  The accepted rerun measured 155 ms cold startup, 48 ms module load, 313 ms
+  first usable canvas, 1 ms median parser round trip, 1.5 ms median renderer,
+  16/33 ms pan median/p95, and 793/2 ms cold/warm exact compile. The official
+  collector accepted the full inventory with all hard gates green and no
+  warning.
+
+- `pnpm run test:stoicheia:parity` is now a permanent, build-time gate against
+  the immutable source manifests. It verifies 14 toolbar groups, 19 sections,
+  100 unique tools, all 102 `ToolType` values, 100 icon registrations, 112
+  Command Palette actions, and all 24 lazy/rendered dialogs.
+- Every dialog normalizes to its standalone hash after reversing only the
+  approved scoped-portal adapter. Generator sources and inherited tests remain
+  byte-identical.
+- A versioned fixture and 11-test behavioral suite now freeze 10 complete
+  generated-LaTeX scenarios as exact UTF-8 strings. The gate performs no
+  whitespace, line-ending, or Unicode normalization and verifies provenance
+  for every exercised generator/helper source. The inherited mixed-EOL CRLF
+  behavior is recorded explicitly rather than silently changed.
+- Host-side whole-output Rust assertions cover selected-picture replacement,
+  the deterministic scratch template, and CRLF insertion with dependency
+  options, libraries, a figure wrapper, and Unicode.
+- The engine manifest now accurately retains both original and canonical
+  Rust-2021-`rustfmt` hashes for parser/geometry. Formatting standalone
+  temporary copies reproduces the DataTeX files byte-for-byte.
+- Phase 7 slice 3 adds four versioned cross-language scenes. Rust executes the
+  real parser/geometry path and freezes every deterministic `ParseResult`
+  field; the frontend consumes those exact results through the real pipeline
+  and compares complete canonical semantic SVG trees, including incomplete
+  geometry diagnostics. Generated IDs/references are normalized by retained
+  definition order; element order, text, geometry, style, data, and accessibility
+  attributes remain protected by per-scenario SHA-256 values.
+- A deterministic 1,000-node test verifies renderer batching and DOM shape.
+  Raw contract hashes are protected by LF attributes across all release OSes.
+- A second deterministic 5,000-node renderer test pins the scalable DOM
+  structure to one segment batch and at most 5,200 SVG descendants. It is a
+  hard structural gate without a machine-dependent wall-clock threshold.
+- Point dragging now coalesces raw mousemove bursts through
+  `requestAnimationFrame`; geometry, snapping, and optimistic React state run
+  at most once per frame, while mouse-up flushes the newest pointer and records
+  exactly one source/history change.
+- `pnpm run perf:stoicheia` runs the release Rust workload matrix, isolated
+  renderer samples, production-manifest lazy gates, and raw/gzip/brotli closure
+  analysis, then writes a profile-stamped schema-v1 JSON report. Timing values
+  are advisory and comparable only on matched machines/toolchains; correctness,
+  DOM shape, lazy loading, and bundle limits remain hard gates.
+- The 2026-08-10 Linux baseline measured flat/chained 5,000-node native-call
+  medians of 0.809/1.093 ms. No Graphics asset enters initial startup; Graphics
+  adds 927,657 raw / 214,943 gzip bytes after the Package Studio shell. The
+  editor entry is 23,279 raw bytes with Monaco warm, while the cold shared
+  Monaco core/worker path is reported separately at 4,313,494 raw bytes.
+- Current verification is green: 220 DataTeX Rust tests, 86 copied-engine tests
+  plus one ignored benchmark, the new Rust integration case, 454 frontend tests
+  plus one skipped, and all 22 Package Studio contracts.
+- Detailed measurements are recorded in
+  [the performance baseline](stoicheia-performance-baseline.md). The remaining
+  local production Tauri/WebView slice is complete. The remaining release gate
+  is the native Windows/Linux/Intel-Mac/Apple-Silicon matrix; runtime timings
+  on unlike profiles remain advisory rather than cross-machine gates.
 
 Gate: feature parity is documented and no normal DataTeX startup regression is
 caused by the lazy feature.
@@ -1413,8 +1520,8 @@ Phase 0's source/test baseline and Phases 1–4 are complete:
 
 Phase 5's document/file bridge and Phase 6's process-cancellation,
 tool-discovery/cache-identity, and portable native smoke-test infrastructure
-are complete. The next gate is a green native build-matrix run on Windows,
-Linux, Intel Mac, and Apple Silicon, followed by responsiveness verification
-while exact preview runs.
+are complete. Responsiveness verification and the local Linux-native job are
+green. The next gate is the actual GitHub-hosted native build-matrix run on
+Windows, Linux, Intel Mac, and Apple Silicon.
 Embedded New/Open remain represented by DataTeX's own tabs and the in-window
 drawing target selector, not by a second file system.

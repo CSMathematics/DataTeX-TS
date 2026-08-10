@@ -1,11 +1,20 @@
 import assert from "node:assert/strict";
 import { readFile, stat } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const MAX_ADAPTER_JS_BYTES = 900 * 1024;
-const MAX_SCOPED_CSS_BYTES = 128 * 1024;
-const MAX_STOICHEIA_JS_BYTES = 1200 * 1024;
-const manifestPath = "dist/.vite/manifest.json";
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const policy = JSON.parse(await readFile(
+  path.join(repositoryRoot, "benchmarks/stoicheia/performance-policy.v1.json"),
+  "utf8",
+));
+const gates = policy.hardwareIndependentGates;
+const MAX_ADAPTER_JS_BYTES = gates.adapterJsMaxBytes;
+const MAX_SCOPED_CSS_BYTES = gates.scopedCssMaxBytes;
+const MAX_STOICHEIA_JS_BYTES = gates.stoicheiaOwnedJsMaxBytes;
+const manifestPath = path.join(repositoryRoot, "dist/.vite/manifest.json");
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+const distPath = (relativePath) => path.join(repositoryRoot, "dist", relativePath);
 const workspaceKey = "src/components/packages/PackageStudioWorkspace.tsx";
 const workspace = manifest[workspaceKey];
 
@@ -77,24 +86,41 @@ assert.deepEqual(
   `Stoicheia entries leaked into the initial static import graph: ${leakedFeatureKeys.join(", ")}`,
 );
 
-const indexHtml = await readFile("dist/index.html", "utf8");
-for (const key of stoicheiaOwnedKeys) {
-  const file = manifest[key]?.file;
-  if (!file) continue;
+const filesForKeys = (keys) => {
+  const files = new Set();
+  for (const key of keys) {
+    const entry = manifest[key];
+    if (entry?.file) files.add(entry.file);
+    for (const file of entry?.css ?? []) files.add(file);
+    for (const file of entry?.assets ?? []) files.add(file);
+  }
+  return files;
+};
+const initialFiles = filesForKeys(staticEntryKeys);
+const stoicheiaOwnedFiles = filesForKeys(stoicheiaOwnedKeys);
+const leakedFiles = [...initialFiles].filter((file) => stoicheiaOwnedFiles.has(file));
+assert.deepEqual(
+  leakedFiles,
+  [],
+  `Stoicheia files leaked into the initial static closure: ${leakedFiles.join(", ")}`,
+);
+
+const indexHtml = await readFile(distPath("index.html"), "utf8");
+for (const file of stoicheiaOwnedFiles) {
   assert.ok(
     !indexHtml.includes(file),
     `Stoicheia asset leaked into index.html scripts or modulepreloads: ${file}`,
   );
 }
 
-const chunkStats = await stat(`dist/${stoicheiaEntry.file}`);
+const chunkStats = await stat(distPath(stoicheiaEntry.file));
 assert.ok(
   chunkStats.size <= MAX_ADAPTER_JS_BYTES,
   `Stoicheia adapter exceeds ${MAX_ADAPTER_JS_BYTES} bytes: ${chunkStats.size}`,
 );
 
 const [scopedCssFile] = stoicheiaEntry.css;
-const cssStats = await stat(`dist/${scopedCssFile}`);
+const cssStats = await stat(distPath(scopedCssFile));
 assert.ok(
   cssStats.size <= MAX_SCOPED_CSS_BYTES,
   `Stoicheia scoped CSS exceeds ${MAX_SCOPED_CSS_BYTES} bytes: ${cssStats.size}`,
@@ -107,7 +133,7 @@ const stoicheiaFiles = new Set(
 );
 let totalStoicheiaJsBytes = 0;
 for (const file of stoicheiaFiles) {
-  totalStoicheiaJsBytes += (await stat(`dist/${file}`)).size;
+  totalStoicheiaJsBytes += (await stat(distPath(file))).size;
 }
 assert.ok(
   totalStoicheiaJsBytes <= MAX_STOICHEIA_JS_BYTES,

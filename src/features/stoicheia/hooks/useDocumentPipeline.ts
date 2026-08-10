@@ -8,7 +8,12 @@ import {
   type LatexEnginePaths,
   useEditorStore,
 } from '../store';
-import { logPerformance, nowMs } from '../performanceMetrics';
+import {
+  isPerformanceLoggingEnabled,
+  logPerformance,
+  nowMs,
+} from '../performanceMetrics';
+import { startExactResponsivenessProbe } from '../bridge/exactResponsiveness';
 
 interface ParseTimings {
   parseMs?: number;
@@ -74,6 +79,12 @@ export function useDocumentPipeline(overrides: DocumentPipelineOverrides = {}) {
   const parseRequestRef = useRef(0);
   const compileRequestRef = useRef(0);
   const activeCompilationRef = useRef<ActiveCompilation | null>(null);
+  const stopResponsivenessProbeRef = useRef<(() => void) | null>(null);
+
+  const stopResponsivenessProbe = () => {
+    stopResponsivenessProbeRef.current?.();
+    stopResponsivenessProbeRef.current = null;
+  };
 
   const stopActiveCompilation = (expectedRequestId?: number) => {
     const activeCompilation = activeCompilationRef.current;
@@ -87,6 +98,7 @@ export function useDocumentPipeline(overrides: DocumentPipelineOverrides = {}) {
 
     activeCompilation.stopRequested = true;
     activeCompilationRef.current = null;
+    stopResponsivenessProbe();
     useEditorStore.getState().setIsCompiling(false);
     void invoke<void>('stop_compile', { compilationId: activeCompilation.compilationId }).catch(() => {
       // A superseded preview remains stale even if the native process has already exited.
@@ -100,6 +112,7 @@ export function useDocumentPipeline(overrides: DocumentPipelineOverrides = {}) {
     if (parseTimerRef.current) window.clearTimeout(parseTimerRef.current);
     if (compileTimerRef.current) window.clearTimeout(compileTimerRef.current);
     stopActiveCompilation();
+    stopResponsivenessProbe();
     useEditorStore.getState().setIsCompiling(false);
   }, []);
 
@@ -192,6 +205,24 @@ export function useDocumentPipeline(overrides: DocumentPipelineOverrides = {}) {
       activeCompilationRef.current = activeCompilation;
       const store = useEditorStore.getState();
       store.setIsCompiling(true);
+      let responsivenessSamples = 0;
+      let maximumMainThreadLagMs = 0;
+      stopResponsivenessProbe();
+      if (isPerformanceLoggingEnabled()) {
+        stopResponsivenessProbeRef.current = startExactResponsivenessProbe(mainThreadLagMs => {
+          if (
+            activeCompilation.stopRequested
+            || activeCompilationRef.current !== activeCompilation
+          ) return;
+          responsivenessSamples += 1;
+          maximumMainThreadLagMs = Math.max(maximumMainThreadLagMs, mainThreadLagMs);
+          logPerformance('exact-responsiveness', {
+            mainThreadLagMs,
+            maximumMainThreadLagMs,
+            responsivenessSamples,
+          });
+        });
+      }
       try {
         const startedAt = nowMs();
         const result = await invoke<CompileResult>('compile_latex', {
@@ -229,6 +260,11 @@ export function useDocumentPipeline(overrides: DocumentPipelineOverrides = {}) {
           requestId === compileRequestRef.current
           && activeCompilationRef.current === activeCompilation
         ) {
+          stopResponsivenessProbe();
+          logPerformance('exact-responsiveness-summary', {
+            maximumMainThreadLagMs,
+            responsivenessSamples,
+          });
           activeCompilationRef.current = null;
           useEditorStore.getState().setIsCompiling(false);
         }

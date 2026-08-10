@@ -985,13 +985,47 @@ Follow Phase 5 of the
     canonical path, file metadata, reported version, and schema in the
     exact-preview cache key.
 11. **In progress:** portable native process-tree/exact-preview smoke tests are
-    implemented, pass on Linux, and run before each Windows x64, Linux x64,
-    Intel Mac, and Apple Silicon build or draft-release upload. The previously
-    conflicted release workflow is valid again and uses the matching
-    `tauri-action@v0` inputs. Close the gate after all four native jobs are
+    implemented and pass again on Linux. The build/release workflow contract
+    now runs inside every job before those tests and freezes exactly the
+    Windows x64, Linux x64, Intel Mac, and Apple Silicon config/target pairs.
+    The current official labels (`macos-15-intel` x64 and `macos-15` arm64)
+    were reverified on 2026-08-10. Close the gate after all four hosted jobs are
     green.
-12. **Next:** measure instant-preview responsiveness while an exact render is
-    active after the native matrix is green.
+12. **Done locally:** keep instant preview and pan/zoom responsive while an
+    exact render is active. A diagnostics-only 250 ms event-loop probe adds no
+    normal-mode timer/render work, the frontend regression keeps UI updates
+    live during a pending exact job, and the native regression parses within
+    250 ms while a delayed compiler is still running.
+13. **Open release gate:** run the committed native matrix on Windows x64,
+    Linux x64, Intel Mac, and Apple Silicon. Local Linux execution and the
+    workflow contract are green; the hosted jobs remain required for release.
+14. **Done locally:** Phase 7 source/UI parity inventory. An immutable-manifest
+    gate now covers 100 toolbar tools, 100 icons, 112 Command Palette actions,
+    24 dialogs, and source integrity for the copied LaTeX generator/tests.
+15. **Done locally:** freeze 10 versioned byte-exact generated-LaTeX scenarios,
+    execute them from the permanent prebuild parity gate, and add exact host
+    outputs for focused edits, scratch templates, and CRLF figure insertion.
+16. **Done locally:** freeze four canonical Rust parser/geometry results and
+    consume the same payloads through the real frontend pipeline for complete
+    canonical semantic-SVG snapshots with ID/reference normalization and
+    per-scenario hashes. Cover chained geometry, styles, Unicode labels,
+    clipping, incomplete diagnostics, and deterministic 1,000-node batching.
+17. **Done locally:** add deterministic flat and dependency-heavy 5,000-node
+    native reports, policy-driven batch-friendly and mixed-style renderer
+    checks, animation-frame-coalesced point dragging, and production-manifest
+    closure reports with zero Graphics assets in initial startup.
+18. **Done locally:** add the opt-in production WebView recorder for real cold
+    startup, Graphics first paint, IPC-inclusive parse, drag/pan/zoom frame
+    intervals, long tasks, and cold/warm exact compile. It persists a
+    machine-readable report and the main performance collector validates the
+    complete required inventory before merging it.
+19. **Done locally:** the first cold Linux production capture is retained as a
+    partial diagnostic report, and the corrected rerun closed the local gate.
+    It measured 155 ms startup, 48 ms module load, 313 ms first usable canvas,
+    1 ms median parser round trip, 1.5 ms median renderer, and 793/2 ms
+    cold/warm exact compile. The complete raw capture and collector-validated
+    merged report are linked from
+    [the performance baseline](stoicheia-performance-baseline.md).
 
 Full-document, selected/current `tikzpicture`, and New Drawing Apply/Save now
 pass stale-source, target-switching, file-switching, duplicate-insertion, and
@@ -999,6 +1033,6 @@ concurrent-write guards. Save As and exact SVG export now share the same
 host-owned lifecycle without restoring a second file system. Phase 5 is
 complete. The Linux cancellation/process-cleanup and explicit `dvisvgm`
 discovery/cache-identity slices are complete. Portable native smoke coverage
-is implemented and verified on Linux; the next copy-first gate is a green
-Windows/Linux/Intel-Mac/Apple-Silicon build matrix followed by the concurrent
-responsiveness gate.
+is implemented and verified on Linux. Concurrent instant/exact responsiveness
+is also verified locally without changing the copied core. The next copy-first
+gate is the green Windows/Linux/Intel-Mac/Apple-Silicon build matrix.

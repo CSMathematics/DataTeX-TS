@@ -29,7 +29,7 @@ pub struct CompileResult {
 
 const LATEX_PROCESS_TIMEOUT: Duration = Duration::from_secs(45);
 const TOOL_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(5);
-const COMPILE_CACHE_SCHEMA: u8 = 2;
+const COMPILE_CACHE_SCHEMA: u8 = 3;
 const TIKZPICTURE_END: &str = "\\end{tikzpicture}";
 const STOICHEIA_ANCHORS: &str = r#"
 % Stoicheia Anchors
@@ -216,10 +216,12 @@ fn resolve_executable_path(requested: &str) -> Result<PathBuf, String> {
             .collect()
     };
 
+    // TeX selects the preloaded format from argv[0]. The frontend names
+    // (`pdflatex`, `lualatex`, `xelatex`) are commonly symlinks to the base
+    // engines, so canonicalizing here would silently run plain TeX instead.
     candidates
         .into_iter()
         .find(|candidate| candidate.is_file())
-        .map(|candidate| candidate.canonicalize().unwrap_or(candidate))
         .ok_or_else(|| {
             format!(
                 "Could not find executable `{requested}` in the configured path, PATH, or standard TeX locations."
@@ -383,12 +385,19 @@ async fn run_command_output_with_runner<R: ExternalProcessRunner + ?Sized>(
     }
 }
 
+fn latex_log_reports_missing_file(log: &str, filename: &str) -> bool {
+    log.lines()
+        .any(|line| line.contains(filename) && line.to_ascii_lowercase().contains("not found"))
+}
+
 fn latex_error_hint(log: &str) -> Option<&'static str> {
-    if log.contains("standalone.cls") {
+    if latex_log_reports_missing_file(log, "standalone.cls") {
         Some("\n\nStoicheia note: The selected LaTeX compiler was found, but your TeX installation is missing standalone.cls. Install the standalone package/class, or use Stoicheia's default article-based template.")
-    } else if log.contains("tkz-euclide.sty") {
+    } else if latex_log_reports_missing_file(log, "tkz-euclide.sty") {
         Some("\n\nStoicheia note: The selected LaTeX compiler was found, but tkz-euclide is missing. Install the tkz-euclide package in your TeX distribution.")
-    } else if log.contains("tikz.sty") || log.contains("pgf.sty") {
+    } else if latex_log_reports_missing_file(log, "tikz.sty")
+        || latex_log_reports_missing_file(log, "pgf.sty")
+    {
         Some("\n\nStoicheia note: The selected LaTeX compiler was found, but TikZ/PGF is missing. Install the PGF/TikZ packages in your TeX distribution.")
     } else {
         None
@@ -582,7 +591,7 @@ pub async fn compile_latex_with_runner<R: ExternalProcessRunner + ?Sized>(
 mod tests {
     use super::{
         clear_compile_cache, command_with_tex_path, compile_latex, inject_stoicheia_anchors,
-        run_command_output, LatexEnginePaths,
+        latex_error_hint, resolve_executable_path, run_command_output, LatexEnginePaths,
     };
     use std::{
         collections::BTreeSet,
@@ -595,7 +604,7 @@ mod tests {
     use tokio::process::Command;
 
     #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::fs::{symlink, PermissionsExt};
 
     fn compiler_test_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -629,6 +638,42 @@ mod tests {
         assert_eq!(injected.matches("ITZ_ORIGIN").count(), 1);
         assert_eq!(injected.matches("Stoicheia Anchors").count(), 1);
         assert_eq!(injected.matches("\\end{tikzpicture}").count(), 2);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn executable_discovery_preserves_tex_frontend_symlink_name() {
+        let _guard = compiler_test_lock().lock().unwrap();
+        let test_dir = env::temp_dir().join(format!(
+            "stoicheia-tex-symlink-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        fs::create_dir_all(&test_dir).unwrap();
+        let engine = test_dir.join("pdftex");
+        let frontend = test_dir.join("pdflatex");
+        fs::write(&engine, "tex engine placeholder").unwrap();
+        symlink(&engine, &frontend).unwrap();
+
+        let original_path = env::var_os("PATH");
+        env::set_var("PATH", &test_dir);
+        let resolved = resolve_executable_path("pdflatex").unwrap();
+        restore_env_var("PATH", original_path);
+        let _ = fs::remove_dir_all(&test_dir);
+
+        assert_eq!(resolved, frontend);
+        assert_eq!(resolved.file_name().unwrap(), "pdflatex");
+    }
+
+    #[test]
+    fn latex_hint_only_reports_packages_that_are_actually_missing() {
+        assert_eq!(
+            latex_error_hint(
+                "(/usr/local/texlive/texmf-dist/tex/latex/standalone/standalone.cls\n\
+                 ! Font metric data not found or bad."
+            ),
+            None,
+        );
+        assert!(latex_error_hint("! LaTeX Error: File `standalone.cls' not found.").is_some());
     }
 
     #[test]

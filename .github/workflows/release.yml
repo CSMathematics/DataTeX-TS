@@ -74,6 +74,9 @@ jobs:
       - name: install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: validate cross-platform workflow contract
+        run: pnpm run test:workflows
+
       - name: native Graphics Studio release smoke tests
         run: pnpm run test:stoicheia:native
 

@@ -5986,6 +5986,17 @@ mod tests {
         assert!(!plan.edits[0].replacement.contains("first"));
 
         let applied = apply_plan_to_source(baseline, &plan.edits).expect("apply selected edit");
+        assert_eq!(
+            applied,
+            concat!(
+                "\\documentclass{article}\n\\begin{document}\n",
+                "\\begin{tikzpicture}\n\\node {first};\n\\end{tikzpicture}\n",
+                "interstitial text 😀\n",
+                "\\begin{tikzpicture}\n\\node {δεύτερο 😀};\n\\end{tikzpicture}\n",
+                "\\end{document}\n",
+            ),
+            "focused edits must preserve every byte outside the selected picture"
+        );
         assert!(applied.contains("\\node {first};"));
         assert!(applied.contains("interstitial text 😀"));
         assert!(applied.contains("\\node {δεύτερο 😀};"));
@@ -6333,6 +6344,20 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(first.revision, 47);
         assert_eq!(
+            first.source,
+            concat!(
+                "\\documentclass{article}\n",
+                "\\usepackage{tikz}\n",
+                "\\usepackage{tkz-euclide}\n",
+                "\\pagestyle{empty}\n",
+                "\\begin{document}\n",
+                "\\begin{tikzpicture}\n",
+                "\\end{tikzpicture}\n",
+                "\\end{document}\n",
+            ),
+            "the scratch-document template is a byte-exact host contract"
+        );
+        assert_eq!(
             first.source_sha256,
             graphics_document_source_sha256(&first.source)
         );
@@ -6483,25 +6508,61 @@ mod tests {
     }
 
     #[test]
-    fn graphics_drawing_insert_preserves_crlf_in_dependencies_wrapper_and_drawing() {
+    fn graphics_drawing_insert_matches_byte_exact_crlf_dependency_figure_golden() {
         let baseline =
             "\\documentclass{article}\r\n\\begin{document}\r\nBody\r\n\\end{document}\r\n";
-        let drawing = "\\begin{tikzpicture}\n  \\node {CRLF};\n\\end{tikzpicture}";
+        let drawing = concat!(
+            "\\documentclass{standalone}\n",
+            "\\usepackage{tikz}\n",
+            "\\usepackage[dvipsnames]{xcolor}\n",
+            "\\usepackage{tkz-euclide}\n",
+            "\\usetikzlibrary{calc}\n",
+            "\\begin{document}\n",
+            "\\begin{tikzpicture}\n",
+            "  \\node {νέο 😀};\n",
+            "\\end{tikzpicture}\n",
+            "\\end{document}\n",
+        );
         let mut request = graphics_drawing_insert_request(
             baseline,
             drawing,
             GraphicsDrawingInsertionTarget::BeforeEndDocument,
         );
+        request.wrapper = GraphicsDrawingWrapper::Figure {
+            placement: Some("[htbp!]".to_string()),
+            centering: true,
+            caption: Some("Σχήμα με {Unicode}".to_string()),
+            label: Some("fig:unicode".to_string()),
+        };
+        request.required_packages = vec!["amsmath".to_string()];
         request.required_tikz_libraries = vec!["arrows.meta".to_string()];
         let next = apply_graphics_drawing_plan(
             baseline,
             &plan_graphics_drawing_insert(request).expect("CRLF plan"),
         );
 
-        assert!(next.contains("\\usepackage{tikz}\r\n"));
-        assert!(next.contains("\\usepackage{tkz-euclide}\r\n"));
-        assert!(next.contains("\\usetikzlibrary{arrows.meta}\r\n"));
-        assert!(next.contains("\\begin{tikzpicture}\r\n  \\node {CRLF};\r\n"));
+        assert_eq!(
+            next,
+            concat!(
+                "\\documentclass{article}\r\n",
+                "\\usepackage{tikz}\r\n",
+                "\\usepackage{tkz-euclide}\r\n",
+                "\\usepackage[dvipsnames]{xcolor}\r\n",
+                "\\usepackage{amsmath}\r\n",
+                "\\usetikzlibrary{calc, arrows.meta}\r\n",
+                "\\begin{document}\r\n",
+                "Body\r\n",
+                "\\begin{figure}[htbp!]\r\n",
+                "  \\centering\r\n",
+                "  \\begin{tikzpicture}\r\n",
+                "    \\node {νέο 😀};\r\n",
+                "  \\end{tikzpicture}\r\n",
+                "  \\caption{Σχήμα με {Unicode}}\r\n",
+                "  \\label{fig:unicode}\r\n",
+                "\\end{figure}\r\n",
+                "\\end{document}\r\n",
+            ),
+        );
         assert!(
             !next.replace("\r\n", "").contains('\n'),
             "planner must not introduce lone LF line endings"

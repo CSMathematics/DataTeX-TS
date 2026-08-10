@@ -931,12 +931,24 @@ document/file bridge are in place. Exact previews now reuse DataTeX's single
 verified Linux runner reaps LaTeX/`dvisvgm` process groups on stop or timeout.
 DataTeX now centrally configures/discovers `dvisvgm`, executes the canonical
 resolved binary, and invalidates exact-preview cache entries when either tool
-identity changes. Native release-OS process-tree/exact-preview smoke tests and
-concurrent instant-preview responsiveness are the next hardening gate. The
-portable smoke harness passes on Linux and now runs before each native
-Windows/Linux/Intel-Mac/Apple-Silicon build and draft-release upload. The
-release workflow conflict is resolved with the matching `tauri-action@v0`
-contract; the cross-OS gate closes when all four jobs are green.
+identity changes. Concurrent instant-preview responsiveness is now locally
+verified in both layers: frontend pan/zoom remains live during a pending exact
+job, and native parsing completes inside its 250 ms budget while a delayed
+external compiler is still active. The portable smoke harness passes on Linux
+and runs before each native Windows/Linux/Intel-Mac/Apple-Silicon build and
+draft-release upload. The release workflow conflict is resolved with the
+matching `tauri-action@v0` contract; the cross-OS gate closes when all four jobs
+are green. The first two Phase 7 parity slices are also complete: all 100 tools,
+100 icons, 112 palette actions, 24 dialogs, and copied LaTeX generation sources
+are checked before production builds, while 10 versioned scenarios execute as
+byte-exact generated-output goldens. Four shared Rust parser/geometry results
+now pass through the actual frontend pipeline into hashed canonical semantic-SVG
+snapshots, with incomplete-geometry and 1,000-node batching coverage. The next
+local deterministic performance slice is also complete: release Rust and
+renderer workload reports cover 50 through 5,000 nodes, point dragging is
+animation-frame coalesced, and production-manifest closure checks prove that
+Graphics assets remain absent from initial startup. Production Tauri/WebView
+startup, paint, FPS, IPC, and real-TeX capture remains the next release slice.
 
 Done when: graphics tools feel native to Package Studio while retaining their
 own high-performance workbench.
@@ -1039,7 +1051,28 @@ hidden manager is loaded alongside it.
 
 ## Immediate Next Implementation Step
 
-Current next slice before broad builder expansion:
+The active track is the Graphics Workbench parity/release gate:
+
+1. **Done:** shared canonical Rust parser/geometry payloads now reach semantic
+   SVG assertions through the production frontend pipeline.
+2. **Done locally:** add profile-stamped release Rust and jsdom renderer
+   baselines, deterministic 5,000-node structural coverage, frame-coalesced
+   point dragging, and initial/Package/Graphics/editor bundle-closure reports.
+3. **Done locally:** add an opt-in, production-stamped Tauri/WebView recorder
+   for cold startup, first Graphics paint, IPC-inclusive parse,
+   drag/pan/zoom frame intervals, long tasks, and cold/warm exact compile.
+4. **Done locally:** the corrected Linux production run measured 155 ms cold
+   startup, 48 ms Graphics module load, 313 ms first usable canvas, 1 ms median
+   parser round trip, 1.5 ms median renderer, and 793/2 ms cold/warm exact
+   compile. The official collector accepted the complete capture with all hard
+   gates green and no warning. Raw and merged reports are versioned under
+   `benchmarks/stoicheia/`.
+5. **Ready for CI:** the exact four-platform build/release contract is now
+   self-tested inside every matrix job and the Linux native command is green.
+   Commit/push the branch and run the Windows x64, Linux x64, Intel Mac, and
+   Apple Silicon jobs to close the final Graphics release gate.
+
+After that gate, resume the broader non-graphics builder expansion:
 
 1. Extend diagnostics to builder-specific missing requirements and more package
    families.

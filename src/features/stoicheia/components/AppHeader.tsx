@@ -9,6 +9,10 @@ import { GLOBAL_STYLE_DEFAULTS } from '../tikz/styleCommands';
 import { getUiTranslation } from '../i18n';
 import stoicheiaLogoUrl from '../assets/stoicheia-logo.svg';
 import { isStoicheiaInteractionTarget } from '../bridge/focusScope';
+import {
+  copyableStoicheiaSource,
+  type StoicheiaCopySourceMode,
+} from '../bridge/copySource';
 
 interface AppHeaderProps {
   mode?: 'standalone' | 'embedded';
@@ -20,6 +24,8 @@ interface AppHeaderProps {
     svgSource: string,
     suggestedFileName: string,
   ) => void;
+  applyActionLabel?: string;
+  copySourceMode?: StoicheiaCopySourceMode;
   showEditor: boolean;
   showInspector: boolean;
   sourcePanelMode: 'source' | 'styles';
@@ -72,6 +78,8 @@ export function AppHeader({
   onRequestSave,
   onRequestSaveAs,
   onRequestExportSvg,
+  applyActionLabel = 'Apply to DataTeX',
+  copySourceMode = 'document',
   showEditor,
   showInspector,
   sourcePanelMode,
@@ -519,6 +527,78 @@ export function AppHeader({
       : autosaveError
         ? { label: t.status.autosaveFailed, dot: 'bg-rose-400', text: 'text-rose-300' }
         : { label: t.status.ready, dot: 'bg-emerald-400', text: 'text-emerald-300' };
+
+  if (embedded) {
+    const copyCode = () => void copyText(
+      copyableStoicheiaSource(sourceRef.current, copySourceMode),
+      copySourceMode === 'tikzpicture' ? 'TikZ code' : t.notifications.sourceLabel,
+    );
+
+    return (
+      <header
+        ref={headerRef}
+        className="theme-chrome app-titlebar stoicheia-embedded-toolbar relative shrink-0 border-b flex items-center z-[200]"
+        aria-label="Stoicheia workspace toolbar"
+      >
+        <div className="stoicheia-embedded-toolbar-scroll flex min-w-0 flex-1 items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onToggleEditor}
+            title={showEditor ? t.hideSourceEditor : t.showSourceEditor}
+            aria-label={showEditor ? t.hideSourceEditor : t.showSourceEditor}
+            aria-pressed={showEditor}
+            className={`app-icon-button app-icon-button-compact ${showEditor ? 'app-icon-button-active' : ''}`}
+          >
+            {showEditor ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
+          </button>
+          <button type="button" className="app-icon-button app-icon-button-compact" disabled={!canUndoSource} onClick={undoSourceChange} title={t.edit.undo} aria-label={t.edit.undo}>
+            <Undo2 size={15} />
+          </button>
+          <button type="button" className="app-icon-button app-icon-button-compact" disabled={!canRedoSource} onClick={redoSourceChange} title={t.edit.redo} aria-label={t.edit.redo}>
+            <Redo2 size={15} />
+          </button>
+          <span className="theme-divider h-5 w-px mx-0.5 shrink-0" aria-hidden="true" />
+          <button type="button" className="app-state-chip" onClick={sourcePanelMode === 'source' ? openStyles : openSource} title={sourcePanelMode === 'source' ? t.openStyleManager : t.openSourceEditor}>
+            {sourcePanelMode === 'source' ? <Palette size={14} /> : <Code2 size={14} />}
+            <span>{sourcePanelLabel}</span>
+          </button>
+          <button type="button" aria-label={t.switchPreview(previewMode === 'instant' ? 'LaTeX' : 'fast')} className={`app-state-chip ${previewMode === 'latex' ? 'app-state-chip-accent' : ''}`} onClick={togglePreviewMode}>
+            {previewMode === 'instant' ? <Zap size={14} /> : <FileCode2 size={14} />}
+            <span>{previewMode === 'instant' ? 'Instant' : 'LaTeX'}</span>
+          </button>
+          <button type="button" aria-label={t.toggleCanvasGrid} aria-pressed={showGrid} className={`app-icon-button app-icon-button-compact ${showGrid ? 'app-icon-button-active' : ''}`} onClick={() => setShowGrid(!showGrid)} title={showGrid ? t.hideCanvasGrid : t.showCanvasGrid}>
+            <Grid3x3 size={15} />
+          </button>
+          <button type="button" aria-label={t.toggleSnapToGrid} aria-pressed={snapToGrid} className={`app-icon-button app-icon-button-compact ${snapToGrid ? 'app-icon-button-active' : ''}`} onClick={() => setSnapToGrid(!snapToGrid)} title={snapToGrid ? t.disableSnapToGrid : t.enableSnapToGrid}>
+            <Magnet size={15} />
+          </button>
+          <span className="theme-divider h-5 w-px mx-0.5 shrink-0" aria-hidden="true" />
+          <button type="button" className="app-state-chip" onClick={copyCode} aria-label="Copy code" title={copySourceMode === 'tikzpicture' ? 'Copy only the TikZ environment' : 'Copy LaTeX source'}>
+            <Copy size={14} />
+            <span>Copy code</span>
+          </button>
+          <button type="button" className="app-icon-button app-icon-button-compact" disabled={!canExportExactSvg} onClick={requestEmbeddedSvgExport} aria-label="Export exact SVG" title={canExportExactSvg ? t.file.exportSvg : 'Compile the current source in LaTeX preview before exporting'}>
+            <Download size={15} />
+          </button>
+          <button type="button" className="app-icon-button app-icon-button-compact" disabled={!onRequestSaveAs} onClick={() => onRequestSaveAs?.(sourceRef.current)} aria-label="Save as through DataTeX" title={t.file.saveAs}>
+            <FilePlus2 size={15} />
+          </button>
+          <button type="button" className="app-state-chip disabled:cursor-not-allowed disabled:opacity-50" disabled={!onRequestSave} aria-label="Save through DataTeX" title="Save the reviewed drawing through DataTeX" onClick={() => onRequestSave?.(sourceRef.current)}>
+            <Save size={14} />
+            <span>Save</span>
+          </button>
+          <button type="button" className="app-state-chip app-state-chip-accent disabled:cursor-not-allowed disabled:opacity-50" disabled={!onRequestApply} aria-label={applyActionLabel} title={onRequestApply ? applyActionLabel : 'Open a LaTeX document to enable this action'} onClick={() => onRequestApply?.(sourceRef.current)}>
+            <Check size={14} />
+            <span>{applyActionLabel}</span>
+          </button>
+          <button type="button" onClick={onToggleInspector} title={showInspector ? t.hideInspector : t.showInspector} aria-label={showInspector ? t.hideInspector : t.showInspector} aria-pressed={showInspector} className={`app-icon-button app-icon-button-compact ${showInspector ? 'app-icon-button-active' : ''}`}>
+            {showInspector ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}
+          </button>
+        </div>
+        {saveMessage && <div role="status" className={`app-save-toast ${saveMessage.includes('failed') ? 'app-save-toast-error' : 'app-save-toast-success'}`}><Save size={15} /><span>{saveMessage}</span></div>}
+      </header>
+    );
+  }
 
   return (
     <header ref={headerRef} className="theme-chrome app-titlebar relative shrink-0 border-b flex items-center z-[200]">

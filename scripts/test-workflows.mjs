@@ -16,6 +16,32 @@ const assertOrdered = (source, first, second) => {
 test("build and release workflows retain clean native Graphics Studio gates", () => {
   const build = readWorkflow("build.yml");
   const release = readWorkflow("release.yml");
+  const expectedMatrix = [
+    {
+      name: "linux-x64",
+      platform: "ubuntu-22.04",
+      config: "src-tauri/tauri.linux.conf.json",
+      target: null,
+    },
+    {
+      name: "windows-x64",
+      platform: "windows-latest",
+      config: "src-tauri/tauri.windows.conf.json",
+      target: null,
+    },
+    {
+      name: "macos-x64",
+      platform: "macos-15-intel",
+      config: "src-tauri/tauri.macos-x86_64.conf.json",
+      target: "x86_64-apple-darwin",
+    },
+    {
+      name: "macos-arm64",
+      platform: "macos-15",
+      config: "src-tauri/tauri.macos-aarch64.conf.json",
+      target: "aarch64-apple-darwin",
+    },
+  ];
 
   for (const [name, source] of [
     ["build.yml", build],
@@ -26,10 +52,34 @@ test("build and release workflows retain clean native Graphics Studio gates", ()
       /^(?:<<<<<<<|=======|>>>>>>>)/m,
       `${name} contains merge-conflict markers`,
     );
-    assert.match(source, /platform: macos-15-intel/);
-    assert.match(source, /platform: macos-15(?:\r?\n)/);
+    const matrixStart = source.indexOf("      matrix:");
+    const matrixEnd = source.indexOf("    runs-on:", matrixStart);
+    assert.notEqual(matrixStart, -1, `${name} is missing its strategy matrix`);
+    assert.notEqual(matrixEnd, -1, `${name} is missing its matrix runner`);
+    const matrixSource = source.slice(matrixStart, matrixEnd);
+    assert.deepEqual(
+      Array.from(matrixSource.matchAll(/^\s+- name: (\S+)$/gm), match => match[1]),
+      expectedMatrix.map(entry => entry.name),
+      `${name} must contain exactly the supported release architecture matrix`,
+    );
+    for (const entry of expectedMatrix) {
+      assert.match(source, new RegExp(`name: ${entry.name}(?:\\r?\\n)`));
+      assert.match(
+        source,
+        new RegExp(`platform: ${entry.platform}(?:\\r?\\n)`),
+      );
+      assert.match(source, new RegExp(`--config ${entry.config}`));
+      if (entry.target) {
+        assert.match(source, new RegExp(`--target ${entry.target}`));
+        assert.match(
+          source,
+          new RegExp(`rust-targets: "${entry.target}"`),
+        );
+      }
+    }
     assert.match(source, /version: 11\.3\.0/);
     assertOrdered(source, "uses: pnpm/action-setup@v4", "uses: actions/setup-node@v4");
+    assertOrdered(source, "pnpm run test:workflows", "pnpm run test:stoicheia:native");
     assertOrdered(source, "pnpm run test:stoicheia:native", "uses: tauri-apps/tauri-action@v0");
   }
 

@@ -15,18 +15,20 @@ src/features/stoicheia/<path>
 
 The SHA-256 values are the immutable source hashes recorded in
 `SOURCE_MANIFEST.sha256`. `pnpm run check:stoicheia:copy` verifies that these
-are the only baseline files allowed to differ and that the other 73 files
+are the only baseline files allowed to differ and that the other 71 files
 remain byte-identical.
 
 ## Embedded application boundary
 
 | Path | Source SHA-256 | Adaptation and reason | Regression coverage | Lifetime |
 |---|---|---|---|---|
-| `App.tsx` | `9268cc6f30dc3efae948f92c7c7a28f929d1fbb766335563d0f55298b3f6efe2` | Embedded host contract; container measurements; scoped shortcuts/theme/language; host compiler and `dvisvgm` settings; duplicate autosave suppression; document Apply/Save/Save As/exact-SVG callbacks; drag/listener cleanup. | `App.test.tsx`, resize tests, pipeline/autosave tests, Package Studio integration test. | Permanent host and document-action boundary. |
-| `components/AppHeader.tsx` | `63cd67071354c7fb9b6a820b3866c96c4aaa4f9159b7311673ada1510033f945` | Preserve standalone menus while replacing native file ownership in embedded mode with host Apply/Save/Save As/exact-SVG callbacks; scope shortcuts; require a fresh exact render for export; use local logo. | `components/AppHeader.test.tsx` | Permanent host file/action boundary. |
-| `components/AppHeader.test.tsx` | `271fb30e5daf16389ba06a8555c0e5a940708014a1000888293a3b785210461d` | Adds embedded-host, shortcut-scope, latest-source Save/Save As, and fresh exact-SVG callback regressions without removing standalone coverage. | Self | Permanent migration regression. |
-| `components/Preview.tsx` | `64a5e5f2fbd338ffa58c692dd7f27ce7565a875d5bce914f640b03dcad541ba5` | Scope canvas keyboard handling and guarantee pointer, cursor, animation-frame, and window-listener cleanup. | `components/Preview.test.tsx` | Permanent single-window interaction boundary. |
-| `components/Preview.test.tsx` | `a8c8c912f475a5670f7529298e9a6f0bfcabf4cdbc57ea0fdf4f67b18a6864e1` | Adds focused/unfocused shortcut and drag/unmount cleanup regressions. | Self | Permanent migration regression. |
+| `App.css` | `747b4d62883ebe394b18be1be22e329957c5284e97a0ae03c422f907c7bb1993` | Add only the compact, horizontally scrollable embedded toolbar layout; generated scoped CSS remains the runtime stylesheet. | Scoped CSS build/leak gate, `components/AppHeader.test.tsx` | Permanent embedded chrome boundary. |
+| `App.tsx` | `9268cc6f30dc3efae948f92c7c7a28f929d1fbb766335563d0f55298b3f6efe2` | Embedded host contract; container measurements; scoped shortcuts/theme/language; host compiler and `dvisvgm` settings; duplicate autosave suppression; document Apply/Save/Save As/exact-SVG callbacks; single host status-bar mode; drag/listener cleanup. | `App.test.tsx`, resize tests, pipeline/autosave tests, Package Studio integration test. | Permanent host and document-action boundary. |
+| `components/AppHeader.tsx` | `63cd67071354c7fb9b6a820b3866c96c4aaa4f9159b7311673ada1510033f945` | Preserve standalone menus while replacing embedded menu/file ownership with a compact host toolbar, context-aware Insert/Update, drawing-only Copy, host Apply/Save/Save As/exact-SVG callbacks, scoped shortcuts, and fresh-render export guards. | `components/AppHeader.test.tsx`, `bridge/copySource.test.ts` | Permanent host file/action boundary. |
+| `components/AppHeader.test.tsx` | `271fb30e5daf16389ba06a8555c0e5a940708014a1000888293a3b785210461d` | Adds embedded compact-toolbar, Copy, contextual Apply, shortcut-scope, latest-source Save/Save As, and fresh exact-SVG callback regressions without removing standalone coverage. | Self | Permanent migration regression. |
+| `components/Preview.tsx` | `64a5e5f2fbd338ffa58c692dd7f27ce7565a875d5bce914f640b03dcad541ba5` | Scope canvas keyboard handling; guarantee pointer, cursor, animation-frame, and window-listener cleanup; coalesce point-drag geometry/snapping and optimistic state to the latest pointer sample per animation frame; clear optimistic state when another interaction replaces a drag; hand committed drag/pan/zoom frame timestamps and first-canvas commit to the opt-in production recorder. | `components/Preview.test.tsx`, `utils/stoicheiaRuntimePerformance.test.ts` | Permanent single-window interaction and performance boundary. |
+| `components/Preview.test.tsx` | `a8c8c912f475a5670f7529298e9a6f0bfcabf4cdbc57ea0fdf4f67b18a6864e1` | Adds focused/unfocused shortcut, RAF burst, replacement, and drag/unmount cleanup regressions. | Self | Permanent migration regression. |
+| `components/StatusBar.tsx` | `7e2eb417cbe03f0b6b488dcb06a549aee821da6a1ab881ea85eeeae35d3620a5` | Publish embedded tool, scene, zoom, preview, compile, performance, and snap state to the single DataTeX status bar while preserving the original standalone footer; hand the already-sampled renderer timing to the opt-in production recorder so the canonical renderer stays byte-identical. | DataTeX status integration, runtime recorder, TypeScript and lazy-build gates | Permanent single-status-bar boundary. |
 | `components/SettingsPage.tsx` | `afda85fae4313700c08b3ede88c5a5a956f106997797ea730e6fc1069839c3f2` | Delegate host-owned theme, language, TeX engine, and autosave controls to DataTeX while retaining Stoicheia-local canvas/editor/export settings. | `components/SettingsPage.test.tsx` | Permanent ownership boundary. |
 | `components/SettingsPage.test.tsx` | `97bbacc72bf3056480aa0794027727a04b772a724cf5ac15e2bf2d35e8d03c07` | Adds embedded ownership/reset regressions while retaining standalone tests. | Self | Permanent migration regression. |
 | `components/ToolGroup.tsx` | `5f05c3a61a4c8bc0d6b2132d1ee2dc8f2ef22b3b1f9485e318c4cff7866c208a` | Constrain fixed tool menus to the nearest embedded `.stoicheia-scope`, observe workspace resizing, and retain a standalone viewport fallback. | `components/ToolGroup.test.tsx` | Permanent embedded layout boundary. |
@@ -43,8 +45,8 @@ explicit adapter exceptions.
 |---|---|---|---|---|
 | `hooks/useAutosaveDraft.ts` | `ee7c7702288d9a9339dffcc78a9fd622b33ba9b1b99174729b111d3ccd554b27` | Add an `enabled` boundary so DataTeX remains the only embedded autosave owner. | `hooks/useAutosaveDraft.test.tsx` | Permanent reusable hook contract. |
 | `hooks/useAutosaveDraft.test.tsx` | `05bea50913272f33a057f76a873cc0416d8b8a9e4be6b1519842cba9df6f35fb` | Proves disabled mode neither restores nor subscribes/writes. | Self | Permanent migration regression. |
-| `hooks/useDocumentPipeline.ts` | `5b1d81e458f7d49f0226f978e14893cf13d5157674181ea8cdd19f96e52b59bd` | Accept host compiler/engine/`dvisvgm` overrides, attach a unique DataTeX compilation ID to each exact render, cancel the active native process on supersede/mode/tool change/unmount, and retain stale-result ownership guards. | `hooks/useDocumentPipeline.test.tsx`, Rust tracked-runner tests | Permanent host/runtime and process-cancellation boundary. |
-| `hooks/useDocumentPipeline.test.tsx` | `13690381283e14f7848c3b33739ca6e36be09d8b16e00312781118be74da1626` | Proves compiler and `dvisvgm` forwarding, unique job IDs, stop-on-supersede/tool-change/unmount, debounce-without-stop, stop-error isolation, and rejection of late parse/compile results. | Self | Permanent migration regression. |
+| `hooks/useDocumentPipeline.ts` | `5b1d81e458f7d49f0226f978e14893cf13d5157674181ea8cdd19f96e52b59bd` | Accept host compiler/engine/`dvisvgm` overrides, attach a unique DataTeX compilation ID to each exact render, cancel the active native process on supersede/mode/tool change/unmount, retain stale-result ownership guards, and sample event-loop responsiveness without React/store writes while native exact work is active. | `hooks/useDocumentPipeline.test.tsx`, Rust tracked-runner tests | Permanent host/runtime, responsiveness, and process-cancellation boundary. |
+| `hooks/useDocumentPipeline.test.tsx` | `13690381283e14f7848c3b33739ca6e36be09d8b16e00312781118be74da1626` | Proves compiler and `dvisvgm` forwarding, unique job IDs, stop-on-supersede/tool-change/unmount, debounce-without-stop, stop-error isolation, rejection of late parse/compile results, and responsive UI/store updates while exact work remains pending. | Self | Permanent migration regression. |
 
 ## Scoped portal destinations
 
@@ -99,8 +101,14 @@ adapters rather than altered copies:
 - `bridge/scopedPortalFocus.ts` and its test
 - `bridge/scopedDialogIntegration.test.tsx`
 - `bridge/focusScope.ts` and its test
+- `bridge/exactResponsiveness.ts`
+- `bridge/copySource.ts` and its test
 - `bridge/sanitizeExactSvg.ts` and its test
 - `bridge/stoicheia-adapter.css`
+- `parity/generatedLatexParity.test.ts`
+- `parity/fixtures/generated-latex.v1.json`
+- `parity/parserRenderParity.test.tsx`
+- `parity/semanticSvg.ts`
 - `App.test.tsx`
 - `components/ToolGroup.test.tsx`
 - `styles/stoicheia.embedded.css` (deterministically generated, never hand-edited)
@@ -109,4 +117,10 @@ adapters rather than altered copies:
 - `scripts/scope-stoicheia-css.mjs`
 - `scripts/scope-stoicheia-css.test.mjs`
 - `scripts/check-stoicheia-copy-baseline.mjs`
+- `scripts/check-stoicheia-parity.mjs`
 - `scripts/check-stoicheia-lazy-build.mjs`
+- `scripts/run-stoicheia-performance.mjs`
+- `scripts/run-stoicheia-render-benchmark.mjs`
+- `benchmarks/stoicheia/performance-policy.v1.json`
+- `docs/stoicheia-performance-baseline.md`
+- `utils/stoicheiaRuntimePerformance.ts` and its test

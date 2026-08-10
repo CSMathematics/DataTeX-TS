@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "suite": "datatex-stoicheia-production-tauri-performance",
+  "sessionId": "fd4e72dd-9de4-4d33-9677-051205f5ee8d",
+  "startedAt": "2026-08-10T13:47:15.481Z",
+  "captureMode": "production-tauri-webview",
+  "environment": {
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+    "platform": "Linux x86_64",
+    "hardwareConcurrency": 8,
+    "deviceMemoryGb": null,
+    "devicePixelRatio": 1,
+    "screen": {
+      "width": 1920,
+      "height": 1080
+    },
+    "performanceTimeOrigin": 1786369635371,
+    "longTaskObserverSupported": true
+  },
+  "metrics": {
+    "parseRoundTripMs": [1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 2, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 4, 1, 1, 0, 1, 0, 0, 1, 1, 0, 1, 2, 2],
+    "rendererMs": [5, 1, 1, 1, 4, 7, 1, 2, 10, 1],
+    "dragFrameIntervalsMs": [16, 19, 31, 46, 17, 16, 16, 16, 16, 16, 32, 16, 32, 32, 32, 16, 32, 16, 32, 17, 16, 32, 32, 16, 16, 32, 32, 16, 32, 32, 17, 48, 32, 32, 16, 199],
+    "panFrameIntervalsMs": [],
+    "zoomFrameIntervalsMs": [38, 33, 34, 33, 32, 34, 33, 34, 33, 33, 34, 33, 34, 33, 33, 34, 33, 33, 33, 34, 33, 35, 32, 35, 31, 33, 34, 34, 33, 34, 33, 34, 33, 33, 33, 33, 35, 32, 126, 42, 32, 34, 33, 50, 33, 29, 27, 26, 59, 49, 50, 34, 49, 69, 32, 33, 26, 25, 26, 26, 45, 29, 28, 28, 27, 26, 31, 27, 35, 37, 51, 50, 50, 49],
+    "failedExactCompileMs": [252, 3, 4, 494, 680, 388],
+    "coldStartupToFirstPaintMs": 302,
+    "graphicsModuleLoadMs": 47,
+    "exactCompileColdMs": 472,
+    "firstCanvasCommitMs": 23241
+  },
+  "longTasks": [],
+  "completedAt": "2026-08-10T14:03:38.513Z"
+}

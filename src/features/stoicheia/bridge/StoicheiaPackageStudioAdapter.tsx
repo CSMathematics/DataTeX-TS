@@ -100,6 +100,13 @@ export function StoicheiaPackageStudioAdapter(
   const hasActiveHostDocument =
     hostDocumentIdentity(props.hostDocument ?? null) !==
     "__datatex_no_active_document__";
+  const targetKind = props.hostDocument?.target?.kind ?? "fullDocument";
+  const applyActionLabel =
+    targetKind === "newDrawing"
+      ? "Insert into document"
+      : targetKind === "tikzpicture"
+        ? "Update drawing"
+        : "Apply document changes";
 
   const requestHostDocumentAction = (
     callback:
@@ -246,6 +253,10 @@ export function StoicheiaPackageStudioAdapter(
               props.onRequestApply && hasActiveHostDocument
                 ? requestHostApply
                 : undefined
+            }
+            applyActionLabel={applyActionLabel}
+            copySourceMode={
+              targetKind === "fullDocument" ? "document" : "tikzpicture"
             }
             onOpenHostSettings={props.onOpenHostSettings}
           />

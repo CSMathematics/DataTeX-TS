@@ -68,6 +68,8 @@ export type StoicheiaAppProps =
         svgSource: string,
         suggestedFileName: string,
       ) => void;
+      applyActionLabel?: string;
+      copySourceMode?: "document" | "tikzpicture";
       onOpenHostSettings?: () => void;
     };
 
@@ -496,6 +498,8 @@ function App(props: StoicheiaAppProps = { mode: "standalone" }) {
         onRequestSave={embeddedHost?.onRequestSave}
         onRequestSaveAs={embeddedHost?.onRequestSaveAs}
         onRequestExportSvg={embeddedHost?.onRequestExportSvg}
+        applyActionLabel={embeddedHost?.applyActionLabel}
+        copySourceMode={embeddedHost?.copySourceMode}
         showEditor={showEditor}
         showInspector={showInspector}
         sourcePanelMode={sourcePanelMode}
@@ -648,7 +652,7 @@ function App(props: StoicheiaAppProps = { mode: "standalone" }) {
           />
         </Suspense>
       )}
-      <MemoStatusBar />
+      <MemoStatusBar mode={isEmbedded ? "embedded" : "standalone"} />
     </div>
   );
 }

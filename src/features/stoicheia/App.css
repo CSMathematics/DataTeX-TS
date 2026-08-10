@@ -1202,6 +1202,24 @@ select:focus-visible {
   display: none;
 }
 
+.stoicheia-embedded-toolbar {
+  min-width: 0;
+}
+
+.stoicheia-embedded-toolbar-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.stoicheia-embedded-toolbar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.stoicheia-embedded-toolbar button {
+  flex: 0 0 auto;
+}
+
 .app-brand {
   min-width: 11rem;
   padding: 0 0.35rem 0 0.1rem;

@@ -389,6 +389,70 @@ describe('useDocumentPipeline', () => {
     expect(useEditorStore.getState().svgOutput).toBe('<svg>v2</svg>');
   });
 
+  it('keeps UI updates and responsiveness sampling active while exact compilation is pending', async () => {
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: { getItem: vi.fn(() => '1') },
+    });
+    const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
+    useEditorStore.setState({ previewMode: 'latex' });
+    let resolveCompile: ((value: { success: boolean; svg?: string }) => void) | undefined;
+    invokeMock.mockImplementation((command: string) => {
+      if (command === 'parse_tikz') {
+        return Promise.resolve({ nodes: [], geometry_complete: true });
+      }
+      if (command === 'stop_compile') return Promise.resolve();
+      return new Promise(resolve => {
+        resolveCompile = resolve;
+      });
+    });
+
+    render(<PipelineHarness />);
+    await act(async () => vi.advanceTimersByTimeAsync(1550));
+    expect(useEditorStore.getState().isCompiling).toBe(true);
+
+    act(() => {
+      useEditorStore.getState().setPan({ x: 48, y: -24 });
+      useEditorStore.getState().setZoomLevel(1.75);
+    });
+    expect(useEditorStore.getState().pan).toEqual({ x: 48, y: -24 });
+    expect(useEditorStore.getState().zoomLevel).toBe(1.75);
+
+    await act(async () => vi.advanceTimersByTimeAsync(750));
+    const responsivenessCalls = debugSpy.mock.calls.filter(
+      ([label]) => label === '[Stoicheia perf] exact-responsiveness',
+    );
+    expect(responsivenessCalls).toHaveLength(3);
+    expect(responsivenessCalls[responsivenessCalls.length - 1]?.[1]).toMatchObject({
+      mainThreadLagMs: 0,
+      maximumMainThreadLagMs: 0,
+      responsivenessSamples: 3,
+    });
+
+    await act(async () => {
+      resolveCompile?.({ success: true, svg: '<svg>responsive</svg>' });
+    });
+    expect(useEditorStore.getState().isCompiling).toBe(false);
+    expect(debugSpy).toHaveBeenCalledWith(
+      '[Stoicheia perf] exact-responsiveness-summary',
+      {
+        maximumMainThreadLagMs: 0,
+        responsivenessSamples: 3,
+      },
+    );
+    await act(async () => vi.advanceTimersByTimeAsync(750));
+    expect(debugSpy.mock.calls.filter(
+      ([label]) => label === '[Stoicheia perf] exact-responsiveness',
+    )).toHaveLength(3);
+    debugSpy.mockRestore();
+    if (localStorageDescriptor) {
+      Object.defineProperty(window, 'localStorage', localStorageDescriptor);
+    } else {
+      Reflect.deleteProperty(window, 'localStorage');
+    }
+  });
+
   it('keeps existing diagnostics when best-effort stop fails and cancellation rejects', async () => {
     useEditorStore.setState({ previewMode: 'latex', errorLog: 'existing diagnostic' });
     let rejectCompile: ((reason: unknown) => void) | undefined;

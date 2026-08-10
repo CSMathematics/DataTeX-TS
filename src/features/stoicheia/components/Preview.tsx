@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode, type WheelEvent as ReactWheelEvent } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode, type WheelEvent as ReactWheelEvent } from 'react';
 import { AstNode, useEditorStore } from '../store';
 import { AlertTriangle, LoaderCircle, Shapes } from 'lucide-react';
 import { buildFastRenderScene, FastRenderScene, FastSvgRenderer } from '../renderers/FastSvgRenderer';
@@ -7,6 +7,12 @@ import { logPerformance, nowMs } from '../performanceMetrics';
 import { useShallow } from 'zustand/react/shallow';
 import { getNodeId } from './nodeIdentity';
 import { sanitizeExactSvg } from '../bridge/sanitizeExactSvg';
+import {
+  beginStoicheiaFrameInteraction,
+  endStoicheiaFrameInteraction,
+  markStoicheiaFirstCanvasCommit,
+  recordStoicheiaInteractionFrame,
+} from '../../../utils/stoicheiaRuntimePerformance';
 
 interface Transform {
   originX: number;
@@ -1223,7 +1229,7 @@ export function Preview({ shortcutScope = 'window' }: PreviewProps = {}) {
     previewMode: state.previewMode,
   })));
   const containerRef = useRef<HTMLDivElement>(null);
-  const interactionCleanupRef = useRef<(() => void) | null>(null);
+  const interactionCleanupRef = useRef<((updateState: boolean) => void) | null>(null);
   const wheelFrameRef = useRef<number | null>(null);
   const pendingWheelRef = useRef({ deltaY: 0, clientX: 0, clientY: 0 });
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
@@ -1253,13 +1259,13 @@ export function Preview({ shortcutScope = 'window' }: PreviewProps = {}) {
     if (wheelFrameRef.current !== null) window.cancelAnimationFrame(wheelFrameRef.current);
   }, []);
 
-  const cancelActiveInteraction = useCallback(() => {
+  const cancelActiveInteraction = useCallback((updateState = true) => {
     const cleanup = interactionCleanupRef.current;
     interactionCleanupRef.current = null;
-    cleanup?.();
+    cleanup?.(updateState);
   }, []);
 
-  useEffect(() => cancelActiveInteraction, [cancelActiveInteraction]);
+  useEffect(() => () => cancelActiveInteraction(false), [cancelActiveInteraction]);
   const fastViewport = useMemo(() => {
     const startedAt = nowMs();
     const viewport = buildFastViewport(parsedNodes, resolvedPoints, resolvedViewport?.viewBox);
@@ -2044,6 +2050,7 @@ export function Preview({ shortcutScope = 'window' }: PreviewProps = {}) {
     if (isPanningRef.current) return;
 
     cancelActiveInteraction();
+    beginStoicheiaFrameInteraction('pan');
     isPanningRef.current = true;
     setIsPanning(true);
     lastMouseRef.current = { x: clientX, y: clientY };
@@ -2061,6 +2068,7 @@ export function Preview({ shortcutScope = 'window' }: PreviewProps = {}) {
       const dy = pendingDy;
       pendingDx = 0;
       pendingDy = 0;
+      recordStoicheiaInteractionFrame('pan');
       setPan(currentPan => ({ x: currentPan.x + dx, y: currentPan.y + dy }));
     };
 
@@ -2088,10 +2096,11 @@ export function Preview({ shortcutScope = 'window' }: PreviewProps = {}) {
       if (interactionCleanupRef.current === cancelPan) {
         interactionCleanupRef.current = null;
       }
+      endStoicheiaFrameInteraction('pan');
     };
     const onPanEnd = () => finishPan(true, true);
     const onPanCancel = () => finishPan(false, true);
-    const cancelPan = () => finishPan(false, false);
+    const cancelPan = (updateState: boolean) => finishPan(false, updateState);
 
     window.addEventListener('mousemove', onPanMove);
     window.addEventListener('mouseup', onPanEnd);
@@ -2123,9 +2132,17 @@ export function Preview({ shortcutScope = 'window' }: PreviewProps = {}) {
       }
 
       cancelActiveInteraction();
+      beginStoicheiaFrameInteraction('drag');
       const previousCursor = document.body.style.cursor;
       document.body.style.cursor = 'move';
 
+      let dragFrame: number | null = null;
+      let pendingMove: {
+        clientX: number;
+        clientY: number;
+        altKey: boolean;
+        shiftKey: boolean;
+      } | null = null;
       let pendingCoords: { x: number; y: number } | null = null;
       let finished = false;
       const commitPointDrag = () => {
@@ -2135,9 +2152,15 @@ export function Preview({ shortcutScope = 'window' }: PreviewProps = {}) {
         useEditorStore.getState().updatePointCoords(nodeName, x, y);
       };
 
-      const onMouseMove = (moveEvent: MouseEvent) => {
-        const pointerCoords = getPointerWorldCoords(moveEvent.clientX, moveEvent.clientY, overlaySvg, {
-          altKey: moveEvent.altKey,
+      const flushPointDragPreview = () => {
+        dragFrame = null;
+        const move = pendingMove;
+        pendingMove = null;
+        if (!move) return;
+        recordStoicheiaInteractionFrame('drag');
+
+        const pointerCoords = getPointerWorldCoords(move.clientX, move.clientY, overlaySvg, {
+          altKey: move.altKey,
           excludePointName: nodeName,
         });
         if (!pointerCoords) return;
@@ -2145,7 +2168,7 @@ export function Preview({ shortcutScope = 'window' }: PreviewProps = {}) {
         let newX = pointerCoords.x;
         let newY = pointerCoords.y;
 
-        if (moveEvent.shiftKey) {
+        if (move.shiftKey) {
           const dx = newX - originalPoint.x;
           const dy = newY - originalPoint.y;
           if (Math.abs(dx) >= Math.abs(dy)) {
@@ -2161,11 +2184,29 @@ export function Preview({ shortcutScope = 'window' }: PreviewProps = {}) {
         pendingCoords = { x: newX, y: newY };
       };
 
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        pendingMove = {
+          clientX: moveEvent.clientX,
+          clientY: moveEvent.clientY,
+          altKey: moveEvent.altKey,
+          shiftKey: moveEvent.shiftKey,
+        };
+        if (dragFrame === null) {
+          dragFrame = window.requestAnimationFrame(flushPointDragPreview);
+        }
+      };
+
       const finishPointDrag = (commit: boolean, updateState: boolean) => {
         if (finished) return;
         finished = true;
+        if (dragFrame !== null) window.cancelAnimationFrame(dragFrame);
+        dragFrame = null;
         if (commit) {
+          flushPointDragPreview();
           commitPointDrag();
+        } else {
+          pendingMove = null;
+          pendingCoords = null;
         }
         if (updateState) {
           setDragPreviewPoint(null);
@@ -2177,10 +2218,11 @@ export function Preview({ shortcutScope = 'window' }: PreviewProps = {}) {
         if (interactionCleanupRef.current === cancelPointDrag) {
           interactionCleanupRef.current = null;
         }
+        endStoicheiaFrameInteraction('drag');
       };
       const onMouseUp = () => finishPointDrag(true, true);
       const onMouseCancel = () => finishPointDrag(false, true);
-      const cancelPointDrag = () => finishPointDrag(false, false);
+      const cancelPointDrag = (updateState: boolean) => finishPointDrag(false, updateState);
 
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
@@ -2345,6 +2387,7 @@ export function Preview({ shortcutScope = 'window' }: PreviewProps = {}) {
 
     wheelFrameRef.current = window.requestAnimationFrame(() => {
       wheelFrameRef.current = null;
+      recordStoicheiaInteractionFrame('zoom', 220);
       const pending = pendingWheelRef.current;
       pendingWheelRef.current = { deltaY: 0, clientX: pending.clientX, clientY: pending.clientY };
       const state = useEditorStore.getState();
@@ -2376,6 +2419,13 @@ export function Preview({ shortcutScope = 'window' }: PreviewProps = {}) {
         : 'cursor-crosshair';
   const hasPreview = previewMode === 'instant' ? parsedNodes.length > 0 : Boolean(svgOutput);
   const sceneReady = Boolean(viewBox && transform);
+
+  useLayoutEffect(() => {
+    // The canvas surface itself is the first usable Graphics Studio paint.
+    // Waiting for a non-empty scene included user think/drawing time in this
+    // metric and made the first-open measurement meaningless.
+    markStoicheiaFirstCanvasCommit();
+  }, []);
 
   return (
     <div

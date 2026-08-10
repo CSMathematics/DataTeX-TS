@@ -4,7 +4,7 @@
 //! exercises the production executable discovery and process-spawn path on the
 //! host OS without requiring a complete TeX distribution on CI runners.
 
-use std::{env, fs, path::Path};
+use std::{env, fs, path::Path, thread, time::Duration};
 
 fn increment_counter(name: &str) -> Result<(), String> {
     let Some(directory) = env::var_os("STOICHEIA_SMOKE_COUNTER_DIR") else {
@@ -49,6 +49,11 @@ fn main() -> Result<(), String> {
         .map_err(|error| error.to_string())?;
     } else {
         increment_counter("latex-renders")?;
+        if let Some(delay_ms) = env::var_os("STOICHEIA_SMOKE_LATEX_DELAY_MS")
+            .and_then(|value| value.to_string_lossy().parse::<u64>().ok())
+        {
+            thread::sleep(Duration::from_millis(delay_ms));
+        }
         fs::write("document.dvi", b"DataTeX native exact-preview smoke")
             .map_err(|error| error.to_string())?;
     }
